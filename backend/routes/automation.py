@@ -203,7 +203,7 @@ def get_automation_test_results(id):
             result_data = {
                 'id': result.id,
                 'automation_test_id': result.automation_test_id,
-                'result': result.result,
+                'result': result.result,  # 실제 존재하는 컬럼
                 'execution_time': result.execution_time,
                 'environment': result.environment,
                 'executed_by': result.executed_by,
@@ -231,7 +231,7 @@ def get_automation_test_result_detail(id, result_id):
         result_data = {
             'id': result.id,
             'automation_test_id': result.automation_test_id,
-            'result': result.result,
+            'result': result.result,  # 실제 존재하는 컬럼
             'execution_time': result.execution_time,
             'environment': result.environment,
             'executed_by': result.executed_by,

@@ -650,9 +650,9 @@ def update_testcase_status(testcase_id):
             test_result = TestResult(test_case_id=testcase_id)
             db.session.add(test_result)
         
-        test_result.status = new_status
+        test_result.result = new_status  # status -> result로 변경
         test_result.execution_time = data.get('execution_time', 0)
-        test_result.result_data = data.get('result_data', '')
+        test_result.notes = data.get('result_data', '')  # result_data -> notes로 변경
         db.session.commit()
         
         return jsonify({'status': 'success', 'message': 'Test case status updated successfully'}), 200
@@ -718,9 +718,9 @@ def execute_testcase(testcase_id):
         # 테스트 실행 로직 (실제 구현은 테스트 실행 엔진 필요)
         test_result = TestResult(
             test_case_id=testcase_id,
-            status='running',
+            result='running',  # status -> result로 변경
             execution_time=0,
-            result_data='Test execution started'
+            notes='Test execution started'  # result_data -> notes로 변경
         )
         db.session.add(test_result)
         db.session.commit()
@@ -743,13 +743,13 @@ def get_test_data():
         # 테스트 데이터 반환 - status 컬럼이 없을 경우를 대비
         total_testcases = TestCase.query.count()
         
-        # TestResult 테이블의 status 컬럼 존재 여부 확인
+        # TestResult 테이블의 result 컬럼 사용
         try:
-            running_tests = TestResult.query.filter_by(status='running').count()
-            completed_tests = TestResult.query.filter_by(status='completed').count()
-            failed_tests = TestResult.query.filter_by(status='failed').count()
+            running_tests = TestResult.query.filter_by(result='running').count()
+            completed_tests = TestResult.query.filter_by(result='completed').count()
+            failed_tests = TestResult.query.filter_by(result='failed').count()
         except Exception:
-            # status 컬럼이 없으면 기본값 사용
+            # result 컬럼이 없으면 기본값 사용
             running_tests = 0
             completed_tests = 0
             failed_tests = 0
@@ -785,9 +785,9 @@ def get_test_executions():
                 execution_data = {
                     'id': exe.id,
                     'test_case_id': exe.test_case_id,
-                    'status': getattr(exe, 'status', 'unknown'),  # status 컬럼이 없으면 'unknown'
+                    'status': getattr(exe, 'result', 'unknown'),  # result 컬럼 사용
                     'execution_time': exe.execution_time,
-                    'result_data': exe.result_data,
+                    'notes': exe.notes,  # result_data -> notes로 변경
                     'created_at': exe.created_at.isoformat()
                 }
                 data.append(execution_data)
@@ -810,9 +810,9 @@ def get_test_results(testcase_id):
         data = [{
             'id': result.id,
             'test_case_id': result.test_case_id,
-            'status': result.status,
+            'status': result.result,  # status -> result로 변경
             'execution_time': result.execution_time,
-            'result_data': result.result_data,
+            'notes': result.notes,  # result_data -> notes로 변경
             'created_at': result.created_at.isoformat()
         } for result in results]
         return jsonify(data), 200
