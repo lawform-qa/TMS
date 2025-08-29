@@ -221,9 +221,12 @@ const TestCaseAPP = () => {
   const [targetFolderId, setTargetFolderId] = useState('');
   const [allFolders, setAllFolders] = useState([]);
   
-  // 아코디언 관련 상태
+  // 상세보기 모달 관련 상태
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedTestCase, setSelectedTestCase] = useState(null);
+  
+  // 아코디언 관련 상태 (폴더만 유지)
   const [expandedFolders, setExpandedFolders] = useState(new Set());
-  const [expandedTestCases, setExpandedTestCases] = useState(new Set());
   
   // 검색 관련 상태
   const [searchTerm, setSearchTerm] = useState('');
@@ -483,18 +486,7 @@ const TestCaseAPP = () => {
     });
   };
 
-  // 테스트 케이스 상세 토글 함수
-  const toggleTestCaseDetails = (testCaseId) => {
-    setExpandedTestCases(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(testCaseId)) {
-        newSet.delete(testCaseId);
-      } else {
-        newSet.add(testCaseId);
-      }
-      return newSet;
-    });
-  };
+
 
   // 폴더 트리에서 특정 ID의 폴더 정보 찾기
   const findFolderInTree = (nodes, folderId) => {
@@ -1031,193 +1023,135 @@ const TestCaseAPP = () => {
             </div>
           </div>
 
-          <div className="testcase-list">
-            {filteredTestCases.map(testCase => (
-              <div key={testCase.id} className="testcase-list-item">
-                <div className="testcase-header">
-                  <div className="testcase-checkbox">
+          {/* 테이블 형태로 변경 */}
+          <div className="testcase-table-container">
+            <table className="testcase-table">
+              <thead>
+                <tr>
+                  <th className="checkbox-column">
                     <input 
                       type="checkbox"
-                      checked={selectedTestCases.includes(testCase.id)}
-                      onChange={() => handleSelectTestCase(testCase.id)}
+                      checked={selectedTestCases.length === filteredTestCases.length && filteredTestCases.length > 0}
+                      onChange={handleSelectAll}
                     />
-                  </div>
-                  <div className="testcase-info">
-                    <h4>
-                      {testCase.main_category && testCase.sub_category && testCase.detail_category 
-                        ? `${testCase.main_category} > ${testCase.sub_category} > ${testCase.detail_category}`
-                        : testCase.expected_result || '제목 없음'
-                      }
-                    </h4>
-                    <div className="testcase-meta">
-                      <span className="environment-badge">{testCase.environment || 'dev'}</span>
-                      {testCase.automation_code_path && (
-                        <span className="automation-badge">🤖 자동화</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="status-section">
-                    <span className={`status-badge ${(testCase.result_status || 'N/A').toLowerCase().replace('/', '-')}`}>
-                      {testCase.result_status || 'N/A'}
-                    </span>
-                    <select
-                      className="status-select"
-                      value={testCase.result_status}
-                      onChange={(e) => handleStatusChange(testCase.id, e.target.value)}
-                    >
-                      <option value="N/T">N/T</option>
-                      <option value="Pass">Pass</option>
-                      <option value="Fail">Fail</option>
-                      <option value="N/A">N/A</option>
-                      <option value="Block">Block</option>
-                    </select>
-                  </div>
-                  {/* 자동화 실행 버튼 */}
-                  {testCase.automation_code_path && (
-                    <button 
-                      className="btn btn-automation"
-                      onClick={() => executeAutomationCode(testCase.id)}
-                      title="자동화 실행"
-                    >
-                      🤖
-                    </button>
-                  )}
-                  {/* 아코디언 버튼 */}
-                  <button 
-                    className="btn btn-details btn-icon"
-                    onClick={() => toggleTestCaseDetails(testCase.id)}
-                    title="상세보기"
-                  >
-                    {expandedTestCases.has(testCase.id) ? '📋' : '📄'}
-                  </button>
-                  {user && (user.role === 'admin' || user.role === 'user') && (
-                    <button 
-                      className="btn btn-edit-icon btn-icon"
-                      onClick={() => {
-                        setEditingTestCase(testCase);
-                        setShowEditModal(true);
-                      }}
-                      title="수정"
-                    >
-                      ✏️
-                    </button>
-                  )}
-                  {user && user.role === 'admin' && (
-                    <button 
-                      className="btn btn-delete-icon btn-icon"
-                      onClick={() => handleDeleteTestCase(testCase.id)}
-                      title="삭제"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-                {expandedTestCases.has(testCase.id) && (
-                  <div className="testcase-details expanded">
-                    <div className="testcase-info-table">
-                      <h5>📋 테스트 케이스 상세 정보</h5>
-                      <table className="info-table">
-                        <tbody>
-                          <tr>
-                            <th>대분류</th>
-                            <td>{testCase.main_category || '없음'}</td>
-                            <th>중분류</th>
-                            <td>{testCase.sub_category || '없음'}</td>
-                          </tr>
-                          <tr>
-                            <th>소분류</th>
-                            <td>{testCase.detail_category || '없음'}</td>
-                            <th>환경</th>
-                            <td>
-                              <span className={`environment-badge ${testCase.environment || 'dev'}`}>
-                                {testCase.environment || 'dev'}
-                              </span>
-                            </td>
-                          </tr>
-                          <tr>
-                            <th>테스트 타입</th>
-                            <td>{testCase.test_type || '없음'}</td>
-                            <th>자동화</th>
-                            <td>
-                              {testCase.automation_code_path ? (
-                                <span className="automation-badge">🤖 자동화</span>
-                              ) : (
-                                <span className="manual-badge">📝 수동</span>
-                              )}
-                            </td>
-                          </tr>
-                          <tr>
-                            <th>작성자</th>
-                            <td>
-                              <span className="creator-badge">
-                                👤 {testCase.creator_name || '없음'}
-                              </span>
-                            </td>
-                            <th>담당자</th>
-                            <td>
-                              <span className="assignee-badge">
-                                👤 {testCase.assignee_name || '없음'}
-                              </span>
-                            </td>
-                          </tr>
-                          <tr>
-                            <th>스크립트 경로</th>
-                            <td colSpan="3" className="script-path">
-                              {testCase.script_path || '없음'}
-                            </td>
-                          </tr>
-                          <tr>
-                            <th>사전조건</th>
-                            <td colSpan="3" className="pre-condition">
-                              {testCase.pre_condition || '없음'}
-                            </td>
-                          </tr>
-                          <tr>
-                            <th>기대결과</th>
-                            <td colSpan="3" className="expected-result">
-                              {testCase.expected_result || '없음'}
-                            </td>
-                          </tr>
-                          <tr>
-                            <th>비고</th>
-                            <td colSpan="3" className="remark">
-                              {testCase.remark || '없음'}
-                            </td>
-                          </tr>
+                  </th>
+                  <th className="no-column">No</th>
+                  <th className="summary-column">요약</th>
+                  <th className="status-column">상태</th>
+                  <th className="assignee-column">담당자</th>
+                  <th className="creator-column">작성자</th>
+                  <th className="actions-column">동작</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTestCases.map((testCase, index) => (
+                  <tr key={testCase.id} className="testcase-table-row">
+                    <td className="checkbox-column">
+                      <input 
+                        type="checkbox"
+                        checked={selectedTestCases.includes(testCase.id)}
+                        onChange={() => handleSelectTestCase(testCase.id)}
+                      />
+                    </td>
+                    <td className="no-column">{index + 1}</td>
+                    <td className="summary-column">
+                      <div className="testcase-summary">
+                        <div className="testcase-title">
+                          {testCase.main_category && testCase.sub_category && testCase.detail_category 
+                            ? `${testCase.main_category} > ${testCase.sub_category} > ${testCase.detail_category}`
+                            : testCase.expected_result || '제목 없음'
+                          }
+                        </div>
+                        <div className="testcase-meta">
+                          <span className="environment-badge">{testCase.environment || 'dev'}</span>
                           {testCase.automation_code_path && (
-                            <tr>
-                              <th>자동화 코드</th>
-                              <td colSpan="3" className="automation-code">
-                                <code>{testCase.automation_code_path}</code>
-                              </td>
-                            </tr>
+                            <span className="automation-badge">🤖 자동화</span>
                           )}
-                          <tr>
-                            <th>생성일</th>
-                            <td>{testCase.created_at ? formatUTCToKST(testCase.created_at) : '없음'}</td>
-                            <th>수정일</th>
-                            <td>{testCase.updated_at ? formatUTCToKST(testCase.updated_at) : '없음'}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    
-                    {/* 스크린샷 영역 */}
-                    <div className="testcase-screenshots">
-                      <h5>📸 실행 결과 스크린샷</h5>
-                      <TestCaseScreenshots testCaseId={testCase.id} />
-                    </div>
-                    
-                    {/* 자동화 실행 결과 */}
-                    <div className="testcase-execution-results">
-                      <h5>🤖 자동화 실행 결과</h5>
-                      <TestCaseExecutionResults testCaseId={testCase.id} />
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="status-column">
+                      <div className="status-section">
+                        <span className={`status-badge ${(testCase.result_status || 'N/A').toLowerCase().replace('/', '-')}`}>
+                          {testCase.result_status || 'N/A'}
+                        </span>
+                        <select
+                          className="status-select"
+                          value={testCase.result_status}
+                          onChange={(e) => handleStatusChange(testCase.id, e.target.value)}
+                        >
+                          <option value="N/T">N/T</option>
+                          <option value="Pass">Pass</option>
+                          <option value="Fail">Fail</option>
+                          <option value="N/A">N/A</option>
+                          <option value="Block">Block</option>
+                        </select>
+                      </div>
+                    </td>
+                    <td className="assignee-column">
+                      <span className="assignee-badge">
+                        👤 {testCase.assignee_name || '없음'}
+                      </span>
+                    </td>
+                    <td className="creator-column">
+                      <span className="creator-badge">
+                        👤 {testCase.creator_name || '없음'}
+                      </span>
+                    </td>
+                    <td className="actions-column">
+                      <div className="action-buttons">
+                        {/* 자동화 실행 버튼 */}
+                        {testCase.automation_code_path && (
+                          <button 
+                            className="btn btn-automation btn-icon"
+                            onClick={() => executeAutomationCode(testCase.id)}
+                            title="자동화 실행"
+                          >
+                            🤖
+                          </button>
+                        )}
+                        {/* 상세보기 버튼 */}
+                        <button 
+                          className="btn btn-details btn-icon"
+                          onClick={() => {
+                            setSelectedTestCase(testCase);
+                            setShowDetailModal(true);
+                          }}
+                          title="상세보기"
+                        >
+                          📄
+                        </button>
+                        {/* 수정 버튼 */}
+                        {user && (user.role === 'admin' || user.role === 'user') && (
+                          <button 
+                            className="btn btn-edit-icon btn-icon"
+                            onClick={() => {
+                              setEditingTestCase(testCase);
+                              setShowEditModal(true);
+                            }}
+                            title="수정"
+                          >
+                            ✏️
+                          </button>
+                        )}
+                        {/* 삭제 버튼 */}
+                        {user && user.role === 'admin' && (
+                          <button 
+                            className="btn btn-delete-icon btn-icon"
+                            onClick={() => handleDeleteTestCase(testCase.id)}
+                            title="삭제"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                  
+                ))}
+              </tbody>
+            </table>
+ㅂ          </div>
         </div>
       </div>
 
@@ -1772,6 +1706,175 @@ const TestCaseAPP = () => {
                 }}
               >
                 취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 상세보기 모달 */}
+      {showDetailModal && selectedTestCase && (
+        <div 
+          className="modal-overlay fullscreen-modal"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 2000,
+            padding: '20px',
+            width: '100vw',
+            height: '100vh'
+          }}
+        >
+          <div 
+            className="modal fullscreen-modal-content"
+            style={{
+              width: '100%',
+              maxWidth: '900px',
+              maxHeight: '90vh',
+              background: 'white',
+              borderRadius: '12px',
+              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              minWidth: 'auto',
+              padding: 0,
+              margin: 0,
+              position: 'relative',
+              top: 'auto',
+              left: 'auto',
+              right: 'auto',
+              bottom: 'auto'
+            }}
+          >
+            <div className="modal-header">
+              <h3>📋 테스트 케이스 상세 정보</h3>
+              <button 
+                className="modal-close"
+                onClick={() => {
+                  setShowDetailModal(false);
+                  setSelectedTestCase(null);
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body" style={{ padding: '24px', overflowY: 'auto' }}>
+              <div className="testcase-info-table">
+                <table className="info-table">
+                  <tbody>
+                    <tr>
+                      <th>대분류</th>
+                      <td>{selectedTestCase.main_category || '없음'}</td>
+                      <th>중분류</th>
+                      <td>{selectedTestCase.sub_category || '없음'}</td>
+                    </tr>
+                    <tr>
+                      <th>소분류</th>
+                      <td>{selectedTestCase.detail_category || '없음'}</td>
+                      <th>환경</th>
+                      <td>
+                        <span className={`environment-badge ${selectedTestCase.environment || 'dev'}`}>
+                          {selectedTestCase.environment || 'dev'}
+                        </span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>테스트 타입</th>
+                      <td>{selectedTestCase.test_type || '없음'}</td>
+                      <th>자동화</th>
+                      <td>
+                        {selectedTestCase.automation_code_path ? (
+                          <span className="automation-badge">🤖 자동화</span>
+                        ) : (
+                          <span className="manual-badge">📝 수동</span>
+                        )}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>작성자</th>
+                      <td>
+                        <span className="creator-badge">
+                          👤 {selectedTestCase.creator_name || '없음'}
+                        </span>
+                      </td>
+                      <th>담당자</th>
+                      <td>
+                        <span className="assignee-badge">
+                          👤 {selectedTestCase.assignee_name || '없음'}
+                        </span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>스크립트 경로</th>
+                      <td colSpan="3" className="script-path">
+                        {selectedTestCase.script_path || '없음'}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>사전조건</th>
+                      <td colSpan="3" className="pre-condition">
+                        {selectedTestCase.pre_condition || '없음'}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>기대결과</th>
+                      <td colSpan="3" className="expected-result">
+                        {selectedTestCase.expected_result || '없음'}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>비고</th>
+                      <td colSpan="3" className="remark">
+                        {selectedTestCase.remark || '없음'}
+                      </td>
+                    </tr>
+                    {selectedTestCase.automation_code_path && (
+                      <tr>
+                        <th>자동화 코드</th>
+                        <td colSpan="3" className="automation-code">
+                          <code>{selectedTestCase.automation_code_path}</code>
+                        </td>
+                      </tr>
+                    )}
+                    <tr>
+                      <th>생성일</th>
+                      <td>{selectedTestCase.created_at ? formatUTCToKST(selectedTestCase.created_at) : '없음'}</td>
+                      <th>수정일</th>
+                      <td>{selectedTestCase.updated_at ? formatUTCToKST(selectedTestCase.updated_at) : '없음'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* 스크린샷 영역 */}
+              <div className="testcase-screenshots" style={{ marginTop: '24px' }}>
+                <h5>📸 실행 결과 스크린샷</h5>
+                <TestCaseScreenshots testCaseId={selectedTestCase.id} />
+              </div>
+              
+              {/* 자동화 실행 결과 */}
+              <div className="testcase-execution-results" style={{ marginTop: '24px' }}>
+                <h5>🤖 자동화 실행 결과</h5>
+                <TestCaseExecutionResults testCaseId={selectedTestCase.id} />
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button 
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowDetailModal(false);
+                  setSelectedTestCase(null);
+                }}
+              >
+                닫기
               </button>
             </div>
           </div>
