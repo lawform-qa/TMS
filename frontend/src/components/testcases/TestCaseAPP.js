@@ -235,11 +235,16 @@ const TestCaseAPP = () => {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [creatorFilter, setCreatorFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
+  
+  // 테이블 정렬 상태
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
+  
+
 
   useEffect(() => {
     fetchData();
+    fetchUsers(); // 사용자 목록도 함께 가져오기
   }, []);
 
   const fetchData = async () => {
@@ -255,19 +260,34 @@ const TestCaseAPP = () => {
       setTestCases(testCasesRes.data);
       setFolderTree(treeRes.data);
       setAllFolders(foldersRes.data);
-      
-      // 사용자 목록도 가져오기
-      try {
-        const usersRes = await axios.get(`${config.apiUrl}/users/list`);
-        setUsers(usersRes.data);
-      } catch (userErr) {
-        setUsers([]);
-      }
     } catch (err) {
       setError('데이터를 불러오는 중 오류가 발생했습니다.');
       // 오류는 조용히 처리
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 사용자 목록을 별도로 가져오는 함수
+  const fetchUsers = async () => {
+    try {
+      console.log('🔍 사용자 목록 가져오기 시작...');
+      console.log('🌐 API URL:', `${config.apiUrl}/users/list`);
+      
+      const response = await axios.get(`${config.apiUrl}/users/list`);
+      console.log('✅ 사용자 목록 로드 성공:', response.data);
+      console.log('📊 사용자 수:', response.data.length);
+      console.log('📋 사용자 목록 상세:', response.data);
+      setUsers(response.data);
+    } catch (error) {
+      console.error('❌ 사용자 목록 로드 실패:', error);
+      console.error('🔍 에러 상세:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+        url: `${config.apiUrl}/users/list`
+      });
+      setUsers([]);
     }
   };
 
@@ -390,6 +410,65 @@ const TestCaseAPP = () => {
     } catch (err) {
       const errorMessage = err.response?.data?.error || err.message || '알 수 없는 오류가 발생했습니다.';
       alert('테스트 케이스 상태 변경 중 오류가 발생했습니다: ' + errorMessage);
+    }
+  };
+
+  // 담당자 변경 함수
+  const handleAssigneeChange = async (testCaseId, newAssigneeId) => {
+    try {
+      console.log('담당자 변경 시도:', { testCaseId, newAssigneeId, users });
+      
+      // 빈 값이면 담당자 제거
+      if (!newAssigneeId || newAssigneeId === '') {
+        const response = await axios.put(`${config.apiUrl}/testcases/${testCaseId}`, {
+          assignee_id: null
+        });
+        
+        if (response.status === 200) {
+          // 로컬 상태 업데이트 - 담당자 제거
+          setTestCases(prev => prev.map(tc => {
+            if (tc.id === testCaseId) {
+              return { 
+                ...tc, 
+                assignee_id: null,
+                assignee_name: null
+              };
+            }
+            return tc;
+          }));
+          
+          // 성공 메시지
+          alert('담당자가 제거되었습니다.');
+        }
+        return;
+      }
+
+      // 새로운 담당자 설정
+      const response = await axios.put(`${config.apiUrl}/testcases/${testCaseId}`, {
+        assignee_id: newAssigneeId
+      });
+      
+      if (response.status === 200) {
+        // 로컬 상태 업데이트
+        setTestCases(prev => prev.map(tc => {
+          if (tc.id === testCaseId) {
+            const selectedUser = users.find(u => u.id === parseInt(newAssigneeId));
+            console.log('선택된 사용자:', selectedUser);
+            return { 
+              ...tc, 
+              assignee_id: parseInt(newAssigneeId),
+              assignee_name: selectedUser ? (selectedUser.username || selectedUser.name) : '없음'
+            };
+          }
+          return tc;
+        }));
+        
+        // 성공 메시지
+        alert('담당자가 성공적으로 변경되었습니다.');
+      }
+    } catch (err) {
+      const errorMessage = err.response?.data?.error || err.message || '알 수 없는 오류가 발생했습니다.';
+      alert('담당자 변경 중 오류가 발생했습니다: ' + errorMessage);
     }
   };
 
@@ -606,8 +685,16 @@ const TestCaseAPP = () => {
     setCategoryFilter('all');
     setCreatorFilter('all');
     setAssigneeFilter('all');
-    setSortBy('name');
-    setSortOrder('asc');
+  };
+
+  // 테이블 정렬 함수
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
   };
 
   // 고급 검색 기능
@@ -689,8 +776,20 @@ const TestCaseAPP = () => {
     filtered.sort((a, b) => {
       let comparison = 0;
       switch (sortBy) {
+        case 'id':
+          comparison = (a.id || 0) - (b.id || 0);
+          break;
         case 'name':
           comparison = (a.main_category || '').localeCompare(b.main_category || '');
+          break;
+        case 'status':
+          comparison = (a.result_status || '').localeCompare(b.result_status || '');
+          break;
+        case 'assignee':
+          comparison = (a.assignee_name || '').localeCompare(b.assignee_name || '');
+          break;
+        case 'creator':
+          comparison = (a.creator_name || '').localeCompare(b.creator_name || '');
           break;
         case 'created_at':
           comparison = new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
@@ -700,9 +799,6 @@ const TestCaseAPP = () => {
           break;
         case 'environment':
           comparison = (a.environment || '').localeCompare(b.environment || '');
-          break;
-        case 'status':
-          comparison = (a.result_status || '').localeCompare(b.result_status || '');
           break;
       }
       return sortOrder === 'asc' ? comparison : -comparison;
@@ -925,28 +1021,7 @@ const TestCaseAPP = () => {
                 </select>
               </div>
 
-              <div className="filter-group">
-                <label>정렬:</label>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="filter-select"
-                >
-                  <option value="name">이름순</option>
-                  <option value="created_at">생성일순</option>
-                  <option value="updated_at">수정일순</option>
-                  <option value="environment">환경순</option>
-                  <option value="status">상태순</option>
-                </select>
-              </div>
 
-              <button
-                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                className="btn btn-sort"
-                title={sortOrder === 'asc' ? '오름차순' : '내림차순'}
-              >
-                {sortOrder === 'asc' ? '↑' : '↓'}
-              </button>
 
               <button
                 onClick={clearAllFilters}
@@ -1035,11 +1110,41 @@ const TestCaseAPP = () => {
                       onChange={handleSelectAll}
                     />
                   </th>
-                  <th className="no-column">No</th>
-                  <th className="summary-column">요약</th>
-                  <th className="status-column">상태</th>
-                  <th className="assignee-column">담당자</th>
-                  <th className="creator-column">작성자</th>
+                  <th 
+                    className="no-column sortable" 
+                    onClick={() => handleSort('id')}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    No {sortBy === 'id' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className="summary-column sortable" 
+                    onClick={() => handleSort('name')}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    요약 {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className="status-column sortable" 
+                    onClick={() => handleSort('status')}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    상태 {sortBy === 'status' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className="assignee-column sortable" 
+                    onClick={() => handleSort('assignee')}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    담당자 {sortBy === 'assignee' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className="creator-column sortable" 
+                    onClick={() => handleSort('creator')}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    작성자 {sortBy === 'creator' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
                   <th className="actions-column">동작</th>
                 </tr>
               </thead>
@@ -1089,9 +1194,31 @@ const TestCaseAPP = () => {
                       </div>
                     </td>
                     <td className="assignee-column">
-                      <span className="assignee-badge">
-                        👤 {testCase.assignee_name || '없음'}
-                      </span>
+                      <div className="assignee-section">
+                        <span className="assignee-badge">
+                          👤 {testCase.assignee_name || '없음'}
+                        </span>
+                        <select
+                          className="assignee-select"
+                          value={testCase.assignee_id || ''}
+                          onChange={(e) => handleAssigneeChange(testCase.id, e.target.value)}
+                        >
+                          <option value="">담당자 변경</option>
+                          {users && users.length > 0 ? (
+                            users.map(user => (
+                              <option key={user.id} value={user.id}>
+                                {user.username || user.name || 'Unknown'}
+                              </option>
+                            ))
+                          ) : (
+                            <option value="" disabled>사용자 목록 로딩 중... ({users ? users.length : 'undefined'})</option>
+                          )}
+                        </select>
+                        {/* 디버깅용 정보 */}
+                        <small style={{fontSize: '10px', color: '#999'}}>
+                          사용자 수: {users ? users.length : 'undefined'}
+                        </small>
+                      </div>
                     </td>
                     <td className="creator-column">
                       <span className="creator-badge">
