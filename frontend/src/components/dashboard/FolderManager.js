@@ -35,7 +35,7 @@ const FolderManager = () => {
     try {
       setLoading(true);
       const response = await axios.get('/folders');
-      setFolders(response.data);
+      setFolders(response.data.items || response.data);
       setError(null);
     } catch (err) {
       console.error('폴더 조회 오류:', err);
@@ -58,7 +58,9 @@ const FolderManager = () => {
     e.preventDefault();
     try {
       const response = await axios.post('/folders', formData);
-      console.log('폴더 생성 완료:', response.data);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('폴더 생성 완료:', response.data);
+      }
       setShowCreateForm(false);
       setFormData({
         folder_name: '',
@@ -78,7 +80,9 @@ const FolderManager = () => {
   const handleUpdateFolder = async (id) => {
     try {
       await axios.put(`/folders/${id}`, editFormData);
-      console.log('폴더 수정 완료');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('폴더 수정 완료');
+      }
       setEditingFolder(null);
       setEditFormData({
         folder_name: '',
@@ -102,7 +106,9 @@ const FolderManager = () => {
     
     try {
       await axios.delete(`/folders/${id}`);
-      console.log('폴더 삭제 완료');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('폴더 삭제 완료');
+      }
       fetchFolders();
       fetchFolderTree();
     } catch (err) {
