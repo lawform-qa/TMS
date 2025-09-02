@@ -221,6 +221,9 @@ const TestCaseAPP = () => {
   const [targetFolderId, setTargetFolderId] = useState('');
   const [allFolders, setAllFolders] = useState([]);
   
+  // 다중 삭제 관련 상태
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  
   // 상세보기 모달 관련 상태
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedTestCase, setSelectedTestCase] = useState(null);
@@ -549,6 +552,41 @@ const TestCaseAPP = () => {
       console.error('❌ 폴더 이동 실패:', err);
       const errorMessage = err.response?.data?.error || err.message || '알 수 없는 오류가 발생했습니다.';
       alert('폴더 이동 중 오류가 발생했습니다: ' + errorMessage);
+    }
+  };
+
+  const handleMultiDelete = async () => {
+    if (selectedTestCases.length === 0) {
+      alert('삭제할 테스트 케이스를 선택해주세요.');
+      return;
+    }
+
+    try {
+      console.log('🗑️ 다중 삭제 시도:', { selectedTestCases });
+      
+      // 다중 삭제 API 호출
+      const response = await axios.post(`${config.apiUrl}/testcases/bulk-delete`, {
+        testcase_ids: selectedTestCases
+      });
+
+      const { deleted_count, total_requested, failed_deletions, warning } = response.data;
+      
+      let message = `${deleted_count}개의 테스트 케이스가 성공적으로 삭제되었습니다.`;
+      if (warning) {
+        message += `\n\n${warning}`;
+      }
+      if (failed_deletions && failed_deletions.length > 0) {
+        message += `\n\n실패한 삭제:\n${failed_deletions.map(f => `- ID ${f.id}: ${f.error}`).join('\n')}`;
+      }
+      
+      alert(message);
+      setShowDeleteModal(false);
+      setSelectedTestCases([]);
+      fetchData(); // 데이터 새로고침
+    } catch (err) {
+      console.error('❌ 다중 삭제 실패:', err);
+      const errorMessage = err.response?.data?.error || err.message || '알 수 없는 오류가 발생했습니다.';
+      alert('다중 삭제 중 오류가 발생했습니다: ' + errorMessage);
     }
   };
 
@@ -913,12 +951,22 @@ const TestCaseAPP = () => {
             📥 엑셀 다운로드
           </button>
           {user && (user.role === 'admin' || user.role === 'user') && selectedTestCases.length > 0 && (
-            <button 
-              className="btn btn-execute"
-              onClick={() => setShowMoveModal(true)}
-            >
-              📁 폴더 이동 ({selectedTestCases.length})
-            </button>
+            <>
+              <button 
+                className="btn btn-execute"
+                onClick={() => setShowMoveModal(true)}
+              >
+                📁 폴더 이동 ({selectedTestCases.length})
+              </button>
+              {user.role === 'admin' && (
+                <button 
+                  className="btn btn-delete"
+                  onClick={() => setShowDeleteModal(true)}
+                >
+                  🗑️ 다중 삭제 ({selectedTestCases.length})
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -1028,7 +1076,7 @@ const TestCaseAPP = () => {
                 className="btn btn-clear-filters"
                 title="모든 필터 초기화"
               >
-                🗑️ 초기화
+                🗑️
               </button>
             </div>
           </div>
@@ -1070,14 +1118,6 @@ const TestCaseAPP = () => {
         <div className="testcase-list">
           <div className="testcase-list-header">
             <div className="header-checkbox">
-              <label className="select-all-checkbox">
-                <input 
-                  type="checkbox"
-                  checked={selectedTestCases.length === filteredTestCases.length && filteredTestCases.length > 0}
-                  onChange={handleSelectAll}
-                />
-                전체 선택
-              </label>
             </div>
             <h3>
               테스트 케이스 ({filteredTestCases.length})
@@ -1214,10 +1254,6 @@ const TestCaseAPP = () => {
                             <option value="" disabled>사용자 목록 로딩 중... ({users ? users.length : 'undefined'})</option>
                           )}
                         </select>
-                        {/* 디버깅용 정보 */}
-                        <small style={{fontSize: '10px', color: '#999'}}>
-                          사용자 수: {users ? users.length : 'undefined'}
-                        </small>
                       </div>
                     </td>
                     <td className="creator-column">
@@ -1278,7 +1314,7 @@ const TestCaseAPP = () => {
                 ))}
               </tbody>
             </table>
-ㅂ          </div>
+            </div>
         </div>
       </div>
 
@@ -1744,6 +1780,117 @@ const TestCaseAPP = () => {
                 onClick={() => {
                   setShowMoveModal(false);
                   setTargetFolderId('');
+                }}
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 다중 삭제 모달 */}
+      {showDeleteModal && (
+        <div 
+          className="modal-overlay fullscreen-modal"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 2000,
+            padding: '20px',
+            width: '100vw',
+            height: '100vh'
+          }}
+        >
+          <div 
+            className="modal fullscreen-modal-content"
+            style={{
+              width: '100%',
+              maxWidth: '600px',
+              maxHeight: '90vh',
+              background: 'white',
+              borderRadius: '12px',
+              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              minWidth: 'auto',
+              padding: 0,
+              margin: 0,
+              position: 'relative',
+              top: 'auto',
+              left: 'auto',
+              right: 'auto',
+              bottom: 'auto'
+            }}
+          >
+            <div className="modal-header">
+              <h3>🗑️ 다중 삭제 확인</h3>
+              <button 
+                className="modal-close"
+                onClick={() => setShowDeleteModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div style={{ textAlign: 'center', padding: '20px' }}>
+                <div style={{ fontSize: '48px', marginBottom: '20px' }}>⚠️</div>
+                <h4 style={{ color: '#d32f2f', marginBottom: '16px' }}>
+                  정말로 삭제하시겠습니까?
+                </h4>
+                <p style={{ fontSize: '16px', marginBottom: '20px' }}>
+                  선택된 <strong>{selectedTestCases.length}개</strong>의 테스트 케이스가 영구적으로 삭제됩니다.
+                </p>
+                <div style={{ 
+                  background: '#fff3cd', 
+                  border: '1px solid #ffeaa7', 
+                  borderRadius: '8px', 
+                  padding: '16px', 
+                  marginBottom: '20px' 
+                }}>
+                  <p style={{ margin: 0, color: '#856404' }}>
+                    <strong>주의:</strong> 이 작업은 되돌릴 수 없습니다. 삭제된 테스트 케이스와 관련된 모든 데이터가 함께 삭제됩니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button 
+                className="btn btn-delete"
+                onClick={handleMultiDelete}
+                style={{ 
+                  backgroundColor: '#d32f2f', 
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '6px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                🗑️ 삭제하기
+              </button>
+              <button 
+                className="btn btn-secondary"
+                onClick={() => setShowDeleteModal(false)}
+                style={{ 
+                  backgroundColor: '#6c757d', 
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '6px',
+                  fontSize: '16px',
+                  marginLeft: '12px',
+                  cursor: 'pointer'
                 }}
               >
                 취소

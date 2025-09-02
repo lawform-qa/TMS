@@ -431,7 +431,7 @@
 }
 
 .btn-clear-filters {
-  background: #6c757d;
+  background: #6c757d5a;
   color: white;
   border: none;
   padding: 8px 12px;
@@ -448,11 +448,13 @@
 
 /* 검색 결과 요약 */
 .search-summary {
+  background-color: #ffffff;
+  font-size: medium;
   margin-top: 15px;
   padding: 10px 0;
   border-top: 1px solid #e9ecef;
   font-size: 0.9em;
-  color: #6c757d;
+  color: #000000;
   text-align: center;
   line-height: 1.5;
 }
