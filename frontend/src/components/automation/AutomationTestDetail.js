@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import config from '../../config';
+import { formatUTCToKST, formatUnixTimestampToKST } from '../../utils/dateUtils';
 import './AutomationTestDetail.css';
 
 // 스크린샷 갤러리 컴포넌트
@@ -68,9 +69,9 @@ const ScreenshotGallery = ({ testId, testName }) => {
             />
             <div className="screenshot-info">
               <span className="screenshot-filename">{screenshot.filename}</span>
-              <span className="screenshot-date">
-                {new Date(screenshot.timestamp * 1000).toLocaleString()}
-              </span>
+                          <span className="screenshot-date">
+              {formatUnixTimestampToKST(screenshot.timestamp)}
+            </span>
             </div>
           </div>
         ))}
@@ -90,7 +91,7 @@ const ScreenshotGallery = ({ testId, testName }) => {
               <h3>{selectedScreenshot.filename}</h3>
               <p>경로: {selectedScreenshot.path}</p>
               <p>크기: {(selectedScreenshot.size / 1024).toFixed(1)} KB</p>
-              <p>생성일: {new Date(selectedScreenshot.timestamp * 1000).toLocaleString()}</p>
+              <p>생성일: {formatUnixTimestampToKST(selectedScreenshot.timestamp)}</p>
             </div>
           </div>
         </div>
@@ -103,6 +104,7 @@ const ScreenshotGallery = ({ testId, testName }) => {
 const AutomationTestResults = ({ testId }) => {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [expandedResults, setExpandedResults] = useState(new Set());
 
   const fetchResults = async () => {
     try {
@@ -122,6 +124,16 @@ const AutomationTestResults = ({ testId }) => {
     }
   }, [testId]);
 
+  const toggleResultDetails = (resultId) => {
+    const newExpanded = new Set(expandedResults);
+    if (newExpanded.has(resultId)) {
+      newExpanded.delete(resultId);
+    } else {
+      newExpanded.add(resultId);
+    }
+    setExpandedResults(newExpanded);
+  };
+
   if (loading) {
     return <div className="results-loading">실행 결과 로딩 중...</div>;
   }
@@ -132,192 +144,199 @@ const AutomationTestResults = ({ testId }) => {
 
   return (
     <div className="automation-results-container">
-      {results.map((result, index) => (
-        <div key={result.id} className={`result-item ${(result.status || 'N/A').toLowerCase()}`}>
-          <div className="result-header">
-            <span className={`result-status ${(result.status || 'N/A').toLowerCase()}`}>
-              {result.status || 'N/A'}
-            </span>
-            <span className="result-timestamp">
-              {new Date(result.execution_start).toLocaleString()}
-            </span>
-          </div>
-          {result.execution_duration && (
-            <div className="result-duration">
-              실행 시간: {result.execution_duration.toFixed(2)}초
-            </div>
-          )}
-          {result.output && (
-            <div className="result-output">
-              <strong>출력:</strong> {result.output}
-            </div>
-          )}
-          {result.error_message && (
-            <div className="result-error">
-              <strong>오류:</strong> {result.error_message}
-            </div>
-          )}
-          {result.screenshot_path && (
-            <div className="result-screenshot">
-              <img 
-                src={`${config.apiUrl}/screenshots/${result.screenshot_path}`}
-                alt="실행 결과 스크린샷"
-                className="result-screenshot-image"
-              />
-            </div>
-          )}
-          {result.notes && (
-            <div className="result-notes">
-              <strong>메모:</strong> {result.notes}
-            </div>
-          )}
-        </div>
-      ))}
+      <div className="results-table-container">
+        <table className="results-table">
+          <thead>
+            <tr>
+              <th>실행 시간</th>
+              <th>상태</th>
+              <th>실행 시간</th>
+              <th>환경</th>
+              <th>실행자</th>
+              <th>메모</th>
+              <th>상세</th>
+            </tr>
+          </thead>
+          <tbody>
+            {results.map((result, index) => (
+              <React.Fragment key={result.id}>
+                <tr className={`result-row ${(result.result || 'N/A').toLowerCase()}`}>
+                                  <td>
+                  {result.executed_at ? formatUTCToKST(result.executed_at) : 'N/A'}
+                </td>
+                  <td>
+                    <span className={`status-${(result.result || 'N/A').toLowerCase()}`}>
+                      {result.result || 'N/A'}
+                    </span>
+                  </td>
+                  <td>
+                    {result.execution_time ? `${result.execution_time}ms` : 'N/A'}
+                  </td>
+                  <td>{result.environment || 'N/A'}</td>
+                  <td>{result.executed_by || 'N/A'}</td>
+                  <td>
+                    {result.notes ? (
+                      <details>
+                        <summary>결과 보기</summary>
+                        <pre className="result-notes">{result.notes}</pre>
+                      </details>
+                    ) : 'N/A'}
+                  </td>
+                  <td>
+                    <button 
+                      className="btn btn-details btn-icon"
+                      onClick={() => toggleResultDetails(result.id)}
+                      title="상세보기"
+                    >
+                      {expandedResults.has(result.id) ? '📋' : '📄'}
+                    </button>
+                  </td>
+                </tr>
+                {expandedResults.has(result.id) && (
+                  <tr className="result-detail-row">
+                    <td colSpan="7">
+                      <div className="result-details expanded">
+                        <div className="result-detail-content">
+                          <h5>📋 실행 결과 상세 정보</h5>
+                          <div className="detail-grid">
+                            <div className="detail-item">
+                              <strong>실행 ID:</strong> {result.id}
+                            </div>
+                            <div className="detail-item">
+                              <strong>테스트 ID:</strong> {result.automation_test_id}
+                            </div>
+                            <div className="detail-item">
+                              <strong>실행 시작:</strong> {result.executed_at ? formatUTCToKST(result.executed_at) : 'N/A'}
+                            </div>
+                            <div className="detail-item">
+                              <strong>실행 시간:</strong> {result.execution_time ? `${result.execution_time}ms` : 'N/A'}
+                            </div>
+                            <div className="detail-item">
+                              <strong>환경:</strong> {result.environment || 'N/A'}
+                            </div>
+                            <div className="detail-item">
+                              <strong>실행자:</strong> {result.executed_by || 'N/A'}
+                            </div>
+                            {result.notes && (
+                              <div className="detail-item full-width">
+                                <strong>상세 메모:</strong>
+                                <pre className="result-notes">{result.notes}</pre>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
 
 const AutomationTestDetail = ({ test, onClose, onRefresh }) => {
-  const [loading, setLoading] = useState(false);
-  const [executing, setExecuting] = useState(false);
-
-  const handleExecuteTest = async () => {
-    if (!window.confirm('이 자동화 테스트를 실행하시겠습니까?')) {
-      return;
-    }
-
-    try {
-      setExecuting(true);
-      await axios.post(`/automation-tests/${test.id}/execute`);
-      alert('자동화 테스트 실행이 완료되었습니다.');
-      onRefresh(); // 목록 새로고침
-    } catch (err) {
-      alert('자동화 테스트 실행 중 오류가 발생했습니다: ' + err.response?.data?.error || err.message);
-    } finally {
-      setExecuting(false);
-    }
-  };
-
-  const handleEditTest = () => {
-    // 편집 모달 열기 로직 (부모 컴포넌트에서 처리)
-    onClose(); // 상세 화면 닫기
-  };
-
-  const handleDeleteTest = async () => {
-    if (!window.confirm('정말로 이 자동화 테스트를 삭제하시겠습니까?')) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      await axios.delete(`/automation-tests/${test.id}`);
-      alert('자동화 테스트가 성공적으로 삭제되었습니다.');
-      onClose(); // 상세 화면 닫기
-      onRefresh(); // 목록 새로고침
-    } catch (err) {
-      alert('자동화 테스트 삭제 중 오류가 발생했습니다: ' + err.response?.data?.error || err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [screenshotsExpanded, setScreenshotsExpanded] = useState(true);
+  const [resultsExpanded, setResultsExpanded] = useState(true);
 
   return (
     <div className="automation-test-detail">
-      <div className="detail-header">
-        <h2>자동화 테스트 상세</h2>
-        <button 
-          className="btn btn-close"
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </div>
-
       <div className="detail-content">
-        <div className="detail-section">
-          <h3>기본 정보</h3>
-          <div className="info-grid">
-            <div className="info-item">
-              <label>테스트명:</label>
-              <span>{test.name}</span>
-            </div>
-            <div className="info-item">
-              <label>설명:</label>
-              <span>{test.description || '설명 없음'}</span>
-            </div>
-            <div className="info-item">
-              <label>테스트 타입:</label>
-              <span className="test-type-badge">{test.test_type}</span>
-            </div>
-            <div className="info-item">
-              <label>환경:</label>
-              <span className="environment-badge">{test.environment}</span>
-            </div>
-            <div className="info-item">
-              <label>스크립트 경로:</label>
-              <span className="script-path">{test.script_path}</span>
-            </div>
-            <div className="info-item">
-              <label>생성일:</label>
-              <span>{new Date(test.created_at).toLocaleString()}</span>
-            </div>
-            <div className="info-item">
-              <label>수정일:</label>
-              <span>{new Date(test.updated_at).toLocaleString()}</span>
-            </div>
-          </div>
+        {/* 기본 정보 섹션 */}
+        <div className="automation-info-table">
+          <h5>📋 자동화 테스트 상세 정보</h5>
+          <table className="info-table">
+            <tbody>
+              <tr>
+                <th>테스트명</th>
+                <td>{test.name}</td>
+                <th>테스트 타입</th>
+                <td>
+                  <span className="test-type-badge">{test.test_type}</span>
+                </td>
+              </tr>
+              <tr>
+                <th>환경</th>
+                <td>
+                  <span className="environment-badge">{test.environment}</span>
+                </td>
+                <th>자동화</th>
+                <td>
+                  <span className="automation-badge">🤖 자동화</span>
+                </td>
+              </tr>
+              <tr>
+                <th>작성자</th>
+                <td>
+                  <span className="creator-badge">
+                    👤 {test.creator_name || '없음'}
+                  </span>
+                </td>
+                <th>담당자</th>
+                <td>
+                  <span className="assignee-badge">
+                    👤 {test.assignee_name || '없음'}
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <th>스크립트 경로</th>
+                <td colSpan="3" className="script-path">
+                  {test.script_path || '없음'}
+                </td>
+              </tr>
+              <tr>
+                <th>설명</th>
+                <td colSpan="3" className="description">
+                  {test.description || '설명 없음'}
+                </td>
+              </tr>
+              {test.parameters && (
+                <tr>
+                  <th>매개변수</th>
+                  <td colSpan="3" className="parameters">
+                    <pre className="parameters-json">{test.parameters}</pre>
+                  </td>
+                </tr>
+              )}
+              <tr>
+                <th>생성일</th>
+                <td>{formatUTCToKST(test.created_at)}</td>
+                <th>수정일</th>
+                <td>{test.updated_at ? formatUTCToKST(test.updated_at) : 'N/A'}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-
-        {test.parameters && (
-          <div className="detail-section">
-            <h3>매개변수</h3>
-            <div className="parameters-container">
-              <pre className="parameters-json">{test.parameters}</pre>
-            </div>
-          </div>
-        )}
-
+        
+        {/* 스크린샷 영역 */}
         <div className="detail-section">
-          <h3>관련 스크린샷</h3>
-          <ScreenshotGallery testId={test.id} testName={test.name} />
+          <h3 
+            className="collapsible-header"
+            onClick={() => setScreenshotsExpanded(!screenshotsExpanded)}
+          >
+            📸 관련 스크린샷 {screenshotsExpanded ? '▼' : '▶'}
+          </h3>
+          {screenshotsExpanded && (
+            <ScreenshotGallery testId={test.id} testName={test.name} />
+          )}
         </div>
-
+        
+        {/* 자동화 실행 결과 */}
         <div className="detail-section">
-          <h3>실행 결과</h3>
-          <AutomationTestResults testId={test.id} />
+          <h3 
+            className="collapsible-header"
+            onClick={() => setResultsExpanded(!resultsExpanded)}
+          >
+            🤖 자동화 실행 결과 {resultsExpanded ? '▼' : '▶'}
+          </h3>
+          {resultsExpanded && (
+            <AutomationTestResults testId={test.id} />
+          )}
         </div>
-      </div>
-
-      <div className="detail-actions">
-        <button 
-          className="btn btn-automation"
-          onClick={handleExecuteTest}
-          disabled={executing}
-          title="자동화 실행"
-        >
-          {executing ? '실행 중...' : '🤖'}
-        </button>
-        <button 
-          className="btn btn-edit-icon"
-          onClick={handleEditTest}
-          title="수정"
-        >
-          ✏️
-        </button>
-        <button 
-          className="btn btn-delete-icon"
-          onClick={handleDeleteTest}
-          disabled={loading}
-          title="삭제"
-        >
-          ✕
-        </button>
-        <button 
-          className="btn btn-cancel"
-          onClick={onClose}
-        >
-          닫기
-        </button>
       </div>
     </div>
   );

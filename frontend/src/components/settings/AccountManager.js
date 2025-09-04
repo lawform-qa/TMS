@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import config from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatUTCToKST } from '../../utils/dateUtils';
 import './AccountManager.css';
 
 axios.defaults.baseURL = config.apiUrl;
@@ -76,11 +77,34 @@ const AccountManager = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/users');
+      
+      // 토큰 유효성 검사
+      if (!token) {
+        setError('로그인이 필요합니다. 다시 로그인해주세요.');
+        return;
+      }
+      
+      if (!currentUser) {
+        setUsers([]);
+        return;
+      }
+      
+      const url = (currentUser.role === 'admin') ? '/users' : '/users/list';
+      
+      const response = await axios.get(url);
       setUsers(response.data);
     } catch (err) {
-      setError('사용자 목록을 불러오는 중 오류가 발생했습니다.');
-      console.error('Users fetch error:', err);
+      // 오류는 조용히 처리
+      
+      // 403 에러 시 토큰 문제로 간주하고 로그아웃 제안
+      if (err.response?.status === 403) {
+        setError('권한이 없습니다. 다시 로그인해주세요.');
+        // 강제 로그아웃 실행
+        localStorage.removeItem('token');
+        window.location.reload();
+      } else {
+        setError('사용자 목록을 불러오는 중 오류가 발생했습니다.');
+      }
     } finally {
       setLoading(false);
     }
@@ -267,8 +291,8 @@ const AccountManager = () => {
   };
 
   const canViewUsers = () => {
-    // admin만 사용자 목록 조회 가능
-    return currentUser?.role === 'admin';
+    // 모든 인증된 사용자는 사용자 목록 조회 가능 (권한에 따라 다른 정보 표시)
+    return currentUser && currentUser.role !== 'guest';
   };
 
   const canAddUser = () => {
@@ -336,11 +360,11 @@ const AccountManager = () => {
             </div>
             <div className="info-item">
               <label>생성일:</label>
-              <span>{currentUser?.created_at ? new Date(currentUser.created_at).toLocaleDateString() : 'N/A'}</span>
+              <span>{currentUser?.created_at ? formatUTCToKST(currentUser.created_at) : 'N/A'}</span>
             </div>
             <div className="info-item">
               <label>마지막 로그인:</label>
-              <span>{currentUser?.last_login ? new Date(currentUser.last_login).toLocaleString() : '없음'}</span>
+              <span>{currentUser?.last_login ? formatUTCToKST(currentUser.last_login) : '없음'}</span>
             </div>
           </div>
           <div className="account-actions">
@@ -393,9 +417,9 @@ const AccountManager = () => {
                         </span>
                       </div>
                       <div className="user-timestamps">
-                        <small>생성: {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</small>
+                        <small>생성: {user.created_at ? formatUTCToKST(user.created_at) : 'N/A'}</small>
                         {user.last_login && (
-                          <small>마지막 로그인: {new Date(user.last_login).toLocaleDateString()}</small>
+                          <small>마지막 로그인: {formatUTCToKST(user.last_login)}</small>
                         )}
                       </div>
                     </div>

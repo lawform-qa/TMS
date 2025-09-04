@@ -3,6 +3,7 @@ from flask_cors import CORS
 from flask_migrate import Migrate
 from datetime import datetime
 import os
+import time
 from dotenv import load_dotenv
 from sqlalchemy import text
 from models import db, Project, User, Folder, TestCase, PerformanceTest, AutomationTest, TestResult
@@ -15,13 +16,22 @@ from routes.performance import performance_bp
 from routes.folders import folders_bp
 from routes.users import users_bp
 from routes.auth import auth_bp
+from routes.test_scripts import test_scripts_bp
+from routes.file_upload import file_upload_bp
 from utils.cors import setup_cors
 from flask_jwt_extended import JWTManager
 from datetime import timedelta
+from utils.timezone_utils import get_kst_now, get_kst_isoformat, get_kst_datetime_string
+from utils.logger import get_logger
+from utils.error_handler import handle_api_error, APIError
+from utils.response_utils import success_response, error_response
 
 # .env 파일 로드 (절대 경로 사용)
 env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
 load_dotenv(env_path)
+
+# 로거 초기화
+logger = get_logger(__name__)
 
 # Flask 앱 생성
 app = Flask(__name__)
@@ -45,7 +55,7 @@ if is_vercel:
     
     # DATABASE_URL이 없으면 SQLite 사용
     if not database_url:
-        print("⚠️ DATABASE_URL이 설정되지 않음, SQLite 사용")
+        logger.warning("DATABASE_URL이 설정되지 않음, SQLite 사용")
         database_url = 'sqlite:///:memory:'
     elif database_url.startswith('mysql://'):
         database_url = database_url.replace('mysql://', 'mysql+pymysql://')
@@ -56,18 +66,18 @@ if is_vercel:
             filtered_params = [p for p in params if not p.startswith('ssl_mode=')]
             if filtered_params:
                 database_url = database_url.split('?')[0] + '?' + '&'.join(filtered_params)
-        print("🚀 Vercel 환경에서 MySQL 연결 설정 적용")
+        logger.info("Vercel 환경에서 MySQL 연결 설정 적용")
     else:
-        print(f"🔗 Vercel 환경에서 데이터베이스 URL 사용: {database_url[:20]}...")
+        logger.info(f"Vercel 환경에서 데이터베이스 URL 사용: {database_url[:20]}...")
 else:
     # 로컬 개발 환경에서는 환경변수 우선, 없으면 기본 MySQL 사용
     mysql_database_url = os.environ.get('MYSQL_DATABASE_URL')
     if mysql_database_url:
         database_url = mysql_database_url
-        print("🏠 로컬 환경에서 Docker Alpha MySQL 사용")
+        logger.info("로컬 환경에서 Docker Alpha MySQL 사용")
     else:
         database_url = 'mysql+pymysql://root:1q2w#E$R@127.0.0.1:3306/test_management'
-        print("🏠 로컬 환경에서 기본 MySQL 사용")
+        logger.info("로컬 환경에서 기본 MySQL 사용")
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -88,7 +98,7 @@ if is_vercel and 'mysql' in database_url:
 elif is_vercel and 'sqlite' in database_url:
     # Vercel SQLite 환경
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {}
-    print("💾 Vercel 환경에서 SQLite 사용")
+    logger.info("Vercel 환경에서 SQLite 사용")
 else:
     # 로컬 MySQL 환경
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
@@ -102,13 +112,13 @@ else:
     }
 
 # 환경 변수 로깅 (디버깅용)
-print(f"🔗 Database URL: {app.config['SQLALCHEMY_DATABASE_URI']}")
-print(f"🔑 Secret Key: {app.config['SECRET_KEY']}")
-print(f"🔑 JWT Secret Key: {app.config['JWT_SECRET_KEY']}")
-print(f"🌍 Environment: {'production' if is_vercel else 'development'}")
-print(f"🚀 Vercel URL: {os.environ.get('VERCEL_URL', 'Not Vercel')}")
-print(f"📁 .env 파일 경로: {env_path}")
-print(f"📁 .env 파일 존재: {os.path.exists(env_path)}")
+logger.debug(f"Database URL: {app.config['SQLALCHEMY_DATABASE_URI']}")
+logger.debug(f"Secret Key: {app.config['SECRET_KEY']}")
+logger.debug(f"JWT Secret Key: {app.config['JWT_SECRET_KEY']}")
+logger.info(f"Environment: {'production' if is_vercel else 'development'}")
+logger.debug(f"Vercel URL: {os.environ.get('VERCEL_URL', 'Not Vercel')}")
+logger.debug(f".env 파일 경로: {env_path}")
+logger.debug(f".env 파일 존재: {os.path.exists(env_path)}")
 
 # CORS 설정 (데이터베이스 초기화 전에)
 if is_vercel:
@@ -127,7 +137,7 @@ jwt = JWTManager(app)
 
 @jwt.expired_token_loader
 def expired_token_callback(jwt_header, jwt_payload):
-    print(f"❌ 토큰 만료: header={jwt_header}, payload={jwt_payload}")
+    logger.warning(f"토큰 만료: header={jwt_header}, payload={jwt_payload}")
     return jsonify({
         'message': '토큰이 만료되었습니다.',
         'error': 'token_expired'
@@ -135,7 +145,7 @@ def expired_token_callback(jwt_header, jwt_payload):
 
 @jwt.invalid_token_loader
 def invalid_token_callback(error):
-    print(f"❌ 유효하지 않은 토큰: {error}")
+    logger.warning(f"유효하지 않은 토큰: {error}")
     return jsonify({
         'message': '유효하지 않은 토큰입니다.',
         'error': 'invalid_token'
@@ -143,7 +153,10 @@ def invalid_token_callback(error):
 
 @jwt.unauthorized_loader
 def missing_token_callback(error):
-    print(f"❌ 토큰 누락: {error}")
+    logger.warning(f"토큰 누락: {error}")
+    logger.debug(f"요청 헤더: {dict(request.headers)}")
+    logger.debug(f"요청 URL: {request.url}")
+    logger.debug(f"요청 메서드: {request.method}")
     return jsonify({
         'message': '토큰이 필요합니다.',
         'error': 'authorization_required'
@@ -158,6 +171,8 @@ app.register_blueprint(performance_bp)
 app.register_blueprint(folders_bp)
 app.register_blueprint(users_bp)
 app.register_blueprint(auth_bp, url_prefix='/auth')
+app.register_blueprint(test_scripts_bp, url_prefix='/api/test-scripts')
+app.register_blueprint(file_upload_bp, url_prefix='/api/files')
 
 # 헬퍼 함수들
 def create_cors_response(data=None, status_code=200):
@@ -189,23 +204,23 @@ def calculate_test_results(env_folders):
     try:
         passed_tests = db.session.query(TestResult).join(TestCase).filter(
             TestCase.folder_id.in_(env_folders),
-            TestResult.status == 'Pass'
+            TestResult.result == 'Pass'
         ).count()
         failed_tests = db.session.query(TestResult).join(TestCase).filter(
             TestCase.folder_id.in_(env_folders),
-            TestResult.status == 'Fail'
+            TestResult.result == 'Fail'
         ).count()
         nt_tests = db.session.query(TestResult).join(TestCase).filter(
             TestCase.folder_id.in_(env_folders),
-            TestResult.status == 'N/T'
+            TestResult.result == 'N/T'
         ).count()
         na_tests = db.session.query(TestResult).join(TestCase).filter(
             TestCase.folder_id.in_(env_folders),
-            TestResult.status == 'N/A'
+            TestResult.result == 'N/A'
         ).count()
         blocked_tests = db.session.query(TestResult).join(TestCase).filter(
             TestCase.folder_id.in_(env_folders),
-            TestResult.status == 'Block'
+            TestResult.result == 'Block'
         ).count()
         return passed_tests, failed_tests, nt_tests, na_tests, blocked_tests
     except Exception:
@@ -253,7 +268,7 @@ def health_check():
             'status': 'healthy', 
             'message': 'Test Platform Backend is running',
             'version': '2.0.1',
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': get_kst_isoformat(get_kst_now()),
             'environment': 'production' if is_vercel else 'development',
             'database': {
                 'status': db_status,
@@ -265,14 +280,14 @@ def health_check():
         
     except Exception as e:
         error_msg = str(e)
-        print(f"❌ Health check 오류: {error_msg}")
+        logger.error(f"Health check 오류: {error_msg}")
         
         # 오류가 발생해도 앱은 정상 작동 중임을 표시
         response = jsonify({
             'status': 'degraded', 
             'message': 'Test Platform Backend is running (with database issues)',
             'version': '2.0.1',
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': get_kst_isoformat(get_kst_now()),
             'environment': 'production' if is_vercel else 'development',
             'database': {
                 'status': 'error',
@@ -292,7 +307,7 @@ def cors_test():
         response = jsonify({
             'status': 'success',
             'message': 'CORS test endpoint is working',
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': get_kst_isoformat(get_kst_now()),
             'cors_enabled': True
         })
         return response, 200
@@ -300,7 +315,7 @@ def cors_test():
         response = jsonify({
             'status': 'error',
             'message': f'CORS test failed: {str(e)}',
-            'timestamp': datetime.now().isoformat()
+            'timestamp': get_kst_isoformat(get_kst_now())
         })
         return response, 500
 
@@ -315,7 +330,7 @@ def simple_cors_test():
         'status': 'success',
         'message': 'Simple CORS test successful',
         'method': request.method,
-        'timestamp': datetime.now().isoformat()
+        'timestamp': get_kst_isoformat(get_kst_now())
     })
     return response, 200
 
@@ -328,9 +343,36 @@ def ping():
     return jsonify({
         'status': 'success',
         'message': 'pong',
-        'timestamp': datetime.now().isoformat(),
+        'timestamp': get_kst_isoformat(get_kst_now()),
         'environment': 'production' if is_vercel else 'development'
     }), 200
+
+def test_database_connection():
+    """데이터베이스 연결 테스트 및 재시도 로직"""
+    max_retries = 3
+    retry_delay = 5 # 초 단위
+    
+    for i in range(max_retries):
+        try:
+            # 데이터베이스 연결 테스트
+            if 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']:
+                db.session.execute(text('SELECT 1'))
+                logger.info(f"SQLite 연결 테스트 성공 (시도 {i+1}/{max_retries})")
+                return True
+            else:
+                db.session.execute(text('SELECT 1'))
+                db.session.commit()
+                logger.info(f"MySQL 연결 테스트 성공 (시도 {i+1}/{max_retries})")
+                return True
+        except Exception as e:
+            logger.error(f"데이터베이스 연결 실패 (시도 {i+1}/{max_retries}): {e}")
+            if i < max_retries - 1:
+                logger.info(f"{retry_delay}초 후 다시 시도...")
+                time.sleep(retry_delay)
+            else:
+                logger.error("데이터베이스 연결 재시도 실패. 앱을 종료합니다.")
+                return False
+    return False
 
 @app.route('/init-db', methods=['GET', 'POST', 'OPTIONS'])
 def init_database():
@@ -338,13 +380,33 @@ def init_database():
         return handle_options_request()
     
     try:
+        # 데이터베이스 연결 테스트 및 재시도
+        if not test_database_connection():
+            return jsonify({
+                'status': 'error',
+                'message': 'Database connection failed after multiple retries',
+                'timestamp': get_kst_isoformat(get_kst_now()),
+                'error_type': 'ConnectionError',
+                'database_url': app.config['SQLALCHEMY_DATABASE_URI'][:50] + '...' if len(app.config['SQLALCHEMY_DATABASE_URI']) > 50 else app.config['SQLALCHEMY_DATABASE_URI'],
+                'environment': 'production' if is_vercel else 'development'
+            }), 500
+        
         with app.app_context():
             # 테이블이 존재하지 않으면 자동 생성
             db.create_all()
-            print("✅ 데이터베이스 테이블 생성 완료")
+            logger.info("데이터베이스 테이블 생성 완료")
+            
+            # 세션 격리 설정
+            db.session.autoflush = False
+            logger.info("세션 autoflush 비활성화")
             
             # 기본 사용자 생성 (테스트용)
             from models import User
+            
+            # 각 사용자를 개별적으로 처리하여 세션 충돌 방지
+            users_to_create = []
+            
+            # admin 사용자 체크 및 생성 준비
             if not User.query.filter_by(username='admin').first():
                 admin_user = User(
                     username='admin',
@@ -355,9 +417,13 @@ def init_database():
                     is_active=True
                 )
                 admin_user.set_password('admin123')
-                db.session.add(admin_user)
-                
-                # 테스트 사용자도 생성
+                users_to_create.append(admin_user)
+                logger.info("admin 사용자 생성 준비 완료")
+            else:
+                logger.info("admin 사용자가 이미 존재합니다")
+            
+            # testuser 체크 및 생성 준비
+            if not User.query.filter_by(username='testuser').first():
                 test_user = User(
                     username='testuser',
                     email='test@test.com',
@@ -367,29 +433,49 @@ def init_database():
                     is_active=True
                 )
                 test_user.set_password('test123')
-                db.session.add(test_user)
-                
-                db.session.commit()
-                print("✅ 기본 사용자 생성 완료")
+                users_to_create.append(test_user)
+                logger.info("testuser 생성 준비 완료")
             else:
-                print("ℹ️ 기본 사용자가 이미 존재합니다")
+                logger.info("testuser가 이미 존재합니다")
+            
+            # 준비된 사용자들을 한 번에 추가하고 커밋
+            if users_to_create:
+                for user in users_to_create:
+                    db.session.add(user)
+                db.session.commit()
+                logger.info(f"{len(users_to_create)}명의 사용자 생성 완료")
+            else:
+                logger.info("생성할 사용자가 없습니다")
+            
+            logger.info("데이터베이스 초기화 완료")
+            
+            # 세션 정리
+            db.session.close()
+            logger.info("세션 정리 완료")
             
         response = jsonify({
             'status': 'success',
             'message': 'Database initialized successfully',
-            'timestamp': datetime.now().isoformat()
+            'timestamp': get_kst_isoformat(get_kst_now())
         })
         return response, 200
     except Exception as e:
-        print(f"❌ init-db 오류 발생: {str(e)}")
-        print(f"🔍 오류 타입: {type(e)}")
+        logger.error(f"init-db 오류 발생: {str(e)}")
+        logger.error(f"오류 타입: {type(e)}")
         import traceback
-        print(f"📋 상세 오류: {traceback.format_exc()}")
+        logger.error(f"상세 오류: {traceback.format_exc()}")
+        
+        # 세션 롤백
+        try:
+            db.session.rollback()
+            logger.info("데이터베이스 세션 롤백 완료")
+        except Exception as rollback_error:
+            logger.error(f"롤백 중 오류 발생: {rollback_error}")
         
         response = jsonify({
             'status': 'error',
             'message': f'Database initialization failed: {str(e)}',
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': get_kst_isoformat(get_kst_now()),
             'error_type': str(type(e)),
             'traceback': traceback.format_exc()
         })
@@ -418,8 +504,8 @@ def get_testcases():
             'remark': tc.remark,
             'automation_code_path': tc.automation_code_path,
             'environment': tc.environment,
-            'created_at': tc.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-            'updated_at': tc.updated_at.strftime('%Y-%m-%d %H:%M:%S')
+            'created_at': tc.created_at.isoformat(),
+            'updated_at': tc.updated_at.isoformat()
         } for tc in testcases]
         response = jsonify(data)
         return response, 200
@@ -427,36 +513,8 @@ def get_testcases():
         response = jsonify({'error': str(e)})
         return response, 500
 
-@app.route('/testcases', methods=['POST', 'OPTIONS'])
-def create_testcase():
-    if request.method == 'OPTIONS':
-        return handle_options_request()
-    
-    try:
-        data = request.get_json()
-        testcase = TestCase(
-            name=data.get('name'),
-            description=data.get('description'),
-            main_category=data.get('main_category'),
-            sub_category=data.get('sub_category'),
-            detail_category=data.get('detail_category'),
-            pre_condition=data.get('pre_condition'),
-            expected_result=data.get('expected_result'),
-            folder_id=data.get('folder_id'),
-            environment=data.get('environment', 'dev')
-        )
-        db.session.add(testcase)
-        db.session.commit()
-        
-        response = jsonify({
-            'status': 'success',
-            'message': 'Test case created successfully',
-            'id': testcase.id
-        })
-        return response, 201
-    except Exception as e:
-        response = jsonify({'error': str(e)})
-        return response, 500
+# 테스트 케이스 생성은 routes/testcases.py Blueprint에서 처리
+# 중복 제거
 
 # 성능 테스트 API는 performance.py Blueprint에서 처리
 
@@ -525,7 +583,7 @@ def get_testcase_summaries():
                 'na': na_tests,
                 'blocked': blocked_tests,
                 'pass_rate': round((passed_tests / total_testcases * 100) if total_testcases > 0 else 0, 2),
-                'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                'last_updated': get_kst_datetime_string('%Y-%m-%d %H:%M:%S')
             }
             summaries.append(summary)
         
@@ -560,8 +618,8 @@ def manage_testcase(testcase_id):
                 'remark': testcase.remark,
                 'automation_code_path': testcase.automation_code_path,
                 'environment': testcase.environment,
-                'created_at': testcase.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                'updated_at': testcase.updated_at.strftime('%Y-%m-%d %H:%M:%S')
+                            'created_at': testcase.created_at.isoformat(),
+            'updated_at': testcase.updated_at.isoformat()
             }
             return jsonify(data), 200
         
@@ -600,9 +658,9 @@ def update_testcase_status(testcase_id):
             test_result = TestResult(test_case_id=testcase_id)
             db.session.add(test_result)
         
-        test_result.status = new_status
+        test_result.result = new_status  # status -> result로 변경
         test_result.execution_time = data.get('execution_time', 0)
-        test_result.result_data = data.get('result_data', '')
+        test_result.notes = data.get('result_data', '')  # result_data -> notes로 변경
         db.session.commit()
         
         return jsonify({'status': 'success', 'message': 'Test case status updated successfully'}), 200
@@ -615,7 +673,7 @@ def get_testcase_screenshots(testcase_id):
         return handle_options_request()
     
     try:
-        # 테스트 결과의 스크린샷 조회
+        # 테스트 결과의 스크린샷 조회 (alpha DB 스키마에 맞춤)
         test_results = TestResult.query.filter_by(test_case_id=testcase_id).all()
         screenshots = []
         
@@ -624,9 +682,11 @@ def get_testcase_screenshots(testcase_id):
             for screenshot in result_screenshots:
                 screenshots.append({
                     'id': screenshot.id,
-                    'file_path': screenshot.file_path,
-                    'created_at': screenshot.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                    'screenshot_path': screenshot.file_path,  # alpha DB는 file_path 사용
+                    'timestamp': screenshot.created_at.isoformat() if screenshot.created_at else None  # alpha DB는 created_at 사용
                 })
+        
+        # alpha DB에는 직접 test_case_id로 연결된 스크린샷이 없으므로 제거
         
         return jsonify(screenshots), 200
     except Exception as e:
@@ -666,9 +726,9 @@ def execute_testcase(testcase_id):
         # 테스트 실행 로직 (실제 구현은 테스트 실행 엔진 필요)
         test_result = TestResult(
             test_case_id=testcase_id,
-            status='running',
+            result='running',  # status -> result로 변경
             execution_time=0,
-            result_data='Test execution started'
+            notes='Test execution started'  # result_data -> notes로 변경
         )
         db.session.add(test_result)
         db.session.commit()
@@ -691,13 +751,13 @@ def get_test_data():
         # 테스트 데이터 반환 - status 컬럼이 없을 경우를 대비
         total_testcases = TestCase.query.count()
         
-        # TestResult 테이블의 status 컬럼 존재 여부 확인
+        # TestResult 테이블의 result 컬럼 사용
         try:
-            running_tests = TestResult.query.filter_by(status='running').count()
-            completed_tests = TestResult.query.filter_by(status='completed').count()
-            failed_tests = TestResult.query.filter_by(status='failed').count()
+            running_tests = TestResult.query.filter_by(result='running').count()
+            completed_tests = TestResult.query.filter_by(result='completed').count()
+            failed_tests = TestResult.query.filter_by(result='failed').count()
         except Exception:
-            # status 컬럼이 없으면 기본값 사용
+            # result 컬럼이 없으면 기본값 사용
             running_tests = 0
             completed_tests = 0
             failed_tests = 0
@@ -707,7 +767,7 @@ def get_test_data():
             'running_tests': running_tests,
             'completed_tests': completed_tests,
             'failed_tests': failed_tests,
-            'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            'last_updated': get_kst_datetime_string('%Y-%m-%d %H:%M:%S')
         }
         return jsonify(test_data), 200
     except Exception as e:
@@ -723,7 +783,7 @@ def get_test_executions():
         try:
             executions = TestResult.query.all()
         except Exception:
-            # TestResult 테이블에 status 컬럼이 없으면 빈 배열 반환
+            # TestResult 테이블에 result 컬럼이 없으면 빈 배열 반환
             return jsonify([]), 200
         
         data = []
@@ -733,10 +793,10 @@ def get_test_executions():
                 execution_data = {
                     'id': exe.id,
                     'test_case_id': exe.test_case_id,
-                    'status': getattr(exe, 'status', 'unknown'),  # status 컬럼이 없으면 'unknown'
+                    'status': getattr(exe, 'result', 'unknown'),  # result 컬럼 사용
                     'execution_time': exe.execution_time,
-                    'result_data': exe.result_data,
-                    'created_at': exe.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                    'notes': exe.notes,  # result_data -> notes로 변경
+                    'created_at': exe.created_at.isoformat()
                 }
                 data.append(execution_data)
             except Exception:
@@ -758,10 +818,10 @@ def get_test_results(testcase_id):
         data = [{
             'id': result.id,
             'test_case_id': result.test_case_id,
-            'status': result.status,
+            'status': result.result,  # status -> result로 변경
             'execution_time': result.execution_time,
-            'result_data': result.result_data,
-            'created_at': result.created_at.strftime('%Y-%m-%d %H:%M:%S')
+            'notes': result.notes,  # result_data -> notes로 변경
+            'created_at': result.created_at.isoformat()
         } for result in results]
         return jsonify(data), 200
     except Exception as e:
@@ -799,7 +859,7 @@ def add_feature_folders():
                 new_folder = Folder(
                     name=feature['name'],
                     parent_id=feature['parent_id'],
-                    created_at=datetime.utcnow()
+                    created_at=get_kst_now()
                 )
                 db.session.add(new_folder)
                 added_folders.append(feature['name'])
@@ -952,6 +1012,12 @@ def check_database_status():
             'error': str(e),
             'environment': 'production' if is_vercel else 'development'
         }), 500
+
+# 스크린샷 파일 제공 API는 클라우드 전환 시 S3/CDN으로 대체 예정
+# @app.route('/screenshots/<path:filename>', methods=['GET'])
+# def get_screenshot_file(filename):
+#     """스크린샷 파일 직접 제공 - 클라우드 전환 시 S3로 대체"""
+#     pass
 
 if __name__ == '__main__':
     with app.app_context():

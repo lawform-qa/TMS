@@ -2,8 +2,12 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity
 from models import db, User, UserSession
 from datetime import datetime, timedelta
+from utils.timezone_utils import get_kst_now, get_kst_isoformat
+from utils.logger import get_logger
 import secrets
 import os
+
+logger = get_logger(__name__)
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -75,9 +79,9 @@ def login():
         return response, 200
     
     try:
-        print("🔐 로그인 시도 시작")
+        logger.info("로그인 시도 시작")
         data = request.get_json()
-        print(f"📝 받은 데이터: {data}")
+        logger.debug(f"받은 데이터: {data}")
         
         username = data.get('username')
         password = data.get('password')
@@ -85,11 +89,11 @@ def login():
         if not username or not password:
             return jsonify({'error': '사용자명과 비밀번호를 입력해주세요.'}), 400
         
-        print(f"👤 사용자명: {username}")
+        logger.debug(f"사용자명: {username}")
         
         # 사용자 조회
         user = User.query.filter_by(username=username).first()
-        print(f"🔍 사용자 조회 결과: {user}")
+        logger.debug(f"사용자 조회 결과: {user}")
         
         if not user:
             return jsonify({'error': '사용자명 또는 비밀번호가 올바르지 않습니다.'}), 400
@@ -107,7 +111,7 @@ def login():
         print(f"🌍 현재 환경: {'Vercel' if 'vercel.app' in request.host_url else 'Local'}")
         print(f"🗄️ 데이터베이스 URL: {current_app.config.get('SQLALCHEMY_DATABASE_URI', 'Not Set')[:50]}...")
         
-        user.last_login = datetime.utcnow()
+        user.last_login = get_kst_now()
         print(f"🕐 last_login 업데이트 후: {user.last_login}")
         
         # JWT 토큰 생성 (identity는 문자열이어야 함)
@@ -126,7 +130,7 @@ def login():
                 session_token=refresh_token,
                 ip_address=request.remote_addr,
                 user_agent=request.headers.get('User-Agent'),
-                expires_at=datetime.utcnow() + timedelta(days=7)
+                expires_at=get_kst_now() + timedelta(days=7)
             )
             db.session.add(session)
             print(f"💾 세션 정보 저장 완료")
@@ -168,7 +172,7 @@ def login():
             db.session.rollback()
             # 롤백 후 최소한 last_login만이라도 업데이트
             try:
-                user.last_login = datetime.utcnow()
+                user.last_login = get_kst_now()
                 db.session.commit()
                 print(f"🔄 last_login만 다시 업데이트 완료")
             except Exception as e:
@@ -232,8 +236,8 @@ def guest_login():
             'last_name': '사용자',
             'role': 'guest',
             'is_active': True,
-            'created_at': datetime.utcnow().isoformat(),
-            'updated_at': datetime.utcnow().isoformat(),
+            'created_at': get_kst_now().isoformat(),
+            'updated_at': get_kst_now().isoformat(),
             'last_login': None
         }
         
@@ -303,8 +307,8 @@ def get_profile():
                 'last_name': '사용자',
                 'role': 'guest',
                 'is_active': True,
-                'created_at': datetime.utcnow().isoformat(),
-                'updated_at': datetime.utcnow().isoformat(),
+                'created_at': get_kst_now().isoformat(),
+                'updated_at': get_kst_now().isoformat(),
                 'last_login': None
             }
             return jsonify(guest_user), 200
@@ -393,13 +397,13 @@ def health_check():
         db.session.execute('SELECT 1')
         return jsonify({
             'status': 'healthy',
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': get_kst_now().isoformat(),
             'database': 'connected'
         }), 200
     except Exception as e:
         return jsonify({
             'status': 'unhealthy',
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': get_kst_now().isoformat(),
             'database': 'disconnected',
             'error': str(e)
         }), 500

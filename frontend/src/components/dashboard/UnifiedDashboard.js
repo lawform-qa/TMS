@@ -27,10 +27,7 @@ axios.interceptors.request.use(
       config.timeout = 15000; // 15초 타임아웃으로 증가
     }
     
-    // 개발 환경에서만 로깅
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🌐 API Request:', config.method?.toUpperCase(), config.url);
-    }
+    // API Request 로그는 출력하지 않음
     
     return config;
   },
@@ -45,18 +42,7 @@ axios.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('🚨 API Error:', error.response?.status, error.response?.data || error.message);
-    
-    // CORS 오류 처리
-    if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
-      console.error('🌐 CORS 또는 네트워크 오류 발생');
-    }
-    
-    // 401 오류 처리
-    if (error.response?.status === 401) {
-      console.error('🔐 인증 오류 발생');
-    }
-    
+    // 오류는 조용히 처리
     return Promise.reject(error);
   }
 );
@@ -77,6 +63,9 @@ const UnifiedDashboard = ({ setActiveTab }) => {
   const [testCasesPage, setTestCasesPage] = useState(1);
   const [performanceTestsPage, setPerformanceTestsPage] = useState(1);
   const [testExecutionsPage, setTestExecutionsPage] = useState(1);
+  const [testCasesPagination, setTestCasesPagination] = useState(null);
+  const [performanceTestsPagination, setPerformanceTestsPagination] = useState(null);
+  const [testExecutionsPagination, setTestExecutionsPagination] = useState(null);
   const itemsPerPage = 5;
 
   useEffect(() => {
@@ -86,17 +75,14 @@ const UnifiedDashboard = ({ setActiveTab }) => {
   const initializeDatabase = async () => {
     try {
       setDbInitializing(true);
-      console.log('🔄 데이터베이스 초기화 시작...');
       
       const response = await axios.post('/init-db');
-      console.log('✅ 데이터베이스 초기화 성공:', response.data);
       
       // 초기화 후 데이터 다시 로드 (skipInit=true로 호출하여 무한 루프 방지)
       await fetchDashboardData(true);
       
       return true;
     } catch (err) {
-      console.error('❌ 데이터베이스 초기화 실패:', err);
       return false;
     } finally {
       setDbInitializing(false);
@@ -108,58 +94,54 @@ const UnifiedDashboard = ({ setActiveTab }) => {
       setLoading(true);
       setError(null);
       
-      // API URL 로깅
-      console.log('🔗 Current API URL:', config.apiUrl);
-      console.log('🌐 Current Origin:', window.location.origin);
-      
       // 헬스체크 요청
       try {
         const healthRes = await axios.get('/health');
-        console.log('✅ Health check successful:', healthRes.data);
         
         // 데이터베이스 상태 확인 (skipInit이 false일 때만)
         if (!skipInit && healthRes.data.database && !healthRes.data.database.tables_exist) {
-          console.log('⚠️ 데이터베이스 테이블이 존재하지 않습니다. 초기화를 시도합니다...');
           const initSuccess = await initializeDatabase();
           if (!initSuccess) {
             throw new Error('데이터베이스 초기화에 실패했습니다.');
           }
         }
       } catch (healthErr) {
-        console.error('❌ Health check failed:', healthErr);
+        // 헬스체크 오류는 조용히 처리
       }
       
       const [testCasesRes, performanceTestsRes, testExecutionsRes, summariesRes, testcaseSummariesRes] = await Promise.all([
-        axios.get('/testcases'),
-        axios.get('/performance-tests'),
-        axios.get('/test-executions'),
+        axios.get(`/testcases?page=1&per_page=${itemsPerPage}`),
+        axios.get(`/performance-tests?page=1&per_page=${itemsPerPage}`),
+        axios.get(`/test-executions?page=1&per_page=${itemsPerPage}`),
         axios.get('/dashboard-summaries'),
         axios.get('/testcases/summary/all')
       ]);
 
-      setTestCases(testCasesRes.data);
-      setPerformanceTests(performanceTestsRes.data);
-      setTestExecutions(testExecutionsRes.data);
+      setTestCases(testCasesRes.data.items || testCasesRes.data);
+      setPerformanceTests(performanceTestsRes.data.items || performanceTestsRes.data);
+      setTestExecutions(testExecutionsRes.data.items || testExecutionsRes.data);
       setDashboardSummaries(summariesRes.data);
       setTestcaseSummaries(testcaseSummariesRes.data);
       
-      // 테스트 케이스 요약 데이터 디버깅
-      console.log('📊 Testcase summaries loaded:', testcaseSummariesRes.data);
-      console.log('📊 Testcases loaded:', testCasesRes.data);
+      // 페이징 정보 설정
+      if (testCasesRes.data.pagination) {
+        setTestCasesPagination(testCasesRes.data.pagination);
+      }
+      if (performanceTestsRes.data.pagination) {
+        setPerformanceTestsPagination(performanceTestsRes.data.pagination);
+      }
+      if (testExecutionsRes.data.pagination) {
+        setTestExecutionsPagination(testExecutionsRes.data.pagination);
+      }
       
-      console.log('✅ Dashboard data loaded successfully');
     } catch (err) {
-      console.error('Dashboard data fetch error:', err);
-      console.error('Error details:', {
-        message: err.message,
-        code: err.code,
-        response: err.response,
-        request: err.request
-      });
+      // 오류는 조용히 처리 (개발 환경에서만 로그 출력)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Dashboard 데이터 로드 오류:', err);
+      }
       
       // 데이터베이스 오류인 경우 초기화 시도 (skipInit이 false일 때만)
       if (!skipInit && err.response?.status === 500 && err.response?.data?.error?.includes('no such table')) {
-        console.log('🔄 데이터베이스 테이블 오류 감지. 초기화를 시도합니다...');
         setError('데이터베이스 테이블이 없습니다. 초기화를 시도합니다...');
         
         const initSuccess = await initializeDatabase();
@@ -172,6 +154,52 @@ const UnifiedDashboard = ({ setActiveTab }) => {
       setError('데이터를 불러오는 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 페이징 데이터 로드 함수들
+  const loadMoreTestCases = async () => {
+    try {
+      const nextPage = testCasesPage + 1;
+      const response = await axios.get(`/testcases?page=${nextPage}&per_page=${itemsPerPage}`);
+      
+      if (response.data.items) {
+        setTestCases(prev => [...prev, ...response.data.items]);
+        setTestCasesPage(nextPage);
+        setTestCasesPagination(response.data.pagination);
+      }
+    } catch (err) {
+      console.error('테스트 케이스 추가 로드 실패:', err);
+    }
+  };
+
+  const loadMorePerformanceTests = async () => {
+    try {
+      const nextPage = performanceTestsPage + 1;
+      const response = await axios.get(`/performance-tests?page=${nextPage}&per_page=${itemsPerPage}`);
+      
+      if (response.data.items) {
+        setPerformanceTests(prev => [...prev, ...response.data.items]);
+        setPerformanceTestsPage(nextPage);
+        setPerformanceTestsPagination(response.data.pagination);
+      }
+    } catch (err) {
+      console.error('성능 테스트 추가 로드 실패:', err);
+    }
+  };
+
+  const loadMoreTestExecutions = async () => {
+    try {
+      const nextPage = testExecutionsPage + 1;
+      const response = await axios.get(`/test-executions?page=${nextPage}&per_page=${itemsPerPage}`);
+      
+      if (response.data.items) {
+        setTestExecutions(prev => [...prev, ...response.data.items]);
+        setTestExecutionsPage(nextPage);
+        setTestExecutionsPagination(response.data.pagination);
+      }
+    } catch (err) {
+      console.error('테스트 실행 추가 로드 실패:', err);
     }
   };
 
@@ -199,18 +227,6 @@ const UnifiedDashboard = ({ setActiveTab }) => {
   };
 
   // 페이징 관련 함수들
-  const loadMoreTestCases = () => {
-    setTestCasesPage(prev => prev + 1);
-  };
-
-  const loadMorePerformanceTests = () => {
-    setPerformanceTestsPage(prev => prev + 1);
-  };
-
-  const loadMoreTestExecutions = () => {
-    setTestExecutionsPage(prev => prev + 1);
-  };
-
   const resetTestCasesPaging = () => {
     setTestCasesPage(1);
   };
@@ -318,11 +334,40 @@ const UnifiedDashboard = ({ setActiveTab }) => {
   };
 
   if (loading) {
-    return <div className="dashboard-loading">로딩 중...</div>;
+    return (
+      <div className="dashboard-loading">
+        <div className="loading-spinner">
+          <div className="spinner"></div>
+        </div>
+        <p>대시보드 데이터를 불러오는 중...</p>
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="dashboard-error">{error}</div>;
+    return (
+      <div className="dashboard-error">
+        <div className="error-icon">⚠️</div>
+        <h3>오류가 발생했습니다</h3>
+        <p>{error}</p>
+        <div className="error-actions">
+          <button 
+            className="btn-retry"
+            onClick={fetchDashboardData}
+            disabled={loading}
+          >
+            다시 시도
+          </button>
+          <button 
+            className="btn-init-db"
+            onClick={initializeDatabase}
+            disabled={dbInitializing}
+          >
+            {dbInitializing ? '초기화 중...' : '데이터베이스 초기화'}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -439,12 +484,12 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                 </span>
               </div>
             ))}
-            {testCases.length > testCasesPage * itemsPerPage && (
+            {testCasesPagination?.has_next && (
               <div 
                 className="more-items clickable"
                 onClick={loadMoreTestCases}
               >
-                + {testCases.length - (testCasesPage * itemsPerPage)} more
+                + {testCasesPagination.total - testCases.length} more
               </div>
             )}
             {testCasesPage > 1 && (
@@ -453,6 +498,14 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                 onClick={resetTestCasesPaging}
               >
                 처음부터 보기
+              </div>
+            )}
+            {testCasesPagination && (
+              <div className="pagination-info">
+                <div className="pagination-stats">
+                  <span>총 {testCasesPagination.total}개</span>
+                  <span>페이지 {testCasesPagination.page}/{testCasesPagination.pages}</span>
+                </div>
               </div>
             )}
           </div>
@@ -476,12 +529,12 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                 <span className="test-environment">{test.environment}</span>
               </div>
             ))}
-            {performanceTests.length > performanceTestsPage * itemsPerPage && (
+            {performanceTestsPagination?.total_pages > 1 && (
               <div 
                 className="more-items clickable"
                 onClick={loadMorePerformanceTests}
               >
-                + {performanceTests.length - (performanceTestsPage * itemsPerPage)} more
+                + {performanceTestsPagination.total_items - (performanceTestsPage * itemsPerPage)} more
               </div>
             )}
             {performanceTestsPage > 1 && (
@@ -515,12 +568,12 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                 </span>
               </div>
             ))}
-            {testExecutions.length > testExecutionsPage * itemsPerPage && (
+            {testExecutionsPagination?.has_next && (
               <div 
                 className="more-items clickable"
                 onClick={loadMoreTestExecutions}
               >
-                + {testExecutions.length - (testExecutionsPage * itemsPerPage)} more
+                + {testExecutionsPagination.total - testExecutions.length} more
               </div>
             )}
             {testExecutionsPage > 1 && (
@@ -529,6 +582,14 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                 onClick={resetTestExecutionsPaging}
               >
                 처음부터 보기
+              </div>
+            )}
+            {testExecutionsPagination && (
+              <div className="pagination-info">
+                <div className="pagination-stats">
+                  <span>총 {testExecutionsPagination.total}개</span>
+                  <span>페이지 {testExecutionsPagination.page}/{testExecutionsPagination.pages}</span>
+                </div>
               </div>
             )}
           </div>

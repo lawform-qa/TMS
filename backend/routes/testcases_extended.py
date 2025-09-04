@@ -1,9 +1,13 @@
 from flask import Blueprint, request, jsonify
 from models import db, TestCase, TestResult
 from utils.cors import add_cors_headers
+from utils.timezone_utils import get_kst_now
+from utils.logger import get_logger
 from datetime import datetime
 import io
 import os
+
+logger = get_logger(__name__)
 
 # pandas import를 조건부로 처리
 try:
@@ -11,7 +15,7 @@ try:
     PANDAS_AVAILABLE = True
 except ImportError:
     PANDAS_AVAILABLE = False
-    print("⚠️ pandas 모듈을 사용할 수 없습니다. Excel 기능이 비활성화됩니다.")
+    logger.warning("pandas 모듈을 사용할 수 없습니다. Excel 기능이 비활성화됩니다.")
 
 # Blueprint 생성
 testcases_extended_bp = Blueprint('testcases_extended', __name__)
@@ -32,8 +36,8 @@ def manage_testcase(testcase_id):
                 'description': testcase.description,
                 'project_id': testcase.project_id,
                 'folder_id': testcase.folder_id,
-                'created_at': testcase.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                'updated_at': testcase.updated_at.strftime('%Y-%m-%d %H:%M:%S') if testcase.updated_at else None
+                            'created_at': testcase.created_at.isoformat(),
+            'updated_at': testcase.updated_at.isoformat() if testcase.updated_at else None
             }
             response = jsonify(data)
             return add_cors_headers(response), 200
@@ -44,7 +48,7 @@ def manage_testcase(testcase_id):
             testcase.description = data.get('description', testcase.description)
             testcase.project_id = data.get('project_id', testcase.project_id)
             testcase.folder_id = data.get('folder_id', testcase.folder_id)
-            testcase.updated_at = datetime.utcnow()
+            testcase.updated_at = get_kst_now()
             
             db.session.commit()
             response = jsonify({'message': '테스트 케이스가 성공적으로 수정되었습니다'})
@@ -73,7 +77,7 @@ def update_testcase_status(testcase_id):
         # 상태 업데이트 로직
         if 'status' in data:
             testcase.status = data['status']
-            testcase.updated_at = datetime.utcnow()
+            testcase.updated_at = get_kst_now()
             db.session.commit()
             
             response = jsonify({'message': '테스트 케이스 상태가 업데이트되었습니다'})
@@ -141,7 +145,7 @@ def upload_testcases():
                     db.session.add(testcase)
                     success_count += 1
                 except Exception as e:
-                    print(f"행 처리 오류: {e}")
+                    logger.error(f"행 처리 오류: {e}")
                     continue
             
             db.session.commit()
@@ -181,7 +185,7 @@ def download_testcases():
                 'description': tc.description,
                 'project_id': tc.project_id,
                 'folder_id': tc.folder_id,
-                'created_at': tc.created_at.strftime('%Y-%m-%d %H:%M:%S') if tc.created_at else None
+                'created_at': tc.created_at.isoformat() if tc.created_at else None
             })
         
         df = pd.DataFrame(data)
@@ -224,7 +228,7 @@ def execute_testcase(testcase_id):
             'status': 'executed',
             'environment': environment,
             'parameters': parameters,
-            'executed_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            'executed_at': get_kst_now().isoformat()
         }
         
         response = jsonify(execution_result)
@@ -251,7 +255,7 @@ def reorganize_testcases():
                 # 규칙에 따른 테스트 케이스 재구성
                 success_count += 1
             except Exception as e:
-                print(f"재구성 규칙 처리 오류: {e}")
+                logger.error(f"재구성 규칙 처리 오류: {e}")
                 continue
         
         response = jsonify({

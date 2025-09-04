@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import config from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 import './ProjectManager.css';
 
 axios.defaults.baseURL = config.apiUrl;
 
 const ProjectManager = () => {
+  const { user: currentUser, token } = useAuth();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,18 +19,33 @@ const ProjectManager = () => {
     description: ''
   });
 
+  // 권한 체크 함수들
+  const canAddProject = () => {
+    return currentUser?.role === 'admin';
+  };
+  const canEditProject = () => {
+    return currentUser?.role === 'admin';
+  };
+  const canDeleteProject = () => {
+    return currentUser?.role === 'admin';
+  };
+
   useEffect(() => {
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    }
     fetchProjects();
-  }, []);
+  }, [token]);
 
   const fetchProjects = async () => {
     try {
       setLoading(true);
+      
       const response = await axios.get('/projects');
       setProjects(response.data);
     } catch (err) {
+      // 오류는 조용히 처리
       setError('프로젝트 목록을 불러오는 중 오류가 발생했습니다.');
-      console.error('Project fetch error:', err);
     } finally {
       setLoading(false);
     }
@@ -94,12 +111,14 @@ const ProjectManager = () => {
     <div className="project-manager">
       <div className="project-header">
         <h2>프로젝트 관리</h2>
-        <button 
-          className="btn btn-add"
-          onClick={() => setShowAddModal(true)}
-        >
-          ➕ 새 프로젝트
-        </button>
+        {canAddProject() && (
+          <button 
+            className="btn btn-add"
+            onClick={() => setShowAddModal(true)}
+          >
+            ➕ 새 프로젝트
+          </button>
+        )}
       </div>
 
       <div className="project-list">
@@ -110,21 +129,25 @@ const ProjectManager = () => {
               <p>{project.description || '설명 없음'}</p>
             </div>
             <div className="project-actions">
-              <button 
-                className="btn btn-edit"
-                onClick={() => {
-                  setEditingProject(project);
-                  setShowEditModal(true);
-                }}
-              >
-                ✏️ 수정
-              </button>
-              <button 
-                className="btn btn-delete"
-                onClick={() => handleDeleteProject(project.id)}
-              >
-                🗑️ 삭제
-              </button>
+              {canEditProject() && (
+                <button 
+                  className="btn btn-edit"
+                  onClick={() => {
+                    setEditingProject(project);
+                    setShowEditModal(true);
+                  }}
+                >
+                  ✏️ 수정
+                </button>
+              )}
+              {canDeleteProject() && (
+                <button 
+                  className="btn btn-delete"
+                  onClick={() => handleDeleteProject(project.id)}
+                >
+                  🗑️ 삭제
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -132,12 +155,14 @@ const ProjectManager = () => {
         {projects.length === 0 && (
           <div className="empty-state">
             <p>등록된 프로젝트가 없습니다.</p>
-            <button 
-              className="btn btn-add"
-              onClick={() => setShowAddModal(true)}
-            >
-              첫 번째 프로젝트 추가하기
-            </button>
+            {canAddProject() && (
+              <button 
+                className="btn btn-add"
+                onClick={() => setShowAddModal(true)}
+              >
+                첫 번째 프로젝트 추가하기
+              </button>
+            )}
           </div>
         )}
       </div>
