@@ -202,23 +202,23 @@ def calculate_test_results(env_folders):
     try:
         passed_tests = db.session.query(TestResult).join(TestCase).filter(
             TestCase.folder_id.in_(env_folders),
-            TestResult.status == 'Pass'
+            TestResult.result == 'Pass'
         ).count()
         failed_tests = db.session.query(TestResult).join(TestCase).filter(
             TestCase.folder_id.in_(env_folders),
-            TestResult.status == 'Fail'
+            TestResult.result == 'Fail'
         ).count()
         nt_tests = db.session.query(TestResult).join(TestCase).filter(
             TestCase.folder_id.in_(env_folders),
-            TestResult.status == 'N/T'
+            TestResult.result == 'N/T'
         ).count()
         na_tests = db.session.query(TestResult).join(TestCase).filter(
             TestCase.folder_id.in_(env_folders),
-            TestResult.status == 'N/A'
+            TestResult.result == 'N/A'
         ).count()
         blocked_tests = db.session.query(TestResult).join(TestCase).filter(
             TestCase.folder_id.in_(env_folders),
-            TestResult.status == 'Block'
+            TestResult.result == 'Block'
         ).count()
         return passed_tests, failed_tests, nt_tests, na_tests, blocked_tests
     except Exception:
@@ -656,9 +656,9 @@ def update_testcase_status(testcase_id):
             test_result = TestResult(test_case_id=testcase_id)
             db.session.add(test_result)
         
-        test_result.status = new_status
+        test_result.result = new_status  # status 대신 result 사용
         test_result.execution_time = data.get('execution_time', 0)
-        test_result.result_data = data.get('result_data', '')
+        # test_result.result_data = data.get('result_data', '')  # 실제 DB에 없는 컬럼
         db.session.commit()
         
         return jsonify({'status': 'success', 'message': 'Test case status updated successfully'}), 200
@@ -726,7 +726,7 @@ def execute_testcase(testcase_id):
             test_case_id=testcase_id,
             status='running',
             execution_time=0,
-            result_data='Test execution started'
+            # result_data='Test execution started'  # 실제 DB에 없는 컬럼
         )
         db.session.add(test_result)
         db.session.commit()
@@ -749,11 +749,11 @@ def get_test_data():
         # 테스트 데이터 반환 - status 컬럼이 없을 경우를 대비
         total_testcases = TestCase.query.count()
         
-        # TestResult 테이블의 status 컬럼 존재 여부 확인
+        # TestResult 테이블의 result 컬럼 사용
         try:
-            running_tests = TestResult.query.filter_by(status='running').count()
-            completed_tests = TestResult.query.filter_by(status='completed').count()
-            failed_tests = TestResult.query.filter_by(status='failed').count()
+            running_tests = TestResult.query.filter_by(result='running').count()
+            completed_tests = TestResult.query.filter_by(result='completed').count()
+            failed_tests = TestResult.query.filter_by(result='failed').count()
         except Exception:
             # status 컬럼이 없으면 기본값 사용
             running_tests = 0
@@ -781,7 +781,7 @@ def get_test_executions():
         try:
             executions = TestResult.query.all()
         except Exception:
-            # TestResult 테이블에 status 컬럼이 없으면 빈 배열 반환
+            # TestResult 테이블에 result 컬럼이 없으면 빈 배열 반환
             return jsonify([]), 200
         
         data = []
@@ -793,7 +793,7 @@ def get_test_executions():
                     'test_case_id': exe.test_case_id,
                     'status': getattr(exe, 'status', 'unknown'),  # status 컬럼이 없으면 'unknown'
                     'execution_time': exe.execution_time,
-                    'result_data': exe.result_data,
+                    # 'result_data': exe.result_data,  # 실제 DB에 없는 컬럼
                     'created_at': exe.created_at.isoformat()
                 }
                 data.append(execution_data)
@@ -816,9 +816,9 @@ def get_test_results(testcase_id):
         data = [{
             'id': result.id,
             'test_case_id': result.test_case_id,
-            'status': result.status,
+            'status': result.result,  # status 대신 result 사용
             'execution_time': result.execution_time,
-            'result_data': result.result_data,
+            # 'result_data': result.result_data,  # 실제 DB에 없는 컬럼
             'created_at': result.created_at.isoformat()
         } for result in results]
         return jsonify(data), 200

@@ -459,7 +459,23 @@ def delete_testcase(id):
         
         print(f"🗑️ 테스트 케이스 삭제: {testcase_name} ({environment})")
         
-        # 테스트 케이스 삭제
+        # 연관된 데이터 먼저 삭제
+        # 1. 테스트 결과 삭제
+        test_results = TestResult.query.filter_by(test_case_id=id).all()
+        for result in test_results:
+            # 테스트 결과에 연결된 스크린샷 삭제
+            screenshots = Screenshot.query.filter_by(test_result_id=result.id).all()
+            for screenshot in screenshots:
+                db.session.delete(screenshot)
+            # 테스트 결과 삭제
+            db.session.delete(result)
+        
+        # 2. 테스트 계획에서의 연결 삭제
+        test_plan_testcases = TestPlanTestCase.query.filter_by(test_case_id=id).all()
+        for ptc in test_plan_testcases:
+            db.session.delete(ptc)
+        
+        # 3. 마지막으로 테스트 케이스 삭제
         db.session.delete(tc)
         db.session.commit()
         
@@ -478,6 +494,101 @@ def delete_testcase(id):
         response = jsonify({'error': f'삭제 중 오류가 발생했습니다: {str(e)}'})
         return add_cors_headers(response), 500
 
+@testcases_bp.route('/testcases/bulk-delete', methods=['POST'])
+@admin_required
+def bulk_delete_testcases():
+    """다중 테스트 케이스 삭제"""
+    try:
+        data = request.get_json()
+        testcase_ids = data.get('testcase_ids', [])
+        
+        if not testcase_ids:
+            response = jsonify({'error': '삭제할 테스트 케이스 ID 목록이 필요합니다'})
+            return add_cors_headers(response), 400
+        
+        if not isinstance(testcase_ids, list):
+            response = jsonify({'error': 'testcase_ids는 배열이어야 합니다'})
+            return add_cors_headers(response), 400
+        
+        print(f"🗑️ 다중 테스트 케이스 삭제 시도: {len(testcase_ids)}개")
+        
+        deleted_count = 0
+        failed_deletions = []
+        environments_to_update = set()
+        
+        for testcase_id in testcase_ids:
+            try:
+                tc = TestCase.query.get(testcase_id)
+                if tc:
+                    environment = tc.environment
+                    testcase_name = tc.name
+                    
+                    print(f"🗑️ 테스트 케이스 삭제: {testcase_name} ({environment})")
+                    
+                    # 환경 정보 수집 (대시보드 업데이트용)
+                    environments_to_update.add(environment)
+                    
+                    # 연관된 데이터 먼저 삭제
+                    # 1. 테스트 결과 삭제
+                    test_results = TestResult.query.filter_by(test_case_id=testcase_id).all()
+                    for result in test_results:
+                        # 테스트 결과에 연결된 스크린샷 삭제
+                        screenshots = Screenshot.query.filter_by(test_result_id=result.id).all()
+                        for screenshot in screenshots:
+                            db.session.delete(screenshot)
+                        # 테스트 결과 삭제
+                        db.session.delete(result)
+                    
+                    # 2. 테스트 계획에서의 연결 삭제
+                    test_plan_testcases = TestPlanTestCase.query.filter_by(test_case_id=testcase_id).all()
+                    for ptc in test_plan_testcases:
+                        db.session.delete(ptc)
+                    
+                    # 3. 마지막으로 테스트 케이스 삭제
+                    db.session.delete(tc)
+                    deleted_count += 1
+                else:
+                    print(f"⚠️ 테스트 케이스 ID {testcase_id}를 찾을 수 없습니다")
+                    failed_deletions.append({
+                        'id': testcase_id,
+                        'error': '테스트 케이스를 찾을 수 없습니다'
+                    })
+            except Exception as e:
+                print(f"❌ 테스트 케이스 ID {testcase_id} 삭제 실패: {str(e)}")
+                failed_deletions.append({
+                    'id': testcase_id,
+                    'error': str(e)
+                })
+        
+        # 모든 삭제 작업을 한 번에 커밋
+        db.session.commit()
+        
+        # 대시보드 요약 데이터 자동 업데이트 (환경별로)
+        for environment in environments_to_update:
+            if update_dashboard_summary_for_environment(environment):
+                print(f"✅ 대시보드 요약 데이터 업데이트 성공: {environment}")
+            else:
+                print(f"⚠️ 대시보드 요약 데이터 업데이트 실패: {environment}")
+        
+        response_data = {
+            'message': f'{deleted_count}개의 테스트 케이스가 성공적으로 삭제되었습니다',
+            'deleted_count': deleted_count,
+            'total_requested': len(testcase_ids),
+            'failed_deletions': failed_deletions
+        }
+        
+        if failed_deletions:
+            response_data['warning'] = f'{len(failed_deletions)}개의 테스트 케이스 삭제에 실패했습니다'
+        
+        response = jsonify(response_data)
+        return add_cors_headers(response), 200
+        
+    except Exception as e:
+        print(f"❌ 다중 테스트 케이스 삭제 실패: {str(e)}")
+        db.session.rollback()
+        response = jsonify({'error': f'다중 삭제 중 오류가 발생했습니다: {str(e)}'})
+        return add_cors_headers(response), 500
+
 @testcases_bp.route('/testresults/<int:test_case_id>', methods=['GET'])
 def get_test_results(test_case_id):
     """특정 테스트 케이스의 실행 결과 조회"""
@@ -492,10 +603,10 @@ def get_test_results(test_case_id):
                 'result': result.result,
                 'executed_at': result.executed_at.isoformat() if result.executed_at else None,
                 'notes': result.notes,
-                'screenshot': result.screenshot,
+                'screenshot': getattr(result, 'screenshot', None),  # 실제 DB에 없을 수 있음
                 'environment': result.environment,
-                'execution_duration': result.execution_duration,
-                'error_message': result.error_message
+                'execution_duration': getattr(result, 'execution_duration', None),  # 실제 DB에 없을 수 있음
+                'error_message': getattr(result, 'error_message', None)  # 실제 DB에 없을 수 있음
             }
             result_list.append(result_data)
         
