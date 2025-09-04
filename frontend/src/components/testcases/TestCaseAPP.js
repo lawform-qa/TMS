@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import config from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
+import { formatUTCToKST } from '../../utils/dateUtils';
 import './TestCaseAPP.css';
 
 // axios 인터셉터 설정 - 인증 토큰 자동 추가
@@ -18,11 +20,7 @@ axios.interceptors.request.use(
     config.headers['X-Requested-With'] = 'XMLHttpRequest';
     config.headers['Accept'] = 'application/json';
     
-    // 개발 환경에서만 로깅
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🌐 API Request:', config.method?.toUpperCase(), config.url);
-      console.log('🔑 Auth Token:', token ? '있음' : '없음');
-    }
+    // API Request 로그는 출력하지 않음
     
     return config;
   },
@@ -56,14 +54,17 @@ axios.interceptors.response.use(
 const TestCaseScreenshots = ({ testCaseId }) => {
   const [screenshots, setScreenshots] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const fetchScreenshots = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await axios.get(`${config.apiUrl}/testcases/${testCaseId}/screenshots`);
       setScreenshots(response.data);
     } catch (err) {
       console.error('스크린샷 조회 오류:', err);
+      setError('스크린샷을 불러오는 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -79,26 +80,36 @@ const TestCaseScreenshots = ({ testCaseId }) => {
     return <div className="screenshots-loading">스크린샷 로딩 중...</div>;
   }
 
+  if (error) {
+    return (
+      <div className="screenshots-error">
+        <p>❌ {error}</p>
+        <button onClick={fetchScreenshots} className="retry-button">
+          다시 시도
+        </button>
+      </div>
+    );
+  }
+
   if (screenshots.length === 0) {
     return <div className="no-screenshots">스크린샷이 없습니다.</div>;
   }
 
   return (
     <div className="screenshots-container">
-      {screenshots.map((screenshot, index) => (
-        <div key={screenshot.id} className="screenshot-item">
-          <img 
-            src={`${config.apiUrl}/screenshots/${screenshot.screenshot_path}`}
-            alt={`스크린샷 ${index + 1}`}
-            className="screenshot-image"
-          />
-          <div className="screenshot-info">
-            <span className="screenshot-timestamp">
-              {new Date(screenshot.timestamp).toLocaleString()}
-            </span>
-          </div>
+      {/* 스크린샷 표시는 클라우드 전환 시 S3/CDN으로 대체 예정 */}
+      <div className="screenshot-placeholder">
+        <p>📸 스크린샷 {screenshots.length}개</p>
+        <small>클라우드 전환 시 S3/CDN으로 이미지 표시 예정</small>
+        <div className="screenshot-paths">
+          {screenshots.map((screenshot, index) => (
+            <div key={screenshot.id} className="screenshot-path-item">
+              <span>• {screenshot.screenshot_path}</span>
+                              <small>{screenshot.timestamp ? formatUTCToKST(screenshot.timestamp) : '시간 정보 없음'}</small>
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
     </div>
   );
 };
@@ -143,7 +154,7 @@ const TestCaseExecutionResults = ({ testCaseId }) => {
               {result.result || 'N/A'}
             </span>
             <span className="result-timestamp">
-              {new Date(result.executed_at).toLocaleString()}
+                              {formatUTCToKST(result.executed_at)}
             </span>
           </div>
           {result.execution_duration && (
@@ -175,6 +186,7 @@ const TestCaseExecutionResults = ({ testCaseId }) => {
 axios.defaults.baseURL = config.apiUrl;
 
 const TestCaseAPP = () => {
+  const { user } = useAuth();
   const [testCases, setTestCases] = useState([]);
   const [folderTree, setFolderTree] = useState([]);
   const [selectedFolder, setSelectedFolder] = useState(null);
@@ -186,6 +198,7 @@ const TestCaseAPP = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingTestCase, setEditingTestCase] = useState(null);
   const [newTestCase, setNewTestCase] = useState({
+    name: '',
     main_category: '',
     sub_category: '',
     detail_category: '',
@@ -195,8 +208,12 @@ const TestCaseAPP = () => {
     remark: '',
     folder_id: null,
     automation_code_path: '',
-    automation_code_type: 'playwright'
+    automation_code_type: 'playwright',
+    assignee_id: null
   });
+  
+  // 사용자 목록 관련 상태
+  const [users, setUsers] = useState([]);
   
   // 폴더 이동 관련 상태
   const [selectedTestCases, setSelectedTestCases] = useState([]);
@@ -204,24 +221,38 @@ const TestCaseAPP = () => {
   const [targetFolderId, setTargetFolderId] = useState('');
   const [allFolders, setAllFolders] = useState([]);
   
-  // 아코디언 관련 상태
+  // 다중 삭제 관련 상태
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  
+  // 상세보기 모달 관련 상태
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedTestCase, setSelectedTestCase] = useState(null);
+  
+  // 아코디언 관련 상태 (폴더만 유지)
   const [expandedFolders, setExpandedFolders] = useState(new Set());
-  const [expandedTestCases, setExpandedTestCases] = useState(new Set());
+  
+  // 검색 관련 상태
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [environmentFilter, setEnvironmentFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [creatorFilter, setCreatorFilter] = useState('all');
+  const [assigneeFilter, setAssigneeFilter] = useState('all');
+  
+  // 테이블 정렬 상태
+  const [sortBy, setSortBy] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
+  
+
 
   useEffect(() => {
     fetchData();
+    fetchUsers(); // 사용자 목록도 함께 가져오기
   }, []);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      
-      console.log('=== fetchData 디버깅 ===');
-      console.log('config.apiUrl:', config.apiUrl);
-      console.log('요청할 URL들:');
-      console.log('- testcases:', `${config.apiUrl}/testcases`);
-      console.log('- folders/tree:', `${config.apiUrl}/folders/tree`);
-      console.log('- folders:', `${config.apiUrl}/folders`);
       
       const [testCasesRes, treeRes, foldersRes] = await Promise.all([
         axios.get(`${config.apiUrl}/testcases`),
@@ -229,32 +260,42 @@ const TestCaseAPP = () => {
         axios.get(`${config.apiUrl}/folders`)
       ]);
 
-      console.log('=== API 응답 디버깅 ===');
-      console.log('testCases 응답:', testCasesRes);
-      console.log('받아온 테스트 케이스 데이터:', testCasesRes.data);
-      console.log('테스트 케이스 개수:', testCasesRes.data?.length);
-      console.log('tree 응답:', treeRes);
-      console.log('folders 응답:', foldersRes);
-      
       setTestCases(testCasesRes.data);
       setFolderTree(treeRes.data);
       setAllFolders(foldersRes.data);
     } catch (err) {
       setError('데이터를 불러오는 중 오류가 발생했습니다.');
-      console.error('Test case data fetch error:', err);
-      console.error('에러 상세:', err.response);
+      // 오류는 조용히 처리
     } finally {
       setLoading(false);
     }
   };
 
+  // 사용자 목록을 별도로 가져오는 함수
+  const fetchUsers = async () => {
+    try {
+      console.log('🔍 사용자 목록 가져오기 시작...');
+      console.log('🌐 API URL:', `${config.apiUrl}/users/list`);
+      
+      const response = await axios.get(`${config.apiUrl}/users/list`);
+      console.log('✅ 사용자 목록 로드 성공:', response.data);
+      console.log('📊 사용자 수:', response.data.length);
+      console.log('📋 사용자 목록 상세:', response.data);
+      setUsers(response.data);
+    } catch (error) {
+      console.error('❌ 사용자 목록 로드 실패:', error);
+      console.error('🔍 에러 상세:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+        url: `${config.apiUrl}/users/list`
+      });
+      setUsers([]);
+    }
+  };
+
   const handleFolderSelect = (folderId) => {
-    console.log('=== handleFolderSelect 디버깅 ===');
-    console.log('전달받은 folderId:', folderId, '타입:', typeof folderId);
-    console.log('현재 folderTree:', folderTree);
-    
-    const selectedFolderInfo = findFolderInTree(folderTree, folderId);
-    console.log('선택된 폴더 정보:', selectedFolderInfo);
+          const selectedFolderInfo = findFolderInTree(folderTree, folderId);
     setSelectedFolder(folderId);
   };
 
@@ -264,23 +305,10 @@ const TestCaseAPP = () => {
       return;
     }
 
-    console.log('=== 파일 업로드 디버깅 ===');
-    console.log('선택된 파일:', selectedFile);
-    console.log('파일명:', selectedFile.name);
-    console.log('파일 크기:', selectedFile.size);
-    console.log('파일 타입:', selectedFile.type);
-
     const formData = new FormData();
     formData.append('file', selectedFile);
 
-    // FormData 내용 확인
-    console.log('FormData 내용:');
-    for (let [key, value] of formData.entries()) {
-      console.log(`${key}:`, value);
-    }
-
     try {
-      console.log('업로드 요청 시작...');
       const response = await axios.post(`${config.apiUrl}/testcases/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -290,14 +318,11 @@ const TestCaseAPP = () => {
         }],
       });
 
-      console.log('업로드 성공:', response.data);
       alert(response.data.message);
       setShowUploadModal(false);
       setSelectedFile(null);
       fetchData(); // 데이터 새로고침
     } catch (err) {
-      console.error('업로드 오류:', err);
-      console.error('오류 응답:', err.response?.data);
       alert('파일 업로드 중 오류가 발생했습니다: ' + err.response?.data?.error || err.message);
     }
   };
@@ -309,11 +334,25 @@ const TestCaseAPP = () => {
     }
 
     try {
-      console.log('전송할 테스트 케이스 데이터:', newTestCase);
-      await axios.post(`${config.apiUrl}/testcases`, newTestCase);
+      // 자동으로 테스트 케이스 이름 생성
+      const autoName = `${newTestCase.main_category} - ${newTestCase.sub_category} - ${newTestCase.detail_category}`;
+      const testCaseData = {
+        ...newTestCase,
+        name: autoName
+      };
+
+      // 토큰 확인
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('로그인이 필요합니다. 토큰이 없습니다.');
+        return;
+      }
+
+      await axios.post(`${config.apiUrl}/testcases`, testCaseData);
       alert('테스트 케이스가 성공적으로 추가되었습니다.');
       setShowAddModal(false);
       setNewTestCase({
+        name: '',
         main_category: '',
         sub_category: '',
         detail_category: '',
@@ -323,11 +362,12 @@ const TestCaseAPP = () => {
         remark: '',
         folder_id: null,
         automation_code_path: '',
-        automation_code_type: 'playwright'
+        automation_code_type: 'playwright',
+        assignee_id: null
       });
       fetchData(); // 데이터 새로고침
     } catch (err) {
-      alert('테스트 케이스 추가 중 오류가 발생했습니다: ' + err.response?.data?.error || err.message);
+      alert('테스트 케이스 추가 중 오류가 발생했습니다: ' + (err.response?.data?.error || err.message));
     }
   };
 
@@ -364,19 +404,74 @@ const TestCaseAPP = () => {
 
   const handleStatusChange = async (testCaseId, newStatus) => {
     try {
-      console.log('🔄 테스트 케이스 상태 변경 시도:', { testCaseId, newStatus });
-      
       const response = await axios.put(`${config.apiUrl}/testcases/${testCaseId}/status`, { 
         status: newStatus 
       });
       
-      console.log('✅ 테스트 케이스 상태 변경 완료:', newStatus, response.data);
       alert('테스트 케이스 상태가 성공적으로 변경되었습니다.');
       fetchData(); // 데이터 새로고침
     } catch (err) {
-      console.error('❌ 테스트 케이스 상태 변경 실패:', err);
       const errorMessage = err.response?.data?.error || err.message || '알 수 없는 오류가 발생했습니다.';
       alert('테스트 케이스 상태 변경 중 오류가 발생했습니다: ' + errorMessage);
+    }
+  };
+
+  // 담당자 변경 함수
+  const handleAssigneeChange = async (testCaseId, newAssigneeId) => {
+    try {
+      console.log('담당자 변경 시도:', { testCaseId, newAssigneeId, users });
+      
+      // 빈 값이면 담당자 제거
+      if (!newAssigneeId || newAssigneeId === '') {
+        const response = await axios.put(`${config.apiUrl}/testcases/${testCaseId}`, {
+          assignee_id: null
+        });
+        
+        if (response.status === 200) {
+          // 로컬 상태 업데이트 - 담당자 제거
+          setTestCases(prev => prev.map(tc => {
+            if (tc.id === testCaseId) {
+              return { 
+                ...tc, 
+                assignee_id: null,
+                assignee_name: null
+              };
+            }
+            return tc;
+          }));
+          
+          // 성공 메시지
+          alert('담당자가 제거되었습니다.');
+        }
+        return;
+      }
+
+      // 새로운 담당자 설정
+      const response = await axios.put(`${config.apiUrl}/testcases/${testCaseId}`, {
+        assignee_id: newAssigneeId
+      });
+      
+      if (response.status === 200) {
+        // 로컬 상태 업데이트
+        setTestCases(prev => prev.map(tc => {
+          if (tc.id === testCaseId) {
+            const selectedUser = users.find(u => u.id === parseInt(newAssigneeId));
+            console.log('선택된 사용자:', selectedUser);
+            return { 
+              ...tc, 
+              assignee_id: parseInt(newAssigneeId),
+              assignee_name: selectedUser ? (selectedUser.username || selectedUser.name) : '없음'
+            };
+          }
+          return tc;
+        }));
+        
+        // 성공 메시지
+        alert('담당자가 성공적으로 변경되었습니다.');
+      }
+    } catch (err) {
+      const errorMessage = err.response?.data?.error || err.message || '알 수 없는 오류가 발생했습니다.';
+      alert('담당자 변경 중 오류가 발생했습니다: ' + errorMessage);
     }
   };
 
@@ -460,6 +555,41 @@ const TestCaseAPP = () => {
     }
   };
 
+  const handleMultiDelete = async () => {
+    if (selectedTestCases.length === 0) {
+      alert('삭제할 테스트 케이스를 선택해주세요.');
+      return;
+    }
+
+    try {
+      console.log('🗑️ 다중 삭제 시도:', { selectedTestCases });
+      
+      // 다중 삭제 API 호출
+      const response = await axios.post(`${config.apiUrl}/testcases/bulk-delete`, {
+        testcase_ids: selectedTestCases
+      });
+
+      const { deleted_count, total_requested, failed_deletions, warning } = response.data;
+      
+      let message = `${deleted_count}개의 테스트 케이스가 성공적으로 삭제되었습니다.`;
+      if (warning) {
+        message += `\n\n${warning}`;
+      }
+      if (failed_deletions && failed_deletions.length > 0) {
+        message += `\n\n실패한 삭제:\n${failed_deletions.map(f => `- ID ${f.id}: ${f.error}`).join('\n')}`;
+      }
+      
+      alert(message);
+      setShowDeleteModal(false);
+      setSelectedTestCases([]);
+      fetchData(); // 데이터 새로고침
+    } catch (err) {
+      console.error('❌ 다중 삭제 실패:', err);
+      const errorMessage = err.response?.data?.error || err.message || '알 수 없는 오류가 발생했습니다.';
+      alert('다중 삭제 중 오류가 발생했습니다: ' + errorMessage);
+    }
+  };
+
   // 아코디언 토글 함수
   const toggleFolder = (folderId) => {
     setExpandedFolders(prev => {
@@ -473,29 +603,12 @@ const TestCaseAPP = () => {
     });
   };
 
-  // 테스트 케이스 상세 토글 함수
-  const toggleTestCaseDetails = (testCaseId) => {
-    setExpandedTestCases(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(testCaseId)) {
-        newSet.delete(testCaseId);
-      } else {
-        newSet.add(testCaseId);
-      }
-      return newSet;
-    });
-  };
+
 
   // 폴더 트리에서 특정 ID의 폴더 정보 찾기
   const findFolderInTree = (nodes, folderId) => {
-    console.log('=== findFolderInTree 디버깅 ===');
-    console.log('찾을 folderId:', folderId, '타입:', typeof folderId);
-    console.log('nodes:', nodes);
-    
     for (const node of nodes) {
-      console.log('현재 노드 ID:', node.id, '타입:', typeof node.id);
       if (node.id === folderId) {
-        console.log('노드 찾음:', node);
         return node;
       }
       if (node.children) {
@@ -503,83 +616,53 @@ const TestCaseAPP = () => {
         if (found) return found;
       }
     }
-    console.log('노드를 찾을 수 없음');
     return null;
   };
 
   // 환경 폴더의 모든 하위 폴더 ID들 가져오기
   const getEnvironmentFolderIds = (nodes, environmentFolderId) => {
-    console.log('=== getEnvironmentFolderIds 디버깅 ===');
-    console.log('입력 nodes:', nodes);
-    console.log('입력 environmentFolderId:', environmentFolderId);
-    
     const environmentNode = findFolderInTree(nodes, environmentFolderId);
-    console.log('찾은 환경 노드:', environmentNode);
     
     if (!environmentNode || environmentNode.type !== 'environment') {
-      console.log('환경 노드를 찾을 수 없거나 타입이 맞지 않음');
       return [];
     }
     
     const folderIds = [];
     if (environmentNode.children) {
-      console.log('환경 노드의 자식들:', environmentNode.children);
       for (const child of environmentNode.children) {
-        console.log('자식 노드 확인:', child);
         if (child.type === 'deployment_date') {
           folderIds.push(child.id);
-          console.log('배포일자 폴더 추가:', child.id, child.folder_name);
           
           // 배포일자 폴더의 하위 기능명 폴더들도 추가
           if (child.children) {
             for (const featureChild of child.children) {
               if (featureChild.type === 'feature') {
                 folderIds.push(featureChild.id);
-                console.log('기능명 폴더 추가:', featureChild.id, featureChild.folder_name);
               }
             }
           }
-        } else {
-          console.log('배포일자가 아닌 자식 노드:', child.type, child.folder_name);
         }
       }
-    } else {
-      console.log('환경 노드에 자식이 없음');
     }
-    console.log('최종 폴더 IDs:', folderIds);
     return folderIds;
   };
 
   // 배포일자 폴더의 모든 하위 폴더 ID들 가져오기
   const getDeploymentFolderIds = (nodes, deploymentFolderId) => {
-    console.log('=== getDeploymentFolderIds 디버깅 ===');
-    console.log('입력 nodes:', nodes);
-    console.log('입력 deploymentFolderId:', deploymentFolderId);
-    
     const deploymentNode = findFolderInTree(nodes, deploymentFolderId);
-    console.log('찾은 배포일자 노드:', deploymentNode);
     
     if (!deploymentNode || deploymentNode.type !== 'deployment_date') {
-      console.log('배포일자 노드를 찾을 수 없거나 타입이 맞지 않음');
       return [];
     }
     
     const folderIds = [deploymentNode.id]; // 배포일자 폴더 자체도 포함
     if (deploymentNode.children) {
-      console.log('배포일자 노드의 자식들:', deploymentNode.children);
       for (const child of deploymentNode.children) {
-        console.log('자식 노드 확인:', child);
         if (child.type === 'feature') {
           folderIds.push(child.id);
-                  console.log('기능명 폴더 추가:', child.id, child.folder_name);
-      } else {
-        console.log('기능명이 아닌 자식 노드:', child.type, child.folder_name);
         }
       }
-    } else {
-      console.log('배포일자 노드에 자식이 없음');
     }
-    console.log('최종 폴더 IDs:', folderIds);
     return folderIds;
   };
 
@@ -590,6 +673,176 @@ const TestCaseAPP = () => {
     
     // 백엔드에서 제공하는 type 필드 사용
     return folder.type || 'unknown';
+  };
+
+  // 고급 검색을 위한 헬퍼 함수들
+  const getUniqueEnvironments = () => {
+    const uniqueEnvs = new Set();
+    testCases.forEach(tc => {
+      if (tc.environment) {
+        uniqueEnvs.add(tc.environment);
+      }
+    });
+    return Array.from(uniqueEnvs).sort();
+  };
+
+  const getUniqueCategories = () => {
+    const uniqueCategories = new Set();
+    testCases.forEach(tc => {
+      if (tc.main_category) uniqueCategories.add(tc.main_category);
+      if (tc.sub_category) uniqueCategories.add(`${tc.main_category} > ${tc.sub_category}`);
+      if (tc.detail_category) uniqueCategories.add(`${tc.main_category} > ${tc.sub_category} > ${tc.detail_category}`);
+    });
+    return Array.from(uniqueCategories).sort();
+  };
+
+  const getUniqueCreators = () => {
+    const uniqueCreators = new Set();
+    testCases.forEach(tc => {
+      if (tc.creator_name) {
+        uniqueCreators.add(tc.creator_name);
+      }
+    });
+    return Array.from(uniqueCreators).sort();
+  };
+
+  const getUniqueAssignees = () => {
+    const uniqueAssignees = new Set();
+    testCases.forEach(tc => {
+      if (tc.assignee_name) {
+        uniqueAssignees.add(tc.assignee_name);
+      }
+    });
+    return Array.from(uniqueAssignees).sort();
+  };
+
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setEnvironmentFilter('all');
+    setCategoryFilter('all');
+    setCreatorFilter('all');
+    setAssigneeFilter('all');
+  };
+
+  // 테이블 정렬 함수
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+  };
+
+  // 고급 검색 기능
+  const getFilteredTestCases = () => {
+    let filtered = selectedFolder 
+      ? testCases.filter(tc => {
+          const tcFolderId = Number(tc.folder_id);
+          const selectedFolderId = Number(selectedFolder);
+          
+          // 선택된 폴더 정보 찾기
+          const selectedFolderInfo = findFolderInTree(folderTree, selectedFolderId);
+          const selectedFolderType = getFolderType(selectedFolderId);
+          
+          if (selectedFolderType === 'environment') {
+            // 환경 폴더 선택 시: 해당 환경의 모든 하위 폴더의 테스트 케이스들
+            const environmentFolderIds = getEnvironmentFolderIds(folderTree, selectedFolderId);
+            return environmentFolderIds.includes(tcFolderId);
+          } else if (selectedFolderType === 'deployment_date') {
+            // 날짜 폴더 선택 시: 해당 날짜의 모든 하위 폴더의 테스트 케이스들
+            const deploymentFolderIds = getDeploymentFolderIds(folderTree, selectedFolderId);
+            return deploymentFolderIds.includes(tcFolderId);
+          } else if (selectedFolderType === 'feature') {
+            // 기능 폴더 선택 시: 해당 폴더의 테스트 케이스들만
+            return tcFolderId === selectedFolderId;
+          } else {
+            // 알 수 없는 폴더 타입: 전체 테스트 케이스 표시
+            return true;
+          }
+        })
+      : testCases;
+
+    // 검색어가 있으면 검색 필터링 적용
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(tc => 
+        (tc.main_category && tc.main_category.toLowerCase().includes(searchLower)) ||
+        (tc.sub_category && tc.sub_category.toLowerCase().includes(searchLower)) ||
+        (tc.detail_category && tc.detail_category.toLowerCase().includes(searchLower)) ||
+        (tc.expected_result && tc.expected_result.toLowerCase().includes(searchLower)) ||
+        (tc.remark && tc.remark.toLowerCase().includes(searchLower)) ||
+        (tc.creator_name && tc.creator_name.toLowerCase().includes(searchLower)) ||
+        (tc.assignee_name && tc.assignee_name.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // 상태 필터 적용
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(tc => tc.result_status === statusFilter);
+    }
+
+    // 환경 필터 적용
+    if (environmentFilter !== 'all') {
+      filtered = filtered.filter(tc => tc.environment === environmentFilter);
+    }
+
+    // 카테고리 필터 적용
+    if (categoryFilter !== 'all') {
+      const categoryParts = categoryFilter.split(' > ');
+      if (categoryParts.length === 1) {
+        filtered = filtered.filter(tc => tc.main_category === categoryParts[0]);
+      } else if (categoryParts.length === 2) {
+        filtered = filtered.filter(tc => tc.main_category === categoryParts[0] && tc.sub_category === categoryParts[1]);
+      } else if (categoryParts.length === 3) {
+        filtered = filtered.filter(tc => tc.main_category === categoryParts[0] && tc.sub_category === categoryParts[1] && tc.detail_category === categoryParts[2]);
+      }
+    }
+
+    // 작성자 필터 적용
+    if (creatorFilter !== 'all') {
+      filtered = filtered.filter(tc => tc.creator_name === creatorFilter);
+    }
+
+    // 담당자 필터 적용
+    if (assigneeFilter !== 'all') {
+      filtered = filtered.filter(tc => tc.assignee_name === assigneeFilter);
+    }
+
+    // 정렬 적용
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      switch (sortBy) {
+        case 'id':
+          comparison = (a.id || 0) - (b.id || 0);
+          break;
+        case 'name':
+          comparison = (a.main_category || '').localeCompare(b.main_category || '');
+          break;
+        case 'status':
+          comparison = (a.result_status || '').localeCompare(b.result_status || '');
+          break;
+        case 'assignee':
+          comparison = (a.assignee_name || '').localeCompare(b.assignee_name || '');
+          break;
+        case 'creator':
+          comparison = (a.creator_name || '').localeCompare(b.creator_name || '');
+          break;
+        case 'created_at':
+          comparison = new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+          break;
+        case 'updated_at':
+          comparison = new Date(a.updated_at || 0).getTime() - new Date(b.updated_at || 0).getTime();
+          break;
+        case 'environment':
+          comparison = (a.environment || '').localeCompare(b.environment || '');
+          break;
+      }
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return filtered;
   };
 
   const renderFolderTree = (nodes, level = 0) => {
@@ -658,57 +911,9 @@ const TestCaseAPP = () => {
     });
   };
 
-  const filteredTestCases = selectedFolder 
-    ? testCases.filter(tc => {
-        const tcFolderId = Number(tc.folder_id);
-        const selectedFolderId = Number(selectedFolder);
-        
-        // 선택된 폴더 정보 찾기
-        const selectedFolderInfo = findFolderInTree(folderTree, selectedFolderId);
-        const selectedFolderType = getFolderType(selectedFolderId);
-        
-        console.log('=== 필터링 디버깅 ===');
-        console.log('테스트 케이스:', tc.name || tc.description);
-        console.log('tc.folder_id:', tc.folder_id, '->', tcFolderId);
-        console.log('selectedFolder:', selectedFolder, '->', selectedFolderId);
-        console.log('selectedFolderInfo:', selectedFolderInfo);
-        console.log('selectedFolderType:', selectedFolderType);
-        console.log('전체 testCases:', testCases.length);
-        
-        if (selectedFolderType === 'environment') {
-          // 환경 폴더 선택 시: 해당 환경의 모든 하위 폴더의 테스트 케이스들
-          const environmentFolderIds = getEnvironmentFolderIds(folderTree, selectedFolderId);
-          console.log(`환경 필터링: ${selectedFolderInfo.name}, 폴더 IDs:`, environmentFolderIds);
-          const result = environmentFolderIds.includes(tcFolderId);
-          console.log('필터링 결과:', result);
-          return result;
-        } else if (selectedFolderType === 'deployment_date') {
-          // 날짜 폴더 선택 시: 해당 날짜의 모든 하위 폴더의 테스트 케이스들
-          const deploymentFolderIds = getDeploymentFolderIds(folderTree, selectedFolderId);
-          console.log(`날짜 필터링: ${selectedFolderInfo.name}, 폴더 IDs:`, deploymentFolderIds);
-          const result = deploymentFolderIds.includes(tcFolderId);
-          console.log('필터링 결과:', result);
-          return result;
-        } else if (selectedFolderType === 'feature') {
-          // 기능 폴더 선택 시: 해당 폴더의 테스트 케이스들만
-          console.log(`기능 폴더 필터링: tc.folder_id ${tcFolderId} === selectedFolder ${selectedFolderId}`);
-          const result = tcFolderId === selectedFolderId;
-          console.log('필터링 결과:', result);
-          return result;
-        } else {
-          // 알 수 없는 폴더 타입: 전체 테스트 케이스 표시
-          console.log('알 수 없는 폴더 타입, 전체 테스트 케이스 표시');
-          return true;
-        }
-      })
-    : testCases;
+  const filteredTestCases = getFilteredTestCases();
 
-  // 디버깅을 위한 로그
-  console.log('=== 필터링 디버깅 ===');
-  console.log('전체 테스트 케이스:', testCases.length);
-  console.log('선택된 폴더 ID:', selectedFolder);
-  console.log('필터링된 테스트 케이스:', filteredTestCases.length);
-  console.log('폴더 트리:', folderTree);
+  // 필터링 완료
 
   if (loading) {
     return <div className="testcase-loading">로딩 중...</div>;
@@ -723,32 +928,169 @@ const TestCaseAPP = () => {
       <div className="testcase-header">
         <h1>테스트 케이스 관리</h1>
         <div className="header-actions">
-          <button 
-            className="btn btn-add"
-            onClick={() => setShowAddModal(true)}
-          >
-            ➕ 테스트 케이스 추가
-          </button>
-          <button 
-            className="btn btn-upload"
-            onClick={() => setShowUploadModal(true)}
-          >
-            📤 엑셀 업로드
-          </button>
+          {user && (user.role === 'admin' || user.role === 'user') && (
+            <button 
+              className="btn btn-add"
+              onClick={() => setShowAddModal(true)}
+            >
+              ➕ 테스트 케이스 추가
+            </button>
+          )}
+          {user && (user.role === 'admin' || user.role === 'user') && (
+            <button 
+              className="btn btn-upload"
+              onClick={() => setShowUploadModal(true)}
+            >
+              📤 엑셀 업로드
+            </button>
+          )}
           <button 
             className="btn btn-download"
             onClick={handleDownload}
           >
             📥 엑셀 다운로드
           </button>
-          {selectedTestCases.length > 0 && (
-            <button 
-              className="btn btn-execute"
-              onClick={() => setShowMoveModal(true)}
-            >
-              📁 폴더 이동 ({selectedTestCases.length})
-            </button>
+          {user && (user.role === 'admin' || user.role === 'user') && selectedTestCases.length > 0 && (
+            <>
+              <button 
+                className="btn btn-execute"
+                onClick={() => setShowMoveModal(true)}
+              >
+                📁 폴더 이동 ({selectedTestCases.length})
+              </button>
+              {user.role === 'admin' && (
+                <button 
+                  className="btn btn-delete"
+                  onClick={() => setShowDeleteModal(true)}
+                >
+                  🗑️ 다중 삭제 ({selectedTestCases.length})
+                </button>
+              )}
+            </>
           )}
+        </div>
+      </div>
+
+      {/* 고급 검색 기능 */}
+      <div className="search-section">
+        <div className="search-container">
+          {/* 기본 검색 */}
+          <div className="search-input-wrapper">
+            <input
+              type="text"
+              placeholder="🔍 테스트 케이스 검색... (대분류, 중분류, 소분류, 기대결과, 비고, 작성자, 담당자)"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-input"
+            />
+            {searchTerm && (
+              <button 
+                className="btn btn-clear-search"
+                onClick={() => setSearchTerm('')}
+                title="검색어 지우기"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* 고급 필터 */}
+          <div className="advanced-filters">
+            <div className="filter-row">
+              <div className="filter-group">
+                <label>상태:</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="filter-select"
+                >
+                  <option value="all">모든 상태</option>
+                  <option value="Pass">Pass</option>
+                  <option value="Fail">Fail</option>
+                  <option value="N/T">N/T</option>
+                  <option value="N/A">N/A</option>
+                  <option value="Block">Block</option>
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>환경:</label>
+                <select
+                  value={environmentFilter}
+                  onChange={(e) => setEnvironmentFilter(e.target.value)}
+                  className="filter-select"
+                >
+                  <option value="all">모든 환경</option>
+                  {getUniqueEnvironments().map(env => (
+                    <option key={env} value={env}>{env}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>카테고리:</label>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="filter-select"
+                >
+                  <option value="all">모든 카테고리</option>
+                  {getUniqueCategories().map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>작성자:</label>
+                <select
+                  value={creatorFilter}
+                  onChange={(e) => setCreatorFilter(e.target.value)}
+                  className="filter-select"
+                >
+                  <option value="all">모든 작성자</option>
+                  {getUniqueCreators().map(creator => (
+                    <option key={creator} value={creator}>{creator}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>담당자:</label>
+                <select
+                  value={assigneeFilter}
+                  onChange={(e) => setAssigneeFilter(e.target.value)}
+                  className="filter-select"
+                >
+                  <option value="all">모든 담당자</option>
+                  {getUniqueAssignees().map(assignee => (
+                    <option key={assignee} value={assignee}>{assignee}</option>
+                  ))}
+                </select>
+              </div>
+
+
+
+              <button
+                onClick={clearAllFilters}
+                className="btn btn-clear-filters"
+                title="모든 필터 초기화"
+              >
+                🗑️
+              </button>
+            </div>
+          </div>
+
+          {/* 검색 결과 요약 */}
+          <div className="search-summary">
+            <span>총 {getFilteredTestCases().length}개 테스트 케이스</span>
+            {searchTerm && <span> • 검색어: "{searchTerm}"</span>}
+            {statusFilter !== 'all' && <span> • 상태: {statusFilter}</span>}
+            {environmentFilter !== 'all' && <span> • 환경: {environmentFilter}</span>}
+            {categoryFilter !== 'all' && <span> • 카테고리: {categoryFilter}</span>}
+            {creatorFilter !== 'all' && <span> • 작성자: {creatorFilter}</span>}
+            {assigneeFilter !== 'all' && <span> • 담당자: {assigneeFilter}</span>}
+          </div>
         </div>
       </div>
 
@@ -776,14 +1118,6 @@ const TestCaseAPP = () => {
         <div className="testcase-list">
           <div className="testcase-list-header">
             <div className="header-checkbox">
-              <label className="select-all-checkbox">
-                <input 
-                  type="checkbox"
-                  checked={selectedTestCases.length === filteredTestCases.length && filteredTestCases.length > 0}
-                  onChange={handleSelectAll}
-                />
-                전체 선택
-              </label>
             </div>
             <h3>
               테스트 케이스 ({filteredTestCases.length})
@@ -804,113 +1138,183 @@ const TestCaseAPP = () => {
             </div>
           </div>
 
-          <div className="testcase-list">
-            {filteredTestCases.map(testCase => (
-              <div key={testCase.id} className="testcase-list-item">
-                <div className="testcase-header">
-                  <div className="testcase-checkbox">
+          {/* 테이블 형태로 변경 */}
+          <div className="testcase-table-container">
+            <table className="testcase-table">
+              <thead>
+                <tr>
+                  <th className="checkbox-column">
                     <input 
                       type="checkbox"
-                      checked={selectedTestCases.includes(testCase.id)}
-                      onChange={() => handleSelectTestCase(testCase.id)}
+                      checked={selectedTestCases.length === filteredTestCases.length && filteredTestCases.length > 0}
+                      onChange={handleSelectAll}
                     />
-                  </div>
-                  <div className="testcase-info">
-                    <h4>
-                      {testCase.main_category && testCase.sub_category && testCase.detail_category 
-                        ? `${testCase.main_category} > ${testCase.sub_category} > ${testCase.detail_category}`
-                        : testCase.expected_result || '제목 없음'
-                      }
-                    </h4>
-                    <div className="testcase-meta">
-                      <span className="environment-badge">{testCase.environment || 'dev'}</span>
-                      {testCase.automation_code_path && (
-                        <span className="automation-badge">🤖 자동화</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="status-section">
-                    <span className={`status-badge ${(testCase.result_status || 'N/A').toLowerCase().replace('/', '-')}`}>
-                      {testCase.result_status || 'N/A'}
-                    </span>
-                    <select
-                      className="status-select"
-                      value={testCase.result_status}
-                      onChange={(e) => handleStatusChange(testCase.id, e.target.value)}
-                    >
-                      <option value="N/T">N/T</option>
-                      <option value="Pass">Pass</option>
-                      <option value="Fail">Fail</option>
-                      <option value="N/A">N/A</option>
-                      <option value="Block">Block</option>
-                    </select>
-                  </div>
-                  {/* 자동화 실행 버튼 */}
-                  {testCase.automation_code_path && (
-                    <button 
-                      className="btn btn-automation"
-                      onClick={() => executeAutomationCode(testCase.id)}
-                      title="자동화 실행"
-                    >
-                      🤖
-                    </button>
-                  )}
-                  {/* 아코디언 버튼 */}
-                  <button 
-                    className="btn btn-details"
-                    onClick={() => toggleTestCaseDetails(testCase.id)}
-                    title="상세보기"
+                  </th>
+                  <th 
+                    className="no-column sortable" 
+                    onClick={() => handleSort('id')}
+                    style={{ cursor: 'pointer' }}
                   >
-                    {expandedTestCases.has(testCase.id) ? '📋' : '📄'}
-                  </button>
-                  <button 
-                    className="btn btn-edit-icon"
-                    onClick={() => {
-                      setEditingTestCase(testCase);
-                      setShowEditModal(true);
-                    }}
-                    title="수정"
+                    No {sortBy === 'id' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className="summary-column sortable" 
+                    onClick={() => handleSort('name')}
+                    style={{ cursor: 'pointer' }}
                   >
-                    ✏️
-                  </button>
-                  <button 
-                    className="btn btn-delete-icon"
-                    onClick={() => handleDeleteTestCase(testCase.id)}
-                    title="삭제"
+                    요약 {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className="status-column sortable" 
+                    onClick={() => handleSort('status')}
+                    style={{ cursor: 'pointer' }}
                   >
-                    ✕
-                  </button>
-                </div>
-                {expandedTestCases.has(testCase.id) && (
-                  <div className="testcase-details expanded">
-                    <div className="testcase-info">
-                      <p><strong>대분류:</strong> {testCase.main_category || '없음'}</p>
-                      <p><strong>중분류:</strong> {testCase.sub_category || '없음'}</p>
-                      <p><strong>소분류:</strong> {testCase.detail_category || '없음'}</p>
-                      <p><strong>사전조건:</strong> {testCase.pre_condition || '없음'}</p>
-                      <p><strong>기대결과:</strong> {testCase.expected_result || '없음'}</p>
-                      <p><strong>비고:</strong> {testCase.remark || '없음'}</p>
-                      {testCase.automation_code_path && (
-                        <p><strong>자동화 코드:</strong> {testCase.automation_code_path}</p>
-                      )}
-                    </div>
-                    
-                    {/* 스크린샷 영역 */}
-                    <div className="testcase-screenshots">
-                      <h5>📸 실행 결과 스크린샷</h5>
-                      <TestCaseScreenshots testCaseId={testCase.id} />
-                    </div>
-                    
-                    {/* 자동화 실행 결과 */}
-                    <div className="testcase-execution-results">
-                      <h5>🤖 자동화 실행 결과</h5>
-                      <TestCaseExecutionResults testCaseId={testCase.id} />
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+                    상태 {sortBy === 'status' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className="assignee-column sortable" 
+                    onClick={() => handleSort('assignee')}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    담당자 {sortBy === 'assignee' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className="creator-column sortable" 
+                    onClick={() => handleSort('creator')}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    작성자 {sortBy === 'creator' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="actions-column">동작</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTestCases.map((testCase, index) => (
+                  <tr key={testCase.id} className="testcase-table-row">
+                    <td className="checkbox-column">
+                      <input 
+                        type="checkbox"
+                        checked={selectedTestCases.includes(testCase.id)}
+                        onChange={() => handleSelectTestCase(testCase.id)}
+                      />
+                    </td>
+                    <td className="no-column">{index + 1}</td>
+                    <td className="summary-column">
+                      <div className="testcase-summary">
+                        <div className="testcase-title">
+                          {testCase.main_category && testCase.sub_category && testCase.detail_category 
+                            ? `${testCase.main_category} > ${testCase.sub_category} > ${testCase.detail_category}`
+                            : testCase.expected_result || '제목 없음'
+                          }
+                        </div>
+                        <div className="testcase-meta">
+                          <span className="environment-badge">{testCase.environment || 'dev'}</span>
+                          {testCase.automation_code_path && (
+                            <span className="automation-badge">🤖 자동화</span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="status-column">
+                      <div className="status-section">
+                        <span className={`status-badge ${(testCase.result_status || 'N/A').toLowerCase().replace('/', '-')}`}>
+                          {testCase.result_status || 'N/A'}
+                        </span>
+                        <select
+                          className="status-select"
+                          value={testCase.result_status}
+                          onChange={(e) => handleStatusChange(testCase.id, e.target.value)}
+                        >
+                          <option value="N/T">N/T</option>
+                          <option value="Pass">Pass</option>
+                          <option value="Fail">Fail</option>
+                          <option value="N/A">N/A</option>
+                          <option value="Block">Block</option>
+                        </select>
+                      </div>
+                    </td>
+                    <td className="assignee-column">
+                      <div className="assignee-section">
+                        <span className="assignee-badge">
+                          👤 {testCase.assignee_name || '없음'}
+                        </span>
+                        <select
+                          className="assignee-select"
+                          value={testCase.assignee_id || ''}
+                          onChange={(e) => handleAssigneeChange(testCase.id, e.target.value)}
+                        >
+                          <option value="">담당자 변경</option>
+                          {users && users.length > 0 ? (
+                            users.map(user => (
+                              <option key={user.id} value={user.id}>
+                                {user.username || user.name || 'Unknown'}
+                              </option>
+                            ))
+                          ) : (
+                            <option value="" disabled>사용자 목록 로딩 중... ({users ? users.length : 'undefined'})</option>
+                          )}
+                        </select>
+                      </div>
+                    </td>
+                    <td className="creator-column">
+                      <span className="creator-badge">
+                        👤 {testCase.creator_name || '없음'}
+                      </span>
+                    </td>
+                    <td className="actions-column">
+                      <div className="action-buttons">
+                        {/* 자동화 실행 버튼 */}
+                        {testCase.automation_code_path && (
+                          <button 
+                            className="btn btn-automation btn-icon"
+                            onClick={() => executeAutomationCode(testCase.id)}
+                            title="자동화 실행"
+                          >
+                            🤖
+                          </button>
+                        )}
+                        {/* 상세보기 버튼 */}
+                        <button 
+                          className="btn btn-details btn-icon"
+                          onClick={() => {
+                            setSelectedTestCase(testCase);
+                            setShowDetailModal(true);
+                          }}
+                          title="상세보기"
+                        >
+                          📄
+                        </button>
+                        {/* 수정 버튼 */}
+                        {user && (user.role === 'admin' || user.role === 'user') && (
+                          <button 
+                            className="btn btn-edit-icon btn-icon"
+                            onClick={() => {
+                              setEditingTestCase(testCase);
+                              setShowEditModal(true);
+                            }}
+                            title="수정"
+                          >
+                            ✏️
+                          </button>
+                        )}
+                        {/* 삭제 버튼 */}
+                        {user && user.role === 'admin' && (
+                          <button 
+                            className="btn btn-delete-icon btn-icon"
+                            onClick={() => handleDeleteTestCase(testCase.id)}
+                            title="삭제"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                  
+                ))}
+              </tbody>
+            </table>
+            </div>
         </div>
       </div>
 
@@ -970,7 +1374,10 @@ const TestCaseAPP = () => {
                     expected_result: '',
                     result_status: 'N/T',
                     remark: '',
-                    folder_id: null
+                    folder_id: null,
+                    automation_code_path: '',
+                    automation_code_type: 'playwright',
+                    assignee_id: null
                   });
                 }}
               >
@@ -1065,6 +1472,20 @@ const TestCaseAPP = () => {
                   <option value="k6">k6 (성능 테스트)</option>
                 </select>
               </div>
+              <div className="form-group">
+                <label>담당자</label>
+                <select 
+                  value={newTestCase.assignee_id || ''}
+                  onChange={(e) => setNewTestCase({...newTestCase, assignee_id: e.target.value ? Number(e.target.value) : null})}
+                >
+                  <option value="">담당자를 선택하세요</option>
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>
+                      {user.username || user.first_name || user.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="modal-actions">
               <button 
@@ -1085,7 +1506,10 @@ const TestCaseAPP = () => {
                     expected_result: '',
                     result_status: 'N/T',
                     remark: '',
-                    folder_id: null
+                    folder_id: null,
+                    automation_code_path: '',
+                    automation_code_type: 'playwright',
+                    assignee_id: null
                   });
                 }}
               >
@@ -1237,6 +1661,20 @@ const TestCaseAPP = () => {
                   <option value="k6">k6 (성능 테스트)</option>
                 </select>
               </div>
+              <div className="form-group">
+                <label>담당자</label>
+                <select 
+                  value={editingTestCase.assignee_id || ''}
+                  onChange={(e) => setEditingTestCase({...editingTestCase, assignee_id: e.target.value ? Number(e.target.value) : null})}
+                >
+                  <option value="">담당자를 선택하세요</option>
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>
+                      {user.username || user.first_name || user.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="modal-actions">
               <button 
@@ -1351,6 +1789,117 @@ const TestCaseAPP = () => {
         </div>
       )}
 
+      {/* 다중 삭제 모달 */}
+      {showDeleteModal && (
+        <div 
+          className="modal-overlay fullscreen-modal"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 2000,
+            padding: '20px',
+            width: '100vw',
+            height: '100vh'
+          }}
+        >
+          <div 
+            className="modal fullscreen-modal-content"
+            style={{
+              width: '100%',
+              maxWidth: '600px',
+              maxHeight: '90vh',
+              background: 'white',
+              borderRadius: '12px',
+              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              minWidth: 'auto',
+              padding: 0,
+              margin: 0,
+              position: 'relative',
+              top: 'auto',
+              left: 'auto',
+              right: 'auto',
+              bottom: 'auto'
+            }}
+          >
+            <div className="modal-header">
+              <h3>🗑️ 다중 삭제 확인</h3>
+              <button 
+                className="modal-close"
+                onClick={() => setShowDeleteModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div style={{ textAlign: 'center', padding: '20px' }}>
+                <div style={{ fontSize: '48px', marginBottom: '20px' }}>⚠️</div>
+                <h4 style={{ color: '#d32f2f', marginBottom: '16px' }}>
+                  정말로 삭제하시겠습니까?
+                </h4>
+                <p style={{ fontSize: '16px', marginBottom: '20px' }}>
+                  선택된 <strong>{selectedTestCases.length}개</strong>의 테스트 케이스가 영구적으로 삭제됩니다.
+                </p>
+                <div style={{ 
+                  background: '#fff3cd', 
+                  border: '1px solid #ffeaa7', 
+                  borderRadius: '8px', 
+                  padding: '16px', 
+                  marginBottom: '20px' 
+                }}>
+                  <p style={{ margin: 0, color: '#856404' }}>
+                    <strong>주의:</strong> 이 작업은 되돌릴 수 없습니다. 삭제된 테스트 케이스와 관련된 모든 데이터가 함께 삭제됩니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button 
+                className="btn btn-delete"
+                onClick={handleMultiDelete}
+                style={{ 
+                  backgroundColor: '#d32f2f', 
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '6px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                🗑️ 삭제하기
+              </button>
+              <button 
+                className="btn btn-secondary"
+                onClick={() => setShowDeleteModal(false)}
+                style={{ 
+                  backgroundColor: '#6c757d', 
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '6px',
+                  fontSize: '16px',
+                  marginLeft: '12px',
+                  cursor: 'pointer'
+                }}
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 업로드 모달 */}
       {showUploadModal && (
         <div 
@@ -1431,6 +1980,175 @@ const TestCaseAPP = () => {
                 }}
               >
                 취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 상세보기 모달 */}
+      {showDetailModal && selectedTestCase && (
+        <div 
+          className="modal-overlay fullscreen-modal"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 2000,
+            padding: '20px',
+            width: '100vw',
+            height: '100vh'
+          }}
+        >
+          <div 
+            className="modal fullscreen-modal-content"
+            style={{
+              width: '100%',
+              maxWidth: '900px',
+              maxHeight: '90vh',
+              background: 'white',
+              borderRadius: '12px',
+              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              minWidth: 'auto',
+              padding: 0,
+              margin: 0,
+              position: 'relative',
+              top: 'auto',
+              left: 'auto',
+              right: 'auto',
+              bottom: 'auto'
+            }}
+          >
+            <div className="modal-header">
+              <h3>📋 테스트 케이스 상세 정보</h3>
+              <button 
+                className="modal-close"
+                onClick={() => {
+                  setShowDetailModal(false);
+                  setSelectedTestCase(null);
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body" style={{ padding: '24px', overflowY: 'auto' }}>
+              <div className="testcase-info-table">
+                <table className="info-table">
+                  <tbody>
+                    <tr>
+                      <th>대분류</th>
+                      <td>{selectedTestCase.main_category || '없음'}</td>
+                      <th>중분류</th>
+                      <td>{selectedTestCase.sub_category || '없음'}</td>
+                    </tr>
+                    <tr>
+                      <th>소분류</th>
+                      <td>{selectedTestCase.detail_category || '없음'}</td>
+                      <th>환경</th>
+                      <td>
+                        <span className={`environment-badge ${selectedTestCase.environment || 'dev'}`}>
+                          {selectedTestCase.environment || 'dev'}
+                        </span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>테스트 타입</th>
+                      <td>{selectedTestCase.test_type || '없음'}</td>
+                      <th>자동화</th>
+                      <td>
+                        {selectedTestCase.automation_code_path ? (
+                          <span className="automation-badge">🤖 자동화</span>
+                        ) : (
+                          <span className="manual-badge">📝 수동</span>
+                        )}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>작성자</th>
+                      <td>
+                        <span className="creator-badge">
+                          👤 {selectedTestCase.creator_name || '없음'}
+                        </span>
+                      </td>
+                      <th>담당자</th>
+                      <td>
+                        <span className="assignee-badge">
+                          👤 {selectedTestCase.assignee_name || '없음'}
+                        </span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>스크립트 경로</th>
+                      <td colSpan="3" className="script-path">
+                        {selectedTestCase.script_path || '없음'}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>사전조건</th>
+                      <td colSpan="3" className="pre-condition">
+                        {selectedTestCase.pre_condition || '없음'}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>기대결과</th>
+                      <td colSpan="3" className="expected-result">
+                        {selectedTestCase.expected_result || '없음'}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>비고</th>
+                      <td colSpan="3" className="remark">
+                        {selectedTestCase.remark || '없음'}
+                      </td>
+                    </tr>
+                    {selectedTestCase.automation_code_path && (
+                      <tr>
+                        <th>자동화 코드</th>
+                        <td colSpan="3" className="automation-code">
+                          <code>{selectedTestCase.automation_code_path}</code>
+                        </td>
+                      </tr>
+                    )}
+                    <tr>
+                      <th>생성일</th>
+                      <td>{selectedTestCase.created_at ? formatUTCToKST(selectedTestCase.created_at) : '없음'}</td>
+                      <th>수정일</th>
+                      <td>{selectedTestCase.updated_at ? formatUTCToKST(selectedTestCase.updated_at) : '없음'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* 스크린샷 영역 */}
+              <div className="testcase-screenshots" style={{ marginTop: '24px' }}>
+                <h5>📸 실행 결과 스크린샷</h5>
+                <TestCaseScreenshots testCaseId={selectedTestCase.id} />
+              </div>
+              
+              {/* 자동화 실행 결과 */}
+              <div className="testcase-execution-results" style={{ marginTop: '24px' }}>
+                <h5>🤖 자동화 실행 결과</h5>
+                <TestCaseExecutionResults testCaseId={selectedTestCase.id} />
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button 
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowDetailModal(false);
+                  setSelectedTestCase(null);
+                }}
+              >
+                닫기
               </button>
             </div>
           </div>

@@ -4,6 +4,7 @@ import './App.css';
 import TestCaseApp from './components/testcases';
 import PerformanceTestManager from './components/performance';
 import AutomationTestManager from './components/automation';
+import TestScriptsManager from './components/testscripts/TestScriptsManager';
 import UnifiedDashboard from './components/dashboard';
 import FolderManager from './components/dashboard/FolderManager';
 import Settings from './components/settings/Settings';
@@ -40,6 +41,12 @@ function AppContent() {
         return (
           <ErrorBoundary>
             <PerformanceTestManager />
+          </ErrorBoundary>
+        );
+      case 'testscripts':
+        return (
+          <ErrorBoundary>
+            <TestScriptsManager />
           </ErrorBoundary>
         );
       case 'folders':
@@ -80,15 +87,18 @@ function AppContent() {
   };
 
   const canAccessAutomation = () => {
-    return user && (user.role === 'admin' || user.role === 'user');
+    // 게스트도 자동화 테스트 조회 가능
+    return user;
   };
 
   const canAccessPerformance = () => {
-    return user && (user.role === 'admin' || user.role === 'user');
+    // 게스트도 성능 테스트 조회 가능
+    return user;
   };
 
   const canAccessFolders = () => {
-    return user && (user.role === 'admin' || user.role === 'user');
+    // 게스트도 폴더 조회 가능
+    return user;
   };
 
   return (
@@ -133,6 +143,14 @@ function AppContent() {
                 onClick={() => setActiveTab('performance')}
               >
                 ⚡ 성능 테스트
+              </button>
+            )}
+            {canAccessAutomation() && (
+              <button 
+                className={`nav-link ${activeTab === 'testscripts' ? 'active' : ''}`}
+                onClick={() => setActiveTab('testscripts')}
+              >
+                📁 테스트 스크립트
               </button>
             )}
             {canAccessFolders() && (

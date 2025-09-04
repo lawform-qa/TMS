@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import config from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
+import { formatUTCToKST } from '../../utils/dateUtils';
 import './PerformanceTestManager.css';
 
 // axios 기본 설정
 axios.defaults.baseURL = config.apiUrl;
 
 const PerformanceTestManager = () => {
+    const { user } = useAuth();
     const [performanceTests, setPerformanceTests] = useState([]);
     const [newTest, setNewTest] = useState({
         name: '',
@@ -29,7 +32,7 @@ const PerformanceTestManager = () => {
     const fetchPerformanceTests = async () => {
         try {
             const response = await axios.get('/performance-tests');
-            setPerformanceTests(response.data);
+            setPerformanceTests(response.data.items || response.data);
         } catch (error) {
             console.error('성능 테스트 조회 오류:', error);
         }
@@ -109,7 +112,9 @@ const PerformanceTestManager = () => {
             const response = await axios.post(`/performance-tests/${testId}/execute`, {
                 environment_vars: {}
             });
-            console.log('테스트 실행 결과:', response.data);
+            if (process.env.NODE_ENV === 'development') {
+                console.log('테스트 실행 결과:', response.data);
+            }
             fetchPerformanceTests();
         } catch (error) {
             console.error('성능 테스트 실행 오류:', error);
@@ -157,7 +162,7 @@ const PerformanceTestManager = () => {
         <div className="performance-test-manager">
             <div className="performance-header">
                 <h1>Performance Test Manager</h1>
-                {!showAddForm && (
+                {user && (user.role === 'admin' || user.role === 'user') && !showAddForm && (
                     <button 
                         onClick={() => setShowAddForm(true)}
                         className="btn btn-add"
@@ -167,7 +172,7 @@ const PerformanceTestManager = () => {
                 )}
             </div>
             
-            {showAddForm && (
+            {user && (user.role === 'admin' || user.role === 'user') && showAddForm && (
                 <div className="add-test-form">
                     <h2>Add Performance Test</h2>
                     <div className="form-row">
@@ -265,14 +270,16 @@ const PerformanceTestManager = () => {
                             </div>
                         </div>
                         <div className="test-actions">
-                            <button 
-                                onClick={() => executePerformanceTest(test.id)}
-                                disabled={executing}
-                                className="btn btn-automation btn-icon"
-                                title="Execute Test"
-                            >
-                                {executing ? '⏳' : '▶️'}
-                            </button>
+                            {user && (user.role === 'admin' || user.role === 'user') && (
+                                <button 
+                                    onClick={() => executePerformanceTest(test.id)}
+                                    disabled={executing}
+                                    className="btn btn-automation btn-icon"
+                                    title="Execute Test"
+                                >
+                                    {executing ? '⏳' : '▶️'}
+                                </button>
+                            )}
                             <button 
                                 onClick={() => toggleTestDetails(test.id)}
                                 className="btn btn-details btn-icon"
@@ -280,23 +287,27 @@ const PerformanceTestManager = () => {
                             >
                                 {expandedTests.has(test.id) ? '📋' : '📄'}
                             </button>
-                            <button 
-                                onClick={() => {
-                                    setEditingTest(test);
-                                    setShowEditModal(true);
-                                }}
-                                className="btn btn-edit-icon btn-icon"
-                                title="수정"
-                            >
-                                ✏️
-                            </button>
-                            <button 
-                                onClick={() => deletePerformanceTest(test.id)}
-                                className="btn btn-delete-icon btn-icon"
-                                title="Delete Test"
-                            >
-                                ✕
-                            </button>
+                            {user && (user.role === 'admin' || user.role === 'user') && (
+                                <button 
+                                    onClick={() => {
+                                        setEditingTest(test);
+                                        setShowEditModal(true);
+                                    }}
+                                    className="btn btn-edit-icon btn-icon"
+                                    title="수정"
+                                >
+                                    ✏️
+                                </button>
+                            )}
+                            {user && user.role === 'admin' && (
+                                <button 
+                                    onClick={() => deletePerformanceTest(test.id)}
+                                    className="btn btn-delete-icon btn-icon"
+                                    title="Delete Test"
+                                >
+                                    ✕
+                                </button>
+                            )}
                         </div>
                         
                         {/* 아코디언 형태의 상세보기 */}
@@ -306,8 +317,8 @@ const PerformanceTestManager = () => {
                                     <p><strong>스크립트 경로:</strong> {test.script_path || '없음'}</p>
                                     <p><strong>환경:</strong> {test.environment || '없음'}</p>
                                     <p><strong>매개변수:</strong> {test.parameters ? JSON.stringify(JSON.parse(test.parameters), null, 2) : '없음'}</p>
-                                    <p><strong>생성일:</strong> {new Date(test.created_at).toLocaleString()}</p>
-                                    <p><strong>수정일:</strong> {new Date(test.updated_at).toLocaleString()}</p>
+                                    <p><strong>생성일:</strong> {formatUTCToKST(test.created_at)}</p>
+                                    <p><strong>수정일:</strong> {formatUTCToKST(test.updated_at)}</p>
                                 </div>
                                 
                                 {/* 테스트 결과 영역 */}
@@ -328,7 +339,7 @@ const PerformanceTestManager = () => {
                                             {testResults.map(result => (
                                                 <tr key={result.id}>
                                                     <td>
-                                                        {result.executed_at ? new Date(result.executed_at).toLocaleString() : 'N/A'}
+                                                        {result.executed_at ? formatUTCToKST(result.executed_at) : 'N/A'}
                                                     </td>
                                                     <td>
                                                         <span className={`status-${result.result?.toLowerCase() || 'error'}`}>

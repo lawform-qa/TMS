@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from models import db, Folder, TestCase
 from utils.cors import add_cors_headers
-from utils.auth_decorators import guest_allowed
+from utils.auth_decorators import guest_allowed, user_required, admin_required
 from datetime import datetime
 
 # Blueprint 생성
@@ -20,7 +20,7 @@ def get_folders():
             'folder_type': f.folder_type,
             'environment': f.environment,
             'deployment_date': f.deployment_date.strftime('%Y-%m-%d') if f.deployment_date else None,
-            'created_at': f.created_at.strftime('%Y-%m-%d %H:%M:%S') if f.created_at else None
+            'created_at': f.created_at.isoformat() if f.created_at else None
         } for f in folders]
         
         response = jsonify(data)
@@ -31,6 +31,7 @@ def get_folders():
         return add_cors_headers(response), 500
 
 @folders_bp.route('/folders', methods=['POST'])
+@user_required
 def create_folder():
     try:
         data = request.get_json()
@@ -77,7 +78,7 @@ def get_folder(id):
             'folder_type': folder.folder_type,
             'environment': folder.environment,
             'deployment_date': folder.deployment_date.strftime('%Y-%m-%d') if folder.deployment_date else None,
-            'created_at': folder.created_at.strftime('%Y-%m-%d %H:%M:%S') if folder.created_at else None
+            'created_at': folder.created_at.isoformat() if folder.created_at else None
         }
         
         response = jsonify(data)
@@ -88,6 +89,7 @@ def get_folder(id):
         return add_cors_headers(response), 500
 
 @folders_bp.route('/folders/<int:id>', methods=['PUT'])
+@user_required
 def update_folder(id):
     try:
         folder = Folder.query.get_or_404(id)
@@ -112,6 +114,7 @@ def update_folder(id):
         return add_cors_headers(response), 500
 
 @folders_bp.route('/folders/<int:id>', methods=['DELETE'])
+@admin_required
 def delete_folder(id):
     try:
         folder = Folder.query.get_or_404(id)

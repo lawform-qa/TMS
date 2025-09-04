@@ -2,26 +2,40 @@ from functools import wraps
 from flask import jsonify, request
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request, get_jwt
 from models import User
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 def admin_required(fn):
     """관리자 권한 확인 데코레이터"""
     @wraps(fn)
     def wrapper(*args, **kwargs):
         try:
+            logger.debug(f"admin_required 데코레이터 실행 - 요청 URL: {request.url}")
+            logger.debug(f"Authorization 헤더: {request.headers.get('Authorization', '없음')}")
+            
             verify_jwt_in_request()
             current_user_id = get_jwt_identity()
+            logger.debug(f"JWT 검증 성공 - 사용자 ID: {current_user_id}")
             
             # 게스트 사용자 체크
             if current_user_id == 'guest':
+                logger.warning(f"게스트 사용자는 접근 불가")
                 return jsonify({'error': '관리자 권한이 필요합니다.'}), 403
             
             user = User.query.get(int(current_user_id))
+            logger.debug(f"데이터베이스에서 사용자 조회: {user}")
+            logger.debug(f"사용자 역할: {user.role if user else '사용자 없음'}")
             
             if not user or user.role != 'admin':
+                logger.warning(f"관리자 권한 부족: {user.role if user else '사용자 없음'}")
                 return jsonify({'error': '관리자 권한이 필요합니다.'}), 403
             
+            logger.info(f"관리자 권한 확인 완료: {user.username} ({user.role})")
             return fn(*args, **kwargs)
-        except Exception:
+        except Exception as e:
+            logger.error(f"admin_required 데코레이터 오류: {str(e)}")
+            logger.error(f"오류 타입: {type(e).__name__}")
             return jsonify({'error': '로그인이 필요합니다.'}), 401
     return wrapper
 
@@ -30,20 +44,32 @@ def user_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
         try:
+            logger.debug(f"user_required 데코레이터 실행 - 요청 URL: {request.url}")
+            logger.debug(f"Authorization 헤더: {request.headers.get('Authorization', '없음')}")
+            
             verify_jwt_in_request()
             current_user_id = get_jwt_identity()
+            logger.debug(f"JWT 검증 성공 - 사용자 ID: {current_user_id}")
             
             # 게스트 사용자 체크
             if current_user_id == 'guest':
+                logger.warning(f"게스트 사용자는 접근 불가")
                 return jsonify({'error': '사용자 권한이 필요합니다.'}), 403
             
             user = User.query.get(int(current_user_id))
+            logger.debug(f"데이터베이스에서 사용자 조회: {user}")
             
             if not user or user.role not in ['admin', 'user']:
+                logger.warning(f"사용자 권한 부족: {user.role if user else '사용자 없음'}")
                 return jsonify({'error': '사용자 권한이 필요합니다.'}), 403
             
+            logger.info(f"사용자 권한 확인 완료: {user.username} ({user.role})")
+            # request.user에 사용자 정보 저장 (routes에서 사용)
+            request.user = user
             return fn(*args, **kwargs)
-        except Exception:
+        except Exception as e:
+            logger.error(f"user_required 데코레이터 오류: {str(e)}")
+            logger.error(f"오류 타입: {type(e).__name__}")
             return jsonify({'error': '로그인이 필요합니다.'}), 401
     return wrapper
 

@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify, send_from_directory
 from models import db, AutomationTest, TestResult
 from utils.cors import add_cors_headers
-from utils.auth_decorators import guest_allowed
+from utils.auth_decorators import guest_allowed, user_required, admin_required
+from utils.timezone_utils import get_kst_now
 from datetime import datetime
 import time
 import os
@@ -23,7 +24,8 @@ def get_automation_tests():
     """모든 자동화 테스트 조회"""
     try:
         tests = AutomationTest.query.all()
-        response = jsonify([{
+        
+        response_data = [{
             'id': test.id,
             'name': test.name,
             'description': test.description,
@@ -31,15 +33,18 @@ def get_automation_tests():
             'script_path': test.script_path,
             'environment': test.environment,
             'parameters': test.parameters,
-            'created_at': test.created_at.strftime('%Y-%m-%d %H:%M:%S') if test.created_at else None,
-            'updated_at': test.updated_at.strftime('%Y-%m-%d %H:%M:%S') if test.updated_at else None
-        } for test in tests])
+            'created_at': test.created_at.isoformat() if test.created_at else None,
+            'updated_at': test.updated_at.isoformat() if test.updated_at else None
+        } for test in tests]
+        
+        response = jsonify(response_data)
         return add_cors_headers(response), 200
     except Exception as e:
         response = jsonify({'error': str(e)})
         return add_cors_headers(response), 500
 
 @automation_bp.route('/automation-tests', methods=['POST'])
+@user_required
 def create_automation_test():
     """자동화 테스트 생성"""
     try:
@@ -82,8 +87,8 @@ def get_automation_test(id):
             'script_path': test.script_path,
             'environment': test.environment,
             'parameters': test.parameters,
-            'created_at': test.created_at.strftime('%Y-%m-%d %H:%M:%S') if test.created_at else None,
-            'updated_at': test.updated_at.strftime('%Y-%m-%d %H:%M:%S') if test.updated_at else None
+            'created_at': test.created_at.isoformat() if test.created_at else None,
+            'updated_at': test.updated_at.isoformat() if test.updated_at else None
         })
         return add_cors_headers(response), 200
     except Exception as e:
@@ -91,6 +96,7 @@ def get_automation_test(id):
         return add_cors_headers(response), 500
 
 @automation_bp.route('/automation-tests/<int:id>', methods=['PUT'])
+@user_required
 def update_automation_test(id):
     """자동화 테스트 수정"""
     try:
@@ -103,7 +109,7 @@ def update_automation_test(id):
         test.script_path = data['script_path']
         test.environment = data.get('environment', 'dev')
         test.parameters = data.get('parameters', '')
-        test.updated_at = datetime.utcnow()
+        test.updated_at = get_kst_now()
         
         db.session.commit()
         
@@ -117,6 +123,7 @@ def update_automation_test(id):
         return add_cors_headers(response), 500
 
 @automation_bp.route('/automation-tests/<int:id>', methods=['DELETE'])
+@admin_required
 def delete_automation_test(id):
     """자동화 테스트 삭제"""
     try:
@@ -134,20 +141,21 @@ def delete_automation_test(id):
         return add_cors_headers(response), 500
 
 @automation_bp.route('/automation-tests/<int:id>/execute', methods=['POST'])
+@user_required
 def execute_automation_test(id):
     """자동화 테스트 실행"""
     try:
         test = AutomationTest.query.get_or_404(id)
         
         # 실행 시작 시간
-        execution_start = datetime.utcnow()
+        execution_start = get_kst_now()
         
         # 실제로는 여기서 자동화 테스트를 실행
         # 현재는 시뮬레이션
         time.sleep(2)  # 실행 시간 시뮬레이션
         
         # 실행 종료 시간
-        execution_end = datetime.utcnow()
+        execution_end = get_kst_now()
         execution_duration = (execution_end - execution_start).total_seconds()
         
         # 시뮬레이션된 결과 (실제로는 테스트 실행 결과)
