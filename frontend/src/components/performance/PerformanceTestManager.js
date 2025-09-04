@@ -32,7 +32,7 @@ const PerformanceTestManager = () => {
     const fetchPerformanceTests = async () => {
         try {
             const response = await axios.get('/performance-tests');
-            setPerformanceTests(response.data);
+            setPerformanceTests(response.data.items || response.data);
         } catch (error) {
             console.error('성능 테스트 조회 오류:', error);
         }
@@ -112,7 +112,9 @@ const PerformanceTestManager = () => {
             const response = await axios.post(`/performance-tests/${testId}/execute`, {
                 environment_vars: {}
             });
-            console.log('테스트 실행 결과:', response.data);
+            if (process.env.NODE_ENV === 'development') {
+                console.log('테스트 실행 결과:', response.data);
+            }
             fetchPerformanceTests();
         } catch (error) {
             console.error('성능 테스트 실행 오류:', error);
