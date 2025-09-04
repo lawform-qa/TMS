@@ -179,20 +179,20 @@ class TestResult(db.Model):
     __tablename__ = 'TestResults'
     id = db.Column(db.Integer, primary_key=True)
     test_case_id = db.Column(db.Integer, db.ForeignKey('TestCases.id'), nullable=True)  # nullable=True로 변경
-    automation_test_id = db.Column(db.Integer, db.ForeignKey('AutomationTests.id'), nullable=True)  # 자동화 테스트 ID 추가
-    performance_test_id = db.Column(db.Integer, db.ForeignKey('PerformanceTests.id'), nullable=True)  # 성능 테스트 ID 추가
+    # automation_test_id = db.Column(db.Integer, db.ForeignKey('AutomationTests.id'), nullable=True)  # 실제 DB에 없는 컬럼
+    # performance_test_id = db.Column(db.Integer, db.ForeignKey('PerformanceTests.id'), nullable=True)  # 실제 DB에 없는 컬럼
     result = db.Column(db.String(20))  # Pass, Fail, Skip, Error
-    status = db.Column(db.String(20))  # Pass, Fail, N/T, N/A, Block (코드와 일치)
+    # status = db.Column(db.String(20))  # 실제 DB에 없는 컬럼이므로 주석 처리
     execution_time = db.Column(db.Float)  # 초 단위
     environment = db.Column(db.String(50))
     executed_by = db.Column(db.String(100))
     executed_at = db.Column(db.DateTime, default=get_kst_now)
     notes = db.Column(db.Text)
-    result_data = db.Column(db.Text)  # 결과 데이터 저장용
+    # result_data = db.Column(db.Text)  # 실제 DB에 없는 컬럼이므로 주석 처리
     
-    # test_case_id, automation_test_id, performance_test_id 중 하나는 반드시 있어야 함
+    # test_case_id는 반드시 있어야 함 (실제 DB 스키마에 맞춤)
     __table_args__ = (
-        db.CheckConstraint('test_case_id IS NOT NULL OR automation_test_id IS NOT NULL OR performance_test_id IS NOT NULL', name='check_test_reference'),
+        db.CheckConstraint('test_case_id IS NOT NULL', name='check_test_reference'),
     )
 
 # 대시보드 요약 모델

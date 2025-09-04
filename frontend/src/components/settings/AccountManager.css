@@ -506,6 +506,7 @@
 }
 
 .modal-actions {
+  background-color: #ffffff;
   display: flex;
   gap: 15px;
   justify-content: flex-end;
