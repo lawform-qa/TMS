@@ -189,7 +189,6 @@ class TestResult(db.Model):
     executed_by = db.Column(db.String(100))
     executed_at = db.Column(db.DateTime, default=get_kst_now)
     notes = db.Column(db.Text)
-    
     # test_case_id는 반드시 있어야 함 (실제 DB 스키마에 맞춤)
     __table_args__ = (
         db.CheckConstraint('test_case_id IS NOT NULL', name='check_test_reference'),
