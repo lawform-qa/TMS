@@ -494,7 +494,7 @@ def list_s3_files():
         # S3 서비스 가져오기
         s3_service = get_s3_service()
         if not s3_service:
-            response = jsonify({'error': 'S3 서비스를 사용할 수 없습니다.'})
+            response = jsonify({'error': 'S3 서비스를 사용할 수 없습니다.', 'debug': 'S3 service is None'})
             return add_cors_headers(response), 500
         
         prefix = request.args.get('prefix', 'test-scripts/')
@@ -503,7 +503,12 @@ def list_s3_files():
         response = jsonify({
             'success': True,
             'files': files,
-            'total_count': len(files)
+            'total_count': len(files),
+            'debug': {
+                's3_service_exists': s3_service is not None,
+                'prefix': prefix,
+                'environment': os.getenv('ENVIRONMENT', 'unknown')
+            }
         })
         return add_cors_headers(response), 200
         
