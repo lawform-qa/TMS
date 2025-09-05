@@ -195,7 +195,7 @@ class S3Service:
             raise Exception(f"파일 내용 조회 중 오류 발생: {e}")
     
     def list_files(self, prefix=''):
-        """S3에서 파일 목록 조회"""
+        """S3에서 파일 목록 조회 (폴더 구조 포함)"""
         if not self.s3_client:
             print("S3 클라이언트가 초기화되지 않았습니다. 작업을 건너뜁니다.")
             return None
@@ -203,20 +203,40 @@ class S3Service:
         try:
             response = self.s3_client.list_objects_v2(
                 Bucket=self.bucket_name,
-                Prefix=prefix
+                Prefix=prefix,
+                Delimiter='/'
             )
             
             files = []
-            if 'Contents' in response:
-                for obj in response['Contents']:
-                    files.append({
-                        'key': obj['Key'],
-                        'size': obj['Size'],
-                        'last_modified': obj['LastModified'].isoformat(),
-                        'url': f"https://{self.bucket_name}.s3.{self.region}.amazonaws.com/{obj['Key']}"
+            folders = []
+            
+            # 폴더 목록 처리
+            if 'CommonPrefixes' in response:
+                for folder in response['CommonPrefixes']:
+                    folder_name = folder['Prefix'].rstrip('/')
+                    folders.append({
+                        'key': folder_name,
+                        'name': folder_name.split('/')[-1],
+                        'type': 'folder',
+                        'url': f"https://{self.bucket_name}.s3.{self.region}.amazonaws.com/{folder['Prefix']}"
                     })
             
-            return files
+            # 파일 목록 처리
+            if 'Contents' in response:
+                for obj in response['Contents']:
+                    # 폴더 자체는 제외 (파일만)
+                    if not obj['Key'].endswith('/'):
+                        files.append({
+                            'key': obj['Key'],
+                            'name': obj['Key'].split('/')[-1],
+                            'size': obj['Size'],
+                            'type': 'file',
+                            'last_modified': obj['LastModified'].isoformat(),
+                            'url': f"https://{self.bucket_name}.s3.{self.region}.amazonaws.com/{obj['Key']}"
+                        })
+            
+            # 폴더와 파일을 합쳐서 반환
+            return folders + files
             
         except ClientError as e:
             raise Exception(f"S3 파일 목록 조회 오류: {e}")
