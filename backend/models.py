@@ -172,6 +172,7 @@ class AutomationTest(db.Model):
     created_at = db.Column(db.DateTime, default=get_kst_now)
     updated_at = db.Column(db.DateTime, default=get_kst_now, onupdate=get_kst_now)
     creator_id = db.Column(db.Integer, db.ForeignKey('Users.id'), nullable=True)
+    assignee_id = db.Column(db.Integer, db.ForeignKey('Users.id'), nullable=True)
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)  # 프로젝트 ID
     
     # 관계 설정
