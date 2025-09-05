@@ -334,18 +334,8 @@ def execute_performance_test(id):
         result_summary=json.dumps(result)
     )
     
-    if result.get('status') == 'Pass':
-        # 성능 테스트 결과 저장 - TestResult 모델의 실제 필드 사용
-        perf_result = TestResult(
-            performance_test_id=pt.id,
-            result=result.get('status'),
-            execution_time=result.get('execution_time', 0.0),
-            environment=pt.environment,
-            executed_by='system',
-            executed_at=get_kst_now(),
-            notes=json.dumps(result)  # 성능 테스트 결과를 notes에 JSON으로 저장
-        )
-        db.session.add(perf_result)
+    # 성능 테스트 결과는 TestExecution에만 저장
+    # TestResult 테이블에는 performance_test_id 컬럼이 없으므로 제거
     
     db.session.add(execution)
     db.session.commit()
@@ -359,17 +349,17 @@ def execute_performance_test(id):
 
 @performance_bp.route('/performance-tests/<int:id>/results', methods=['GET'])
 def get_performance_test_results(id):
-    results = TestResult.query.filter_by(performance_test_id=id).all()
+    # TestExecution 테이블에서 성능 테스트 결과 조회
+    executions = TestExecution.query.filter_by(performance_test_id=id).all()
     data = [{
-        'id': r.id,
-        'performance_test_id': r.performance_test_id,
-        'result': r.result,
-        'execution_time': r.execution_time,
-        'environment': r.environment,
-        'executed_by': r.executed_by,
-                    'executed_at': r.executed_at.isoformat() if r.executed_at else None,
-        'notes': r.notes
-    } for r in results]
+        'id': e.id,
+        'performance_test_id': e.performance_test_id,
+        'test_type': e.test_type,
+        'status': e.status,
+        'started_at': e.started_at.isoformat() if e.started_at else None,
+        'completed_at': e.completed_at.isoformat() if e.completed_at else None,
+        'result_summary': json.loads(e.result_summary) if e.result_summary else None
+    } for e in executions]
     response = jsonify(data)
     return add_cors_headers(response), 200
 
