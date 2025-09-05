@@ -8,7 +8,7 @@ from botocore.exceptions import ClientError, NoCredentialsError
 class S3Service:
     def __init__(self):
         self.s3_client = None
-        self.bucket_name = os.getenv('S3_BUCKET_NAME', 'test-platform-scripts')
+        self.bucket_name = os.getenv('S3_BUCKET_NAME', 'test-management-upload')
         self.region = os.getenv('AWS_REGION', 'ap-northeast-2')
         self._initialize_client()
     
