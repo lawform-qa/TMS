@@ -490,7 +490,6 @@ def upload_content_to_s3():
         return add_cors_headers(response), 500
 
 @test_scripts_bp.route('/s3/list', methods=['GET'])
-@user_required
 def list_s3_files():
     """S3에서 파일 목록 조회"""
     try:
