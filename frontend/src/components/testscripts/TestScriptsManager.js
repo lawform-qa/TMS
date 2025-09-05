@@ -125,6 +125,12 @@ const TestScriptsManager = () => {
       setSelectedFile(file);
       setEditorLanguage(getFileLanguage(file.name || file.key));
       setIsEditing(false);
+      
+      // 디버깅용 로그
+      console.log('선택된 파일:', file);
+      console.log('파일 키:', file.key);
+      console.log('파일 경로:', file.path);
+      console.log('파일 이름:', file.name);
     } catch (err) {
       console.error('파일 내용 로드 오류:', err);
       alert('파일 내용을 불러올 수 없습니다.');
@@ -368,7 +374,7 @@ const TestScriptsManager = () => {
                 disabled={uploadingFolder}
               >
                 {uploadingFolder ? '⏳ 업로드 중...' : '📁 전체 폴더 S3 업로드'}
-              </button>
+          </button>
             </div>
           )}
         </div>
@@ -392,21 +398,21 @@ const TestScriptsManager = () => {
             <h3>{activeTab === 's3' ? 'S3 파일 목록' : '로컬 파일 목록'}</h3>
             <div className="header-actions">
               {activeTab === 'local' && pathHistory.length > 1 && (
-                <button 
+        <button 
                   className="back-button"
                   onClick={goBack}
                   title="뒤로가기"
-                >
+        >
                   ⬅️ 뒤로
-                </button>
+        </button>
               )}
-              <button 
+        <button 
                 className="refresh-button"
                 onClick={() => activeTab === 's3' ? loadS3Files() : loadLocalFiles(currentPath)}
               >
                 🔄 새로고침
-              </button>
-            </div>
+        </button>
+      </div>
           </div>
           
           {activeTab === 'local' && (
@@ -424,7 +430,11 @@ const TestScriptsManager = () => {
               currentFiles.map((file, index) => (
                 <div 
                   key={index}
-                  className={`file-item ${selectedFile?.key === file.key || selectedFile?.path === file.path ? 'selected' : ''}`}
+                  className={`file-item ${selectedFile && (
+                    (selectedFile.key && file.key && selectedFile.key === file.key) ||
+                    (selectedFile.path && file.path && selectedFile.path === file.path) ||
+                    (selectedFile.name && file.name && selectedFile.name === file.name)
+                  ) ? 'selected' : ''}`}
                   onClick={() => {
                     if (file.type === 'directory') {
                       // 디렉토리인 경우 하위 폴더 탐색
@@ -522,7 +532,7 @@ const TestScriptsManager = () => {
               
               <div className="monaco-editor-container">
                 <MonacoEditor
-                  height="500px"
+                  height="100%"
                   language={editorLanguage}
                   value={fileContent}
                   onChange={(value) => setFileContent(value || '')}
