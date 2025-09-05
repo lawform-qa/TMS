@@ -70,14 +70,9 @@ if is_vercel:
     else:
         logger.info(f"Vercel 환경에서 데이터베이스 URL 사용: {database_url[:20]}...")
 else:
-    # 로컬 개발 환경에서는 환경변수 우선, 없으면 기본 MySQL 사용
-    mysql_database_url = os.environ.get('MYSQL_DATABASE_URL')
-    if mysql_database_url:
-        database_url = mysql_database_url
-        logger.info("로컬 환경에서 Docker Alpha MySQL 사용")
-    else:
-        database_url = 'mysql+pymysql://root:1q2w#E$R@127.0.0.1:3306/test_management'
-        logger.info("로컬 환경에서 기본 MySQL 사용")
+    # 로컬 개발 환경에서는 AWS RDS test_management_alpha 강제 사용
+    database_url = 'mysql+pymysql://admin:Si1vesterl!#@test-management-db2.c3ago8cqsq3j.ap-southeast-2.rds.amazonaws.com:3306/test_management_alpha'
+    logger.info("로컬 환경에서 AWS RDS test_management_alpha 사용")
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -100,14 +95,15 @@ elif is_vercel and 'sqlite' in database_url:
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {}
     logger.info("Vercel 환경에서 SQLite 사용")
 else:
-    # 로컬 MySQL 환경
+    # 로컬 환경 - AWS RDS MySQL
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         'pool_pre_ping': True,
         'pool_recycle': 300,
         'connect_args': {
             'connect_timeout': 10,
             'read_timeout': 30,
-            'write_timeout': 30
+            'write_timeout': 30,
+            'ssl': {'ssl': True}  # AWS RDS SSL 설정
         }
     }
 
