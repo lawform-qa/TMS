@@ -201,11 +201,13 @@ class S3Service:
             return None
         
         try:
+            print(f"S3 파일 목록 조회 시작 - 버킷: {self.bucket_name}, 접두사: {prefix}")
             response = self.s3_client.list_objects_v2(
                 Bucket=self.bucket_name,
                 Prefix=prefix,
                 Delimiter='/'
             )
+            print(f"S3 응답: {response}")
             
             files = []
             folders = []
