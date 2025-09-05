@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
@@ -6,8 +7,25 @@ import mimetypes
 from datetime import datetime
 import stat
 
+# 상위 디렉토리를 sys.path에 추가
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# S3 서비스는 지연 로딩으로 처리
+from utils.auth_decorators import user_required
+from utils.cors import add_cors_headers
+
 # Blueprint 생성
 test_scripts_bp = Blueprint('test_scripts', __name__)
+
+# S3 서비스 지연 로딩 함수
+def get_s3_service():
+    """S3 서비스를 지연 로딩으로 가져오기"""
+    try:
+        from utils.s3_service import get_s3_service_instance
+        return get_s3_service_instance()
+    except ImportError as e:
+        current_app.logger.error(f"S3 서비스 로딩 오류: {e}")
+        return None
 
 def get_file_info(file_path):
     """파일 정보를 가져오는 헬퍼 함수"""
@@ -366,3 +384,332 @@ def get_test_scripts_stats():
     except Exception as e:
         current_app.logger.error(f"테스트 스크립트 통계 오류: {e}")
         return jsonify({'error': '통계 정보를 가져올 수 없습니다.'}), 500
+
+# S3 관련 API 엔드포인트들
+@test_scripts_bp.route('/s3/upload', methods=['POST'])
+@user_required
+def upload_to_s3():
+    """파일을 S3에 업로드"""
+    try:
+        if 'file' not in request.files:
+            response = jsonify({'error': '파일이 없습니다.'})
+            return add_cors_headers(response), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            response = jsonify({'error': '파일이 선택되지 않았습니다.'})
+            return add_cors_headers(response), 400
+        
+        # 파일명 보안 처리
+        filename = secure_filename(file.filename)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        s3_key = f"test-scripts/{timestamp}_{filename}"
+        
+        # 임시 파일로 저장
+        temp_path = f"/tmp/{filename}"
+        file.save(temp_path)
+        
+        try:
+            # S3 서비스 가져오기
+            s3_service = get_s3_service()
+            if not s3_service:
+                response = jsonify({'error': 'S3 서비스를 사용할 수 없습니다.'})
+                return add_cors_headers(response), 500
+            
+            # S3에 업로드
+            result = s3_service.upload_file(temp_path, s3_key)
+            
+            # 임시 파일 삭제
+            os.remove(temp_path)
+            
+            response = jsonify({
+                'success': True,
+                'message': '파일이 성공적으로 업로드되었습니다.',
+                'url': result['url'],
+                's3_key': result['s3_key']
+            })
+            return add_cors_headers(response), 200
+            
+        except Exception as e:
+            # 임시 파일 삭제
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise e
+            
+    except Exception as e:
+        current_app.logger.error(f"S3 업로드 오류: {e}")
+        response = jsonify({'error': f'업로드 중 오류가 발생했습니다: {str(e)}'})
+        return add_cors_headers(response), 500
+
+@test_scripts_bp.route('/s3/upload-content', methods=['POST'])
+@user_required
+def upload_content_to_s3():
+    """문자열 내용을 S3에 업로드"""
+    try:
+        data = request.get_json()
+        if not data or 'content' not in data or 'filename' not in data:
+            response = jsonify({'error': '내용과 파일명이 필요합니다.'})
+            return add_cors_headers(response), 400
+        
+        content = data['content']
+        filename = secure_filename(data['filename'])
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        s3_key = f"test-scripts/{timestamp}_{filename}"
+        
+        # Content-Type 결정
+        content_type = 'text/plain'
+        if filename.endswith('.js'):
+            content_type = 'application/javascript'
+        elif filename.endswith('.py'):
+            content_type = 'text/x-python'
+        elif filename.endswith('.json'):
+            content_type = 'application/json'
+        elif filename.endswith('.md'):
+            content_type = 'text/markdown'
+        
+        # S3 서비스 가져오기
+        s3_service = get_s3_service()
+        if not s3_service:
+            response = jsonify({'error': 'S3 서비스를 사용할 수 없습니다.'})
+            return add_cors_headers(response), 500
+        
+        # S3에 업로드
+        result = s3_service.upload_content(content, s3_key, content_type)
+        
+        response = jsonify({
+            'success': True,
+            'message': '내용이 성공적으로 업로드되었습니다.',
+            'url': result['url'],
+            's3_key': result['s3_key']
+        })
+        return add_cors_headers(response), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"S3 내용 업로드 오류: {e}")
+        response = jsonify({'error': f'업로드 중 오류가 발생했습니다: {str(e)}'})
+        return add_cors_headers(response), 500
+
+@test_scripts_bp.route('/s3/list', methods=['GET'])
+@user_required
+def list_s3_files():
+    """S3에서 파일 목록 조회"""
+    try:
+        # S3 서비스 가져오기
+        s3_service = get_s3_service()
+        if not s3_service:
+            response = jsonify({'error': 'S3 서비스를 사용할 수 없습니다.'})
+            return add_cors_headers(response), 500
+        
+        prefix = request.args.get('prefix', 'test-scripts/')
+        files = s3_service.list_files(prefix)
+        
+        response = jsonify({
+            'success': True,
+            'files': files,
+            'total_count': len(files)
+        })
+        return add_cors_headers(response), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"S3 파일 목록 조회 오류: {e}")
+        response = jsonify({'error': f'파일 목록 조회 중 오류가 발생했습니다: {str(e)}'})
+        return add_cors_headers(response), 500
+
+@test_scripts_bp.route('/s3/content', methods=['GET'])
+@user_required
+def get_s3_file_content():
+    """S3에서 파일 내용 조회"""
+    try:
+        # S3 서비스 가져오기
+        s3_service = get_s3_service()
+        if not s3_service:
+            response = jsonify({'error': 'S3 서비스를 사용할 수 없습니다.'})
+            return add_cors_headers(response), 500
+        
+        s3_key = request.args.get('key')
+        if not s3_key:
+            response = jsonify({'error': 'S3 키가 필요합니다.'})
+            return add_cors_headers(response), 400
+        
+        content = s3_service.get_file_content(s3_key)
+        
+        response = jsonify({
+            'success': True,
+            'content': content,
+            's3_key': s3_key
+        })
+        return add_cors_headers(response), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"S3 파일 내용 조회 오류: {e}")
+        response = jsonify({'error': f'파일 내용 조회 중 오류가 발생했습니다: {str(e)}'})
+        return add_cors_headers(response), 500
+
+@test_scripts_bp.route('/s3/download-url', methods=['GET'])
+@user_required
+def get_s3_download_url():
+    """S3 파일 다운로드 URL 생성"""
+    try:
+        # S3 서비스 가져오기
+        s3_service = get_s3_service()
+        if not s3_service:
+            response = jsonify({'error': 'S3 서비스를 사용할 수 없습니다.'})
+            return add_cors_headers(response), 500
+        
+        s3_key = request.args.get('key')
+        if not s3_key:
+            response = jsonify({'error': 'S3 키가 필요합니다.'})
+            return add_cors_headers(response), 400
+        
+        url = s3_service.generate_presigned_url(s3_key)
+        
+        response = jsonify({
+            'success': True,
+            'download_url': url,
+            's3_key': s3_key
+        })
+        return add_cors_headers(response), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"S3 다운로드 URL 생성 오류: {e}")
+        response = jsonify({'error': f'다운로드 URL 생성 중 오류가 발생했습니다: {str(e)}'})
+        return add_cors_headers(response), 500
+
+@test_scripts_bp.route('/s3/delete', methods=['DELETE'])
+@user_required
+def delete_s3_file():
+    """S3에서 파일 삭제"""
+    try:
+        # S3 서비스 가져오기
+        s3_service = get_s3_service()
+        if not s3_service:
+            response = jsonify({'error': 'S3 서비스를 사용할 수 없습니다.'})
+            return add_cors_headers(response), 500
+        
+        data = request.get_json()
+        if not data or 's3_key' not in data:
+            response = jsonify({'error': 'S3 키가 필요합니다.'})
+            return add_cors_headers(response), 400
+        
+        s3_key = data['s3_key']
+        s3_service.delete_file(s3_key)
+        
+        response = jsonify({
+            'success': True,
+            'message': '파일이 성공적으로 삭제되었습니다.',
+            's3_key': s3_key
+        })
+        return add_cors_headers(response), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"S3 파일 삭제 오류: {e}")
+        response = jsonify({'error': f'파일 삭제 중 오류가 발생했습니다: {str(e)}'})
+        return add_cors_headers(response), 500
+
+@test_scripts_bp.route('/s3/upload-folder', methods=['POST'])
+@user_required
+def upload_folder_to_s3():
+    """로컬 폴더 구조를 유지하면서 S3에 업로드"""
+    try:
+        # S3 서비스 가져오기
+        s3_service = get_s3_service()
+        if not s3_service:
+            response = jsonify({'error': 'S3 서비스를 사용할 수 없습니다.'})
+            return add_cors_headers(response), 500
+        
+        data = request.get_json()
+        if not data or 'folder_path' not in data:
+            response = jsonify({'error': '폴더 경로가 필요합니다.'})
+            return add_cors_headers(response), 400
+        
+        folder_path = data['folder_path']
+        
+        # 프로젝트 루트 기준으로 경로 설정
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        full_path = os.path.join(project_root, folder_path)
+        
+        # 경로 검증 (보안상 test-scripts 폴더 내에서만 업로드 허용)
+        if not full_path.startswith(os.path.join(project_root, 'test-scripts')):
+            response = jsonify({'error': '허용되지 않은 경로입니다.'})
+            return add_cors_headers(response), 403
+        
+        if not os.path.exists(full_path):
+            response = jsonify({'error': '폴더를 찾을 수 없습니다.'})
+            return add_cors_headers(response), 404
+        
+        if not os.path.isdir(full_path):
+            response = jsonify({'error': '폴더가 아닙니다.'})
+            return add_cors_headers(response), 400
+        
+        # 폴더 구조를 재귀적으로 탐색하여 업로드
+        uploaded_files = []
+        failed_files = []
+        
+        def upload_directory_recursive(current_path, s3_prefix=""):
+            try:
+                for item in os.listdir(current_path):
+                    item_path = os.path.join(current_path, item)
+                    
+                    # 숨김 파일 제외
+                    if item.startswith('.'):
+                        continue
+                    
+                    if os.path.isdir(item_path):
+                        # 디렉토리인 경우 재귀 호출
+                        new_prefix = f"{s3_prefix}{item}/" if s3_prefix else f"{item}/"
+                        upload_directory_recursive(item_path, new_prefix)
+                    else:
+                        # 파일인 경우 업로드
+                        try:
+                            # S3 키 생성 (폴더 구조 유지)
+                            s3_key = f"test-scripts/{s3_prefix}{item}"
+                            
+                            # Content-Type 결정
+                            content_type = 'text/plain'
+                            if item.endswith('.js'):
+                                content_type = 'application/javascript'
+                            elif item.endswith('.py'):
+                                content_type = 'text/x-python'
+                            elif item.endswith('.json'):
+                                content_type = 'application/json'
+                            elif item.endswith('.md'):
+                                content_type = 'text/markdown'
+                            
+                            # 파일 내용 읽기
+                            with open(item_path, 'r', encoding='utf-8') as f:
+                                content = f.read()
+                            
+                            # S3에 업로드
+                            result = s3_service.upload_content(content, s3_key, content_type)
+                            uploaded_files.append({
+                                'local_path': os.path.relpath(item_path, project_root),
+                                's3_key': s3_key,
+                                'url': result['url']
+                            })
+                            
+                        except Exception as e:
+                            failed_files.append({
+                                'file': os.path.relpath(item_path, project_root),
+                                'error': str(e)
+                            })
+                            
+            except Exception as e:
+                current_app.logger.error(f"디렉토리 탐색 오류: {e}")
+        
+        # 업로드 시작
+        upload_directory_recursive(full_path)
+        
+        response = jsonify({
+            'success': True,
+            'message': f'폴더 업로드가 완료되었습니다. {len(uploaded_files)}개 파일 업로드됨',
+            'uploaded_files': uploaded_files,
+            'failed_files': failed_files,
+            'total_uploaded': len(uploaded_files),
+            'total_failed': len(failed_files)
+        })
+        return add_cors_headers(response), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"폴더 업로드 오류: {e}")
+        response = jsonify({'error': f'폴더 업로드 중 오류가 발생했습니다: {str(e)}'})
+        return add_cors_headers(response), 500

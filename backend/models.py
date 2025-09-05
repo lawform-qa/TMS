@@ -24,7 +24,8 @@ class User(db.Model):
     created_test_cases = db.relationship('TestCase', foreign_keys='TestCase.creator_id', backref='creator', lazy='dynamic')
     assigned_test_cases = db.relationship('TestCase', foreign_keys='TestCase.assignee_id', backref='assignee', lazy='dynamic')
     automation_tests = db.relationship('AutomationTest', foreign_keys='AutomationTest.creator_id', backref='creator', lazy='dynamic')
-    performance_tests = db.relationship('PerformanceTest', foreign_keys='PerformanceTest.creator_id', backref='creator', lazy='dynamic')
+    created_performance_tests = db.relationship('PerformanceTest', foreign_keys='PerformanceTest.creator_id', backref='creator', lazy='dynamic')
+    assigned_performance_tests = db.relationship('PerformanceTest', foreign_keys='PerformanceTest.assignee_id', lazy='dynamic')
     
     def set_password(self, password):
         """비밀번호 해시화"""
@@ -151,10 +152,12 @@ class PerformanceTest(db.Model):
     created_at = db.Column(db.DateTime, default=get_kst_now)
     updated_at = db.Column(db.DateTime, default=get_kst_now, onupdate=get_kst_now)
     creator_id = db.Column(db.Integer, db.ForeignKey('Users.id'), nullable=True)
+    assignee_id = db.Column(db.Integer, db.ForeignKey('Users.id'), nullable=True)
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)  # 프로젝트 ID
     
     # 관계 설정
     project = db.relationship('Project', backref='performance_tests')
+    assignee = db.relationship('User', foreign_keys=[assignee_id])
 
 # 자동화 테스트 모델
 class AutomationTest(db.Model):
