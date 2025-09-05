@@ -387,7 +387,6 @@ def get_test_scripts_stats():
 
 # S3 관련 API 엔드포인트들
 @test_scripts_bp.route('/s3/upload', methods=['POST'])
-@user_required
 def upload_to_s3():
     """파일을 S3에 업로드"""
     try:
@@ -442,7 +441,6 @@ def upload_to_s3():
         return add_cors_headers(response), 500
 
 @test_scripts_bp.route('/s3/upload-content', methods=['POST'])
-@user_required
 def upload_content_to_s3():
     """문자열 내용을 S3에 업로드"""
     try:
@@ -515,7 +513,6 @@ def list_s3_files():
         return add_cors_headers(response), 500
 
 @test_scripts_bp.route('/s3/content', methods=['GET'])
-@user_required
 def get_s3_file_content():
     """S3에서 파일 내용 조회"""
     try:
@@ -545,7 +542,6 @@ def get_s3_file_content():
         return add_cors_headers(response), 500
 
 @test_scripts_bp.route('/s3/download-url', methods=['GET'])
-@user_required
 def get_s3_download_url():
     """S3 파일 다운로드 URL 생성"""
     try:
@@ -575,7 +571,6 @@ def get_s3_download_url():
         return add_cors_headers(response), 500
 
 @test_scripts_bp.route('/s3/delete', methods=['DELETE'])
-@user_required
 def delete_s3_file():
     """S3에서 파일 삭제"""
     try:
@@ -606,7 +601,6 @@ def delete_s3_file():
         return add_cors_headers(response), 500
 
 @test_scripts_bp.route('/s3/upload-folder', methods=['POST'])
-@user_required
 def upload_folder_to_s3():
     """로컬 폴더 구조를 유지하면서 S3에 업로드"""
     try:
