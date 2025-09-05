@@ -25,7 +25,7 @@ class User(db.Model):
     assigned_test_cases = db.relationship('TestCase', foreign_keys='TestCase.assignee_id', backref='assignee', lazy='dynamic')
     automation_tests = db.relationship('AutomationTest', foreign_keys='AutomationTest.creator_id', backref='creator', lazy='dynamic')
     created_performance_tests = db.relationship('PerformanceTest', foreign_keys='PerformanceTest.creator_id', backref='creator', lazy='dynamic')
-    assigned_performance_tests = db.relationship('PerformanceTest', foreign_keys='PerformanceTest.assignee_id', lazy='dynamic')
+    assigned_performance_tests = db.relationship('PerformanceTest', foreign_keys='PerformanceTest.assignee_id', backref='assignee', lazy='dynamic')
     
     def set_password(self, password):
         """비밀번호 해시화"""
@@ -116,7 +116,7 @@ class TestCase(db.Model):
     # 관계 설정
     folder = db.relationship('Folder', backref='test_cases')
     project = db.relationship('Project', backref='test_cases')
-    # creator와 assignee 관계는 User 모델에서 이미 설정됨
+    # creator와 assignee 관계는 User 모델의 backref로 처리됨
 
 # 테스트 케이스 히스토리 모델
 class TestCaseHistory(db.Model):
@@ -157,7 +157,7 @@ class PerformanceTest(db.Model):
     
     # 관계 설정
     project = db.relationship('Project', backref='performance_tests')
-    assignee = db.relationship('User', foreign_keys=[assignee_id])
+    # creator와 assignee 관계는 User 모델의 backref로 처리됨
 
 # 자동화 테스트 모델
 class AutomationTest(db.Model):
@@ -176,22 +176,19 @@ class AutomationTest(db.Model):
     
     # 관계 설정
     project = db.relationship('Project', backref='automation_tests')
+    # creator 관계는 User 모델의 backref로 처리됨
 
 # 테스트 결과 모델
 class TestResult(db.Model):
     __tablename__ = 'TestResults'
     id = db.Column(db.Integer, primary_key=True)
     test_case_id = db.Column(db.Integer, db.ForeignKey('TestCases.id'), nullable=True)  # nullable=True로 변경
-    # automation_test_id = db.Column(db.Integer, db.ForeignKey('AutomationTests.id'), nullable=True)  # 실제 DB에 없는 컬럼
-    # performance_test_id = db.Column(db.Integer, db.ForeignKey('PerformanceTests.id'), nullable=True)  # 실제 DB에 없는 컬럼
     result = db.Column(db.String(20))  # Pass, Fail, Skip, Error
-    # status = db.Column(db.String(20))  # 실제 DB에 없는 컬럼이므로 주석 처리
     execution_time = db.Column(db.Float)  # 초 단위
     environment = db.Column(db.String(50))
     executed_by = db.Column(db.String(100))
     executed_at = db.Column(db.DateTime, default=get_kst_now)
     notes = db.Column(db.Text)
-    # result_data = db.Column(db.Text)  # 실제 DB에 없는 컬럼이므로 주석 처리
     
     # test_case_id는 반드시 있어야 함 (실제 DB 스키마에 맞춤)
     __table_args__ = (
