@@ -241,8 +241,13 @@ class S3Service:
             return folders + files
             
         except ClientError as e:
+            print(f"S3 ClientError: {e}")
+            print(f"Error Code: {e.response['Error']['Code']}")
+            print(f"Error Message: {e.response['Error']['Message']}")
             raise Exception(f"S3 파일 목록 조회 오류: {e}")
         except Exception as e:
+            print(f"S3 일반 오류: {e}")
+            print(f"오류 타입: {type(e)}")
             raise Exception(f"파일 목록 조회 중 오류 발생: {e}")
     
     def delete_file(self, s3_key):
