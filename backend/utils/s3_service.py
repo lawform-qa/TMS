@@ -57,13 +57,19 @@ class S3Service:
                     print(f"S3 버킷 '{self.bucket_name}' 생성됨")
                 except Exception as create_error:
                     print(f"버킷 생성 오류: {create_error}")
+            elif error_code == '403':
+                # 권한 없음 - S3 기능 비활성화
+                print(f"버킷 접근 권한 없음: {e}")
+                print("S3 기능이 비활성화됩니다.")
+                self.s3_client = None
             else:
                 print(f"버킷 접근 오류: {e}")
     
     def upload_file(self, file_path, s3_key, content_type=None):
         """파일을 S3에 업로드"""
         if not self.s3_client:
-            raise Exception("S3 클라이언트가 초기화되지 않았습니다.")
+            print("S3 클라이언트가 초기화되지 않았습니다. 파일 업로드를 건너뜁니다.")
+            return None
         
         try:
             # Content-Type 자동 감지
@@ -110,7 +116,8 @@ class S3Service:
     def upload_content(self, content, s3_key, content_type='text/plain'):
         """문자열 내용을 S3에 업로드"""
         if not self.s3_client:
-            raise Exception("S3 클라이언트가 초기화되지 않았습니다.")
+            print("S3 클라이언트가 초기화되지 않았습니다. 작업을 건너뜁니다.")
+            return None
         
         try:
             self.s3_client.put_object(
@@ -143,7 +150,8 @@ class S3Service:
     def download_file(self, s3_key, local_path):
         """S3에서 파일 다운로드"""
         if not self.s3_client:
-            raise Exception("S3 클라이언트가 초기화되지 않았습니다.")
+            print("S3 클라이언트가 초기화되지 않았습니다. 작업을 건너뜁니다.")
+            return None
         
         try:
             self.s3_client.download_file(self.bucket_name, s3_key, local_path)
@@ -159,7 +167,8 @@ class S3Service:
     def get_file_content(self, s3_key):
         """S3에서 파일 내용 가져오기"""
         if not self.s3_client:
-            raise Exception("S3 클라이언트가 초기화되지 않았습니다.")
+            print("S3 클라이언트가 초기화되지 않았습니다. 작업을 건너뜁니다.")
+            return None
         
         try:
             response = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)
@@ -188,7 +197,8 @@ class S3Service:
     def list_files(self, prefix=''):
         """S3에서 파일 목록 조회"""
         if not self.s3_client:
-            raise Exception("S3 클라이언트가 초기화되지 않았습니다.")
+            print("S3 클라이언트가 초기화되지 않았습니다. 작업을 건너뜁니다.")
+            return None
         
         try:
             response = self.s3_client.list_objects_v2(
@@ -216,7 +226,8 @@ class S3Service:
     def delete_file(self, s3_key):
         """S3에서 파일 삭제"""
         if not self.s3_client:
-            raise Exception("S3 클라이언트가 초기화되지 않았습니다.")
+            print("S3 클라이언트가 초기화되지 않았습니다. 작업을 건너뜁니다.")
+            return None
         
         try:
             self.s3_client.delete_object(Bucket=self.bucket_name, Key=s3_key)
@@ -229,7 +240,8 @@ class S3Service:
     def generate_presigned_url(self, s3_key, expiration=3600):
         """파일 다운로드를 위한 사전 서명된 URL 생성"""
         if not self.s3_client:
-            raise Exception("S3 클라이언트가 초기화되지 않았습니다.")
+            print("S3 클라이언트가 초기화되지 않았습니다. 작업을 건너뜁니다.")
+            return None
         
         try:
             url = self.s3_client.generate_presigned_url(
