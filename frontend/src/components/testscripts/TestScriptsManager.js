@@ -6,7 +6,7 @@ import MonacoEditor from '@monaco-editor/react';
 import './TestScriptsManager.css';
 
 const TestScriptsManager = () => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [s3Files, setS3Files] = useState([]);
   const [localFiles, setLocalFiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -57,7 +57,12 @@ const TestScriptsManager = () => {
   const loadS3Files = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${config.apiUrl}/api/test-scripts/s3/list`);
+      const response = await axios.get(`${config.apiUrl}/api/test-scripts/s3/list`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
       setS3Files(response.data.files || []);
     } catch (err) {
       console.error('S3 파일 목록 로드 오류:', err);
@@ -66,7 +71,7 @@ const TestScriptsManager = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [token]);
 
   // 로컬 파일 목록 로드
   const loadLocalFiles = useCallback(async (path = 'test-scripts') => {
@@ -114,7 +119,12 @@ const TestScriptsManager = () => {
       let content;
       
       if (activeTab === 's3') {
-        const response = await axios.get(`${config.apiUrl}/api/test-scripts/s3/content?key=${encodeURIComponent(file.key)}`);
+        const response = await axios.get(`${config.apiUrl}/api/test-scripts/s3/content?key=${encodeURIComponent(file.key)}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
         content = response.data.content;
       } else {
         const response = await axios.get(`${config.apiUrl}/api/test-scripts/file-content?path=${encodeURIComponent(file.path)}`);
@@ -151,6 +161,11 @@ const TestScriptsManager = () => {
         await axios.post(`${config.apiUrl}/api/test-scripts/s3/upload-content`, {
           content: fileContent,
           filename: selectedFile.key.split('/').pop()
+        }, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         });
         alert('파일이 성공적으로 저장되었습니다.');
         loadS3Files(); // 목록 새로고침
@@ -185,6 +200,11 @@ const TestScriptsManager = () => {
       await axios.post(`${config.apiUrl}/test-scripts/s3/upload-content`, {
         content: newFileContent,
         filename: newFileName
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
       
       alert('새 파일이 성공적으로 생성되었습니다.');
@@ -209,7 +229,11 @@ const TestScriptsManager = () => {
       
       if (activeTab === 's3') {
         await axios.delete(`${config.apiUrl}/api/test-scripts/s3/delete`, {
-          data: { s3_key: file.key }
+          data: { s3_key: file.key },
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         });
         alert('파일이 성공적으로 삭제되었습니다.');
         loadS3Files(); // 목록 새로고침
@@ -228,7 +252,12 @@ const TestScriptsManager = () => {
   const downloadFile = async (file) => {
     try {
       if (activeTab === 's3') {
-        const response = await axios.get(`${config.apiUrl}/api/test-scripts/s3/download-url?key=${encodeURIComponent(file.key)}`);
+        const response = await axios.get(`${config.apiUrl}/api/test-scripts/s3/download-url?key=${encodeURIComponent(file.key)}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
         window.open(response.data.download_url, '_blank');
       } else {
         // 로컬 파일 다운로드는 현재 지원하지 않음
@@ -255,6 +284,7 @@ const TestScriptsManager = () => {
       const response = await axios.post(`${config.apiUrl}/api/test-scripts/s3/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`
         },
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -281,6 +311,11 @@ const TestScriptsManager = () => {
       
       const response = await axios.post(`${config.apiUrl}/api/test-scripts/s3/upload-folder`, {
         folder_path: folderPath
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
       
       if (response.data.success) {
