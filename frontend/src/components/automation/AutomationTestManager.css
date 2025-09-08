@@ -391,7 +391,7 @@
 
 .automation-table-content th {
   padding: 12px 16px;
-  text-align: left;
+  text-align: center;
   font-weight: 600;
   color: #495057;
   background: #f8f9fa;
@@ -407,20 +407,11 @@
   user-select: none;
   transition: background-color 0.2s ease;
   position: relative;
+  text-align: center;
 }
 
 .automation-table-content th.automation-sortable:hover {
   background-color: #e9ecef;
-}
-
-.automation-table-content th.automation-sortable.asc::after {
-  content: ' ↑';
-  color: #007bff;
-}
-
-.automation-table-content th.automation-sortable.desc::after {
-  content: ' ↓';
-  color: #007bff;
 }
 
 .automation-table-content tbody tr {

@@ -1597,7 +1597,7 @@
 }
 
 .no-column.sortable {
-  color: #ffffff;
+  color: #000000;
   cursor: pointer;
   transition: background-color 0.2s ease;
   user-select: none;
