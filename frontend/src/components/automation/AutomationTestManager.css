@@ -127,7 +127,257 @@
   background: #0056b3;
 }
 
-/* 테스트 목록 */
+/* 검색 섹션 */
+.search-section {
+  margin: 0 0 25px 0;
+  padding: 20px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.search-container {
+  max-width: auto;
+  margin: 0 auto;
+}
+
+.search-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.search-input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid #e9ecef;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.search-input::placeholder {
+  color: #999;
+  font-style: italic;
+}
+
+.btn-clear-search {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-clear-search:hover {
+  background: #5a6268;
+  transform: translateY(-1px);
+}
+
+.search-info {
+  font-size: 0.9em;
+  color: #007bff;
+  font-weight: 500;
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+/* 고급 필터 */
+.advanced-filters {
+  margin: 15px 0;
+  padding: 15px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.filter-row {
+  display: flex;
+  gap: 20px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+}
+
+.filter-group label {
+  font-size: 0.9em;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 5px;
+}
+
+.filter-select {
+  padding: 8px 12px;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  font-size: 14px;
+  background: white;
+  transition: all 0.2s ease;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
+
+/* 테이블 컨테이너 */
+.automation-table-container {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  overflow: hidden;
+  margin-bottom: 30px;
+}
+
+.automation-table {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.automation-table-content {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.automation-table-content thead {
+  background: #f8f9fa;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.automation-table-content th {
+  padding: 15px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 1px solid #e9ecef;
+  white-space: nowrap;
+}
+
+.automation-table-content th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s ease;
+  position: relative;
+}
+
+.automation-table-content th.sortable:hover {
+  background-color: #e9ecef;
+}
+
+.automation-table-content th.sortable.asc::after {
+  content: ' ↑';
+  color: #007bff;
+}
+
+.automation-table-content th.sortable.desc::after {
+  content: ' ↓';
+  color: #007bff;
+}
+
+.automation-table-content tbody tr {
+  border-bottom: 1px solid #f0f0f0;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.automation-table-content tbody tr:hover {
+  background-color: #f8f9ff;
+}
+
+.automation-table-content tbody tr.selected {
+  background-color: #e3f2fd;
+  border-left: 4px solid #007bff;
+}
+
+.automation-table-content td {
+  padding: 15px 12px;
+  vertical-align: top;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.test-name-cell {
+  min-width: 200px;
+}
+
+.test-name-content strong {
+  display: block;
+  color: #333;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.test-description {
+  color: #666;
+  font-size: 13px;
+  line-height: 1.4;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.test-type-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  background: #e3f2fd;
+  color: #1976d2;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.environment-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  background: #f3e5f5;
+  color: #7b1fa2;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.action-cell {
+  width: 120px;
+  text-align: center;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 5px;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 상세 정보 섹션 */
+.automation-detail-section {
+  margin-top: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+/* 테스트 목록 (기존 스타일 유지) */
 .automation-list {
   display: flex;
   flex-direction: column;
