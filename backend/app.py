@@ -78,34 +78,25 @@ app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # 환경별 데이터베이스 엔진 옵션 설정
-if is_vercel and 'mysql' in database_url:
-    # Vercel MySQL 환경
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'pool_pre_ping': True,
-        'pool_recycle': 300,
-        'connect_args': {
-            'connect_timeout': 10,
-            'read_timeout': 30,
-            'write_timeout': 30,
-            'ssl': {'ssl': True}  # 기본 SSL 설정
+def get_database_engine_options():
+    """데이터베이스 엔진 옵션 설정"""
+    if is_vercel and 'sqlite' in database_url:
+        logger.info("Vercel 환경에서 SQLite 사용")
+        return {}
+    else:
+        # MySQL 환경 (Vercel 또는 로컬)
+        return {
+            'pool_pre_ping': True,
+            'pool_recycle': 300,
+            'connect_args': {
+                'connect_timeout': 10,
+                'read_timeout': 30,
+                'write_timeout': 30,
+                'ssl': {'ssl': True}
+            }
         }
-    }
-elif is_vercel and 'sqlite' in database_url:
-    # Vercel SQLite 환경
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {}
-    logger.info("Vercel 환경에서 SQLite 사용")
-else:
-    # 로컬 환경 - AWS RDS MySQL
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'pool_pre_ping': True,
-        'pool_recycle': 300,
-        'connect_args': {
-            'connect_timeout': 10,
-            'read_timeout': 30,
-            'write_timeout': 30,
-            'ssl': {'ssl': True}  # AWS RDS SSL 설정
-        }
-    }
+
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = get_database_engine_options()
 
 # 환경 변수 로깅 (디버깅용)
 logger.debug(f"Database URL: {app.config['SQLALCHEMY_DATABASE_URI']}")
@@ -172,15 +163,12 @@ app.register_blueprint(file_upload_bp, url_prefix='/api/files')
 
 # 헬퍼 함수들
 def create_cors_response(data=None, status_code=200):
-    """CORS 헤더가 포함된 응답 생성"""
+    """CORS 헤더가 포함된 응답 생성 (utils.cors.add_cors_headers 사용)"""
     if data is None:
         data = {'status': 'preflight_ok'}
     response = jsonify(data)
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers'
-    response.headers['Access-Control-Max-Age'] = '86400'
-    return response, status_code
+    from utils.cors import add_cors_headers
+    return add_cors_headers(response), status_code
 
 def handle_options_request():
     """OPTIONS 요청 처리"""
