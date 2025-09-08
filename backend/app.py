@@ -438,11 +438,19 @@ def init_database():
             else:
                 logger.info("testuser가 이미 존재합니다")
             
-            # 준비된 사용자들을 한 번에 추가하고 커밋
+            # 준비된 사용자들을 개별적으로 추가하고 커밋
             if users_to_create:
                 for user in users_to_create:
-                    db.session.add(user)
-                db.session.commit()
+                    try:
+                        db.session.add(user)
+                        db.session.commit()
+                        logger.info(f"사용자 {user.username} 생성 완료")
+                    except Exception as user_error:
+                        db.session.rollback()
+                        logger.error(f"사용자 {user.username} 생성 실패: {user_error}")
+                        # 중복 오류인 경우 무시
+                        if 'duplicate' not in str(user_error).lower() and 'unique' not in str(user_error).lower():
+                            raise user_error
                 logger.info(f"{len(users_to_create)}명의 사용자 생성 완료")
             else:
                 logger.info("생성할 사용자가 없습니다")
