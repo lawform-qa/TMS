@@ -243,6 +243,7 @@ const TestCaseAPP = () => {
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
   
+  
 
 
   useEffect(() => {
@@ -928,47 +929,47 @@ const TestCaseAPP = () => {
       <div className="testcase-header">
         <h1>테스트 케이스 관리</h1>
         <div className="header-actions">
-          {user && (user.role === 'admin' || user.role === 'user') && (
-            <button 
-              className="btn btn-add"
-              onClick={() => setShowAddModal(true)}
-            >
-              ➕ 테스트 케이스 추가
-            </button>
-          )}
-          {user && (user.role === 'admin' || user.role === 'user') && (
-            <button 
-              className="btn btn-upload"
-              onClick={() => setShowUploadModal(true)}
-            >
-              📤 엑셀 업로드
-            </button>
-          )}
-          <button 
-            className="btn btn-download"
-            onClick={handleDownload}
-          >
-            📥 엑셀 다운로드
-          </button>
-          {user && (user.role === 'admin' || user.role === 'user') && selectedTestCases.length > 0 && (
-            <>
+            {user && (user.role === 'admin' || user.role === 'user') && (
               <button 
-                className="btn btn-execute"
-                onClick={() => setShowMoveModal(true)}
+                className="btn btn-add"
+                onClick={() => setShowAddModal(true)}
               >
-                📁 폴더 이동 ({selectedTestCases.length})
+                ➕ 테스트 케이스 추가
               </button>
-              {user.role === 'admin' && (
+            )}
+            {user && (user.role === 'admin' || user.role === 'user') && (
+              <button 
+                className="btn btn-upload"
+                onClick={() => setShowUploadModal(true)}
+              >
+                📤 엑셀 업로드
+              </button>
+            )}
+            <button 
+              className="btn btn-download"
+              onClick={handleDownload}
+            >
+              📥 엑셀 다운로드
+            </button>
+            {user && (user.role === 'admin' || user.role === 'user') && selectedTestCases.length > 0 && (
+              <>
                 <button 
-                  className="btn btn-delete"
-                  onClick={() => setShowDeleteModal(true)}
+                  className="btn btn-execute"
+                  onClick={() => setShowMoveModal(true)}
                 >
-                  🗑️ 다중 삭제 ({selectedTestCases.length})
+                  📁 폴더 이동 ({selectedTestCases.length})
                 </button>
-              )}
-            </>
-          )}
-        </div>
+                {user.role === 'admin' && (
+                  <button 
+                    className="btn btn-delete"
+                    onClick={() => setShowDeleteModal(true)}
+                  >
+                    🗑️ 다중 삭제 ({selectedTestCases.length})
+                  </button>
+                )}
+              </>
+            )}
+          </div>
       </div>
 
       {/* 고급 검색 기능 */}

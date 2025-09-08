@@ -21,6 +21,7 @@
   font-size: 1.8em;
 }
 
+
 .header-actions {
   display: flex;
   gap: 20px;
@@ -452,7 +453,7 @@
   font-size: medium;
   margin-top: 15px;
   padding: 10px 0;
-  border-top: 1px solid #e9ecef;
+  /* border-top: 1px solid #e9ecef; */
   font-size: 0.9em;
   color: #000000;
   text-align: center;
@@ -1528,8 +1529,9 @@
 }
 
 .testcase-table thead {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  /* background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); */
+  background-color: #d3d0d0;
+  color: black;
 }
 
 .testcase-table th {

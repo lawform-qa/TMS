@@ -1,137 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import config from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
+import MonacoEditor from '@monaco-editor/react';
 import './TestScriptsManager.css';
 
-// 파일/폴더 아이템 컴포넌트 (테스트 케이스 폴더 트리 형태)
-const FileTreeItem = ({ item, level = 0, onFileClick, getFileIcon, getFolderIcon }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [children, setChildren] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  const isDirectory = item.type === 'directory';
-
-  const toggleExpanded = async () => {
-    if (!isDirectory) return;
-    
-    if (isExpanded) {
-      setIsExpanded(false);
-      return;
-    }
-
-    if (children.length === 0 && !loading) {
-      await loadChildren();
-    }
-    setIsExpanded(true);
-  };
-
-  const loadChildren = async () => {
-    try {
-      setLoading(true);
-      
-      // 절대 경로를 상대 경로로 변환
-      let relativePath = item.path;
-      if (item.path.includes('test-scripts')) {
-        // test-scripts 이후의 경로만 추출
-        const testScriptsIndex = item.path.indexOf('test-scripts');
-        relativePath = item.path.substring(testScriptsIndex);
-      }
-      
-      // 개발 환경에서만 로그 출력
-      if (process.env.NODE_ENV === 'development') {
-        console.log('요청 경로:', relativePath);
-      }
-      const response = await axios.get(`/api/test-scripts/explore?path=${encodeURIComponent(relativePath)}`);
-      if (process.env.NODE_ENV === 'development') {
-        console.log('백엔드 응답:', response.data);
-      }
-      setChildren(response.data.children || []);
-    } catch (err) {
-      console.error('하위 항목 로드 오류:', err);
-      setChildren([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleItemClick = () => {
-    if (isDirectory) {
-      toggleExpanded();
-    } else {
-      // 파일 클릭 시 콜백 호출
-      onFileClick(item);
-    }
-  };
-
-  return (
-    <div className="file-tree-item" style={{ marginLeft: level * 20 }}>
-      <div 
-        className={`folder-item ${isDirectory ? 'clickable' : ''}`}
-        onClick={handleItemClick}
-      >
-        {isDirectory && (
-          <span 
-            className={`folder-toggle ${isExpanded ? 'expanded' : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleExpanded();
-            }}
-          >
-            {loading ? '⏳' : isExpanded ? '▼' : '▶'}
-          </span>
-        )}
-        <span className="folder-icon">
-          {isDirectory ? getFolderIcon(item.name) : getFileIcon(item.name)}
-        </span>
-        <span className="folder-name">{item.name}</span>
-        {!isDirectory && (
-          <span className="file-size">
-            {item.size ? `(${(item.size / 1024).toFixed(1)} KB)` : ''}
-          </span>
-        )}
-      </div>
-      
-      {isDirectory && isExpanded && children.length > 0 && (
-        <div className="folder-children expanded">
-          {children.map((child, index) => (
-            <FileTreeItem 
-              key={`${child.path}-${index}`} 
-              item={child} 
-              level={level + 1}
-              onFileClick={onFileClick}
-              getFileIcon={getFileIcon}
-              getFolderIcon={getFolderIcon}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// 테스트 스크립트 매니저 메인 컴포넌트
 const TestScriptsManager = () => {
-  const [rootItems, setRootItems] = useState([]);
+  const { user, token } = useAuth();
+  const [s3Files, setS3Files] = useState([]);
+  const [localFiles, setLocalFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [fileContent, setFileContent] = useState(null);
-  const [activeCategory, setActiveCategory] = useState('all'); // 'all', 'performance', 'playwright'
+  const [fileContent, setFileContent] = useState('');
+  const [activeTab, setActiveTab] = useState('local'); // 's3' or 'local'
+  const [editorLanguage, setEditorLanguage] = useState('javascript');
+  const [isEditing, setIsEditing] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [newFileName, setNewFileName] = useState('');
+  const [newFileContent, setNewFileContent] = useState('');
+  const [showFolderUploadModal, setShowFolderUploadModal] = useState(false);
+  const [uploadingFolder, setUploadingFolder] = useState(false);
+  const [currentPath, setCurrentPath] = useState('test-scripts');
+  const [pathHistory, setPathHistory] = useState(['test-scripts']);
 
-  // 파일 타입에 따른 아이콘 반환
-  const getFileIcon = (filename) => {
-    if (filename.endsWith('.js')) return '📄';
-    if (filename.endsWith('.py')) return '🐍';
-    if (filename.endsWith('.spec.js')) return '🧪';
-    if (filename.endsWith('.json')) return '⚙️';
-    if (filename.endsWith('.md')) return '📝';
-    if (filename.endsWith('.png') || filename.endsWith('.jpg') || filename.endsWith('.jpeg')) return '🖼️';
-    if (filename.endsWith('.DS_Store')) return '🗑️';
-    return '📄';
-  };
-
-  // 파일 타입에 따른 언어 감지
+  // 파일 확장자에 따른 언어 감지
   const getFileLanguage = (filename) => {
     if (filename.endsWith('.js') || filename.endsWith('.jsx')) return 'javascript';
     if (filename.endsWith('.ts') || filename.endsWith('.tsx')) return 'typescript';
@@ -148,155 +42,320 @@ const TestScriptsManager = () => {
     return 'plaintext';
   };
 
-  // 파일 타입에 따른 에디터 테마
-  const getEditorTheme = (filename) => {
-    const language = getFileLanguage(filename);
-    if (['javascript', 'typescript', 'jsx', 'tsx'].includes(language)) return 'javascript';
-    if (language === 'python') return 'python';
-    if (language === 'json') return 'json';
-    if (language === 'markdown') return 'markdown';
-    if (language === 'html') return 'html';
-    if (language === 'css') return 'css';
-    return 'plaintext';
+  // 파일 타입에 따른 아이콘 반환
+  const getFileIcon = (filename) => {
+    if (filename.endsWith('.js')) return '📄';
+    if (filename.endsWith('.py')) return '🐍';
+    if (filename.endsWith('.spec.js')) return '🧪';
+    if (filename.endsWith('.json')) return '⚙️';
+    if (filename.endsWith('.md')) return '📝';
+    if (filename.endsWith('.png') || filename.endsWith('.jpg') || filename.endsWith('.jpeg')) return '🖼️';
+    return '📄';
   };
 
-  // 폴더 타입에 따른 아이콘 반환
-  const getFolderIcon = (folderName) => {
-    if (folderName === 'performance') return '⚡';
-    if (folderName === 'playwright') return '🎭';
-    if (folderName === 'screenshots') return '📸';
-    if (folderName === 'Result') return '📊';
-    if (folderName === 'python') return '🐍';
-    if (folderName === 'clm') return '📋';
-    if (folderName === 'advice') return '💡';
-    if (folderName === 'login') return '🔐';
-    if (folderName === 'litigation') return '⚖️';
-    if (folderName === 'dashboard') return '📊';
-    if (folderName === 'common') return '🔧';
-    if (folderName === 'url') return '🔗';
-    if (folderName === 'nomerl') return '📝';
-    if (folderName === 'multi') return '🔄';
-    if (folderName === 'dist' || folderName === 'build') return '🏗️';
-    if (folderName === '__pycache__') return '💾';
-    return '📁';
-  };
-
-  useEffect(() => {
-    loadRootStructure();
-  }, []);
-
-  const loadRootStructure = async () => {
+  // S3 파일 목록 로드
+  const loadS3Files = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
-      
-      // 백엔드에서 루트 구조 로드
-      if (process.env.NODE_ENV === 'development') {
-        console.log('백엔드 API 호출 시도...');
-      }
-      const response = await axios.get('/api/test-scripts/explore');
-      if (process.env.NODE_ENV === 'development') {
-        console.log('백엔드 응답:', response.data);
-      }
-      setRootItems(response.data.children || []);
-    } catch (err) {
-      console.error('테스트 스크립트 구조 로드 오류:', err);
-      setError(`백엔드 연결 실패: ${err.message}`);
-      
-      // 오류 시 기본 구조 표시 (정적 데이터)
-      if (process.env.NODE_ENV === 'development') {
-        console.log('정적 데이터로 폴더 구조 표시');
-      }
-      setRootItems([
-        {
-          name: 'performance',
-          type: 'directory',
-          path: 'test-scripts/performance',
-          children_count: 12
-        },
-        {
-          name: 'playwright',
-          type: 'directory',
-          path: 'test-scripts/playwright',
-          children_count: 1
+      const response = await axios.get(`${config.apiUrl}/api/test-scripts/s3/list`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
-      ]);
+      });
+      setS3Files(response.data.files || []);
+    } catch (err) {
+      console.error('S3 파일 목록 로드 오류:', err);
+      // S3가 설정되지 않은 경우 빈 배열로 설정
+      setS3Files([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  // 로컬 파일 목록 로드
+  const loadLocalFiles = useCallback(async (path = 'test-scripts') => {
+    try {
+      setLoading(true);
+      console.log('로컬 파일 목록 로드 시작...', path);
+      console.log('API URL:', `${config.apiUrl}/api/test-scripts/explore?path=${encodeURIComponent(path)}`);
+      
+      const response = await axios.get(`${config.apiUrl}/api/test-scripts/explore?path=${encodeURIComponent(path)}`);
+      console.log('로컬 파일 응답:', response.data);
+      
+      setLocalFiles(response.data.children || []);
+      setCurrentPath(path);
+    } catch (err) {
+      console.error('로컬 파일 목록 로드 오류:', err);
+      console.error('오류 상세:', err.response?.data);
+      setError('로컬 파일 목록을 불러올 수 없습니다.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 하위 폴더 탐색
+  const exploreDirectory = (directory) => {
+    const newPath = directory.path.replace('/Users/ggpark/Desktop/Team_Git/integrated-test-platform/', '');
+    setPathHistory(prev => [...prev, newPath]);
+    loadLocalFiles(newPath);
+  };
+
+  // 상위 폴더로 이동
+  const goBack = () => {
+    if (pathHistory.length > 1) {
+      const newHistory = [...pathHistory];
+      newHistory.pop(); // 현재 경로 제거
+      const parentPath = newHistory[newHistory.length - 1];
+      setPathHistory(newHistory);
+      loadLocalFiles(parentPath);
+    }
+  };
+
+  // 파일 내용 로드
+  const loadFileContent = async (file) => {
+    try {
+      setLoading(true);
+      let content;
+      
+      if (activeTab === 's3') {
+        const response = await axios.get(`${config.apiUrl}/api/test-scripts/s3/content?key=${encodeURIComponent(file.key)}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        content = response.data.content;
+      } else {
+        const response = await axios.get(`${config.apiUrl}/api/test-scripts/file-content?path=${encodeURIComponent(file.path)}`);
+        content = response.data.content;
+      }
+      
+      setFileContent(content);
+      setSelectedFile(file);
+      setEditorLanguage(getFileLanguage(file.name || file.key));
+      setIsEditing(false);
+      
+      // 디버깅용 로그
+      console.log('선택된 파일:', file);
+      console.log('파일 키:', file.key);
+      console.log('파일 경로:', file.path);
+      console.log('파일 이름:', file.name);
+    } catch (err) {
+      console.error('파일 내용 로드 오류:', err);
+      alert('파일 내용을 불러올 수 없습니다.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleFileClick = async (file) => {
+  // 파일 저장
+  const saveFile = async () => {
+    if (!selectedFile) return;
+    
     try {
-      // 절대 경로를 상대 경로로 변환
-      let relativePath = file.path;
-      if (file.path.includes('test-scripts')) {
-        // test-scripts 이후의 경로만 추출
-        const testScriptsIndex = file.path.indexOf('test-scripts');
-        relativePath = file.path.substring(testScriptsIndex);
+      setLoading(true);
+      
+      if (activeTab === 's3') {
+        // S3에 저장
+        await axios.post(`${config.apiUrl}/api/test-scripts/s3/upload-content`, {
+          content: fileContent,
+          filename: selectedFile.key.split('/').pop()
+        }, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        alert('파일이 성공적으로 저장되었습니다.');
+        loadS3Files(); // 목록 새로고침
+      } else {
+        // 로컬 파일 편집 (실제로는 S3에 새로 저장)
+        await axios.post(`${config.apiUrl}/api/test-scripts/s3/upload-content`, {
+          content: fileContent,
+          filename: selectedFile.name || selectedFile.path.split('/').pop()
+        });
+        alert('파일이 S3에 저장되었습니다.');
+        loadS3Files(); // S3 목록 새로고침
       }
       
-      // 개발 환경에서만 로그 출력
-      if (process.env.NODE_ENV === 'development') {
-        console.log('파일 요청 경로:', relativePath);
-      }
-      const response = await axios.get(`/api/test-scripts/file-content?path=${encodeURIComponent(relativePath)}`);
-      setFileContent({
-        path: file.path,
-        content: response.data.content,
-        size: response.data.size
-      });
-      setSelectedFile(file);
+      setIsEditing(false);
     } catch (err) {
-      console.error('파일 내용 로드 오류:', err);
-      alert('파일 내용을 불러올 수 없습니다.');
+      console.error('파일 저장 오류:', err);
+      alert('파일 저장 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const closeFileView = () => {
-    setFileContent(null);
-    setSelectedFile(null);
-  };
-
-  const getFilteredItems = () => {
-    if (activeCategory === 'all') {
-      return rootItems;
-    } else if (activeCategory === 'performance') {
-      return rootItems.filter(item => item.name === 'performance');
-    } else if (activeCategory === 'playwright') {
-      return rootItems.filter(item => item.name === 'playwright');
+  // 새 파일 생성
+  const createNewFile = async () => {
+    if (!newFileName || !newFileContent) {
+      alert('파일명과 내용을 입력해주세요.');
+      return;
     }
-    return rootItems;
+    
+    try {
+      setLoading(true);
+      await axios.post(`${config.apiUrl}/test-scripts/s3/upload-content`, {
+        content: newFileContent,
+        filename: newFileName
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      alert('새 파일이 성공적으로 생성되었습니다.');
+      setShowUploadModal(false);
+      setNewFileName('');
+      setNewFileContent('');
+      loadS3Files(); // 목록 새로고침
+    } catch (err) {
+      console.error('파일 생성 오류:', err);
+      alert('파일 생성 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (loading) {
+  // 파일 삭제
+  const deleteFile = async (file) => {
+    if (!window.confirm('정말로 이 파일을 삭제하시겠습니까?')) return;
+    
+    try {
+      setLoading(true);
+      
+      if (activeTab === 's3') {
+        await axios.delete(`${config.apiUrl}/api/test-scripts/s3/delete`, {
+          data: { s3_key: file.key },
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        alert('파일이 성공적으로 삭제되었습니다.');
+        loadS3Files(); // 목록 새로고침
+      } else {
+        alert('로컬 파일은 삭제할 수 없습니다.');
+      }
+    } catch (err) {
+      console.error('파일 삭제 오류:', err);
+      alert('파일 삭제 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 파일 다운로드
+  const downloadFile = async (file) => {
+    try {
+      if (activeTab === 's3') {
+        const response = await axios.get(`${config.apiUrl}/api/test-scripts/s3/download-url?key=${encodeURIComponent(file.key)}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        window.open(response.data.download_url, '_blank');
+      } else {
+        // 로컬 파일 다운로드는 현재 지원하지 않음
+        alert('로컬 파일 다운로드는 지원하지 않습니다.');
+      }
+    } catch (err) {
+      console.error('파일 다운로드 오류:', err);
+      alert('파일 다운로드 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 파일 업로드
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    try {
+      setLoading(true);
+      setUploadProgress(0);
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await axios.post(`${config.apiUrl}/api/test-scripts/s3/upload`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`
+        },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percentCompleted);
+        }
+      });
+      
+      alert('파일이 성공적으로 업로드되었습니다.');
+      loadS3Files(); // 목록 새로고침
+    } catch (err) {
+      console.error('파일 업로드 오류:', err);
+      alert('파일 업로드 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  // 폴더 업로드
+  const uploadFolderToS3 = async (folderPath) => {
+    try {
+      setUploadingFolder(true);
+      setUploadProgress(0);
+      
+      const response = await axios.post(`${config.apiUrl}/api/test-scripts/s3/upload-folder`, {
+        folder_path: folderPath
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.data.success) {
+        alert(`폴더 업로드 완료!\n업로드된 파일: ${response.data.total_uploaded}개\n실패한 파일: ${response.data.total_failed}개`);
+        loadS3Files(); // S3 목록 새로고침
+      } else {
+        alert('폴더 업로드 중 오류가 발생했습니다.');
+      }
+    } catch (err) {
+      console.error('폴더 업로드 오류:', err);
+      alert('폴더 업로드 중 오류가 발생했습니다.');
+    } finally {
+      setUploadingFolder(false);
+      setUploadProgress(0);
+    }
+  };
+
+  // 전체 test-scripts 폴더 업로드
+  const uploadAllToS3 = () => {
+    if (window.confirm('전체 test-scripts 폴더를 S3에 업로드하시겠습니까?')) {
+      uploadFolderToS3('test-scripts');
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 's3') {
+      loadS3Files();
+    } else {
+      loadLocalFiles();
+    }
+  }, [activeTab, loadS3Files, loadLocalFiles]);
+
+  const currentFiles = activeTab === 's3' ? s3Files : localFiles;
+
+  if (loading && currentFiles.length === 0) {
     return (
       <div className="test-scripts-manager">
-        <div className="manager-header">
-          <h2>📁 테스트 스크립트</h2>
-        </div>
         <div className="loading-container">
           <div className="loading-spinner">⏳</div>
-          <p>테스트 스크립트 구조를 불러오는 중...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="test-scripts-manager">
-        <div className="manager-header">
-          <h2>📁 테스트 스크립트</h2>
-          <button className="btn btn-refresh" onClick={loadRootStructure}>
-            🔄 새로고침
-          </button>
-        </div>
-        <div className="error-container">
-          <p className="error-message">❌ {error}</p>
-          <p className="error-note">
-            현재 정적 데이터로 표시됩니다. 백엔드 연결을 확인해주세요.
-          </p>
+          <p>파일 목록을 불러오는 중...</p>
         </div>
       </div>
     );
@@ -305,119 +364,300 @@ const TestScriptsManager = () => {
   return (
     <div className="test-scripts-manager">
       <div className="manager-header">
-        <h2>📁 테스트 스크립트</h2>
+        <h2>📁 테스트 스크립트 관리</h2>
         <div className="header-actions">
-          <button className="btn btn-refresh" onClick={loadRootStructure}>
-            🔄 새로고침
-          </button>
-        </div>
-      </div>
-
-      {/* 카테고리 필터 */}
-      <div className="category-filter">
-        <button 
-          className={`category-btn ${activeCategory === 'all' ? 'active' : ''}`}
-          onClick={() => setActiveCategory('all')}
-        >
-          📂 전체
-        </button>
-        <button 
-          className={`category-btn ${activeCategory === 'performance' ? 'active' : ''}`}
-          onClick={() => setActiveCategory('performance')}
-        >
-          ⚡ 성능 테스트
-        </button>
-        <button 
-          className={`category-btn ${activeCategory === 'playwright' ? 'active' : ''}`}
-          onClick={() => setActiveCategory('playwright')}
-        >
-          🎭 자동화 테스트
-        </button>
-      </div>
-
-      <div className="manager-content">
-        <div className="file-tree-container">
-          <div className="tree-header">
-            <h3>📂 폴더 구조</h3>
-            <p className="tree-description">
-              테스트 스크립트를 폴더별로 탐색할 수 있습니다.
-            </p>
+          <div className="tab-buttons">
+            <button 
+              className={`tab-button ${activeTab === 's3' ? 'active' : ''}`}
+              onClick={() => setActiveTab('s3')}
+            >
+              ☁️ S3 클라우드
+            </button>
+            <button 
+              className={`tab-button ${activeTab === 'local' ? 'active' : ''}`}
+              onClick={() => setActiveTab('local')}
+            >
+              💻 로컬 파일
+            </button>
           </div>
           
-          <div className="folder-tree">
-            {getFilteredItems().map((item, index) => (
-              <FileTreeItem 
-                key={`${item.path}-${index}`} 
-                item={item}
-                getFileIcon={getFileIcon}
-                getFolderIcon={getFolderIcon}
-                onFileClick={handleFileClick}
-              />
-            ))}
+          {activeTab === 's3' && (
+            <div className="action-buttons">
+              <label className="upload-button">
+                📤 파일 업로드
+                <input
+                  type="file"
+                  onChange={handleFileUpload}
+                  style={{ display: 'none' }}
+                  accept=".js,.py,.json,.md,.txt,.spec.js"
+                />
+              </label>
+              <button 
+                className="create-button"
+                onClick={() => setShowUploadModal(true)}
+              >
+                ➕ 새 파일
+              </button>
+            </div>
+          )}
+          
+          {activeTab === 'local' && (
+            <div className="action-buttons">
+              <button 
+                className="upload-folder-button"
+                onClick={uploadAllToS3}
+                disabled={uploadingFolder}
+              >
+                {uploadingFolder ? '⏳ 업로드 중...' : '📁 전체 폴더 S3 업로드'}
+          </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {uploadProgress > 0 && (
+        <div className="upload-progress">
+          <div className="progress-bar">
+            <div 
+              className="progress-fill" 
+              style={{ width: `${uploadProgress}%` }}
+            ></div>
+          </div>
+          <span>{uploadProgress}% 업로드 중...</span>
+        </div>
+      )}
+
+      <div className="manager-content">
+        <div className="file-list-panel">
+          <div className="file-list-header">
+            <h3>{activeTab === 's3' ? 'S3 파일 목록' : '로컬 파일 목록'}</h3>
+            <div className="header-actions">
+              {activeTab === 'local' && pathHistory.length > 1 && (
+        <button 
+                  className="back-button"
+                  onClick={goBack}
+                  title="뒤로가기"
+        >
+                  ⬅️ 뒤로
+        </button>
+              )}
+        <button 
+                className="refresh-button"
+                onClick={() => activeTab === 's3' ? loadS3Files() : loadLocalFiles(currentPath)}
+              >
+                🔄 새로고침
+        </button>
+      </div>
+          </div>
+          
+          {activeTab === 'local' && (
+            <div className="current-path">
+              📍 현재 경로: {currentPath}
+            </div>
+          )}
+          
+          <div className="file-list">
+            {currentFiles.length === 0 ? (
+              <div className="no-files">
+                {activeTab === 's3' ? 'S3에 저장된 파일이 없습니다.' : '로컬 파일이 없습니다.'}
+              </div>
+            ) : (
+              currentFiles.map((file, index) => (
+                <div 
+                  key={index}
+                  className={`file-item ${selectedFile && (
+                    (selectedFile.key && file.key && selectedFile.key === file.key) ||
+                    (selectedFile.path && file.path && selectedFile.path === file.path) ||
+                    (selectedFile.name && file.name && selectedFile.name === file.name)
+                  ) ? 'selected' : ''}`}
+                  onClick={() => {
+                    if (file.type === 'directory') {
+                      // 디렉토리인 경우 하위 폴더 탐색
+                      console.log('디렉토리 클릭:', file);
+                      exploreDirectory(file);
+                    } else {
+                      // 파일인 경우 내용 로드
+                      loadFileContent(file);
+                    }
+                  }}
+                >
+                  <div className="file-info">
+                    <span className="file-icon">
+                      {file.type === 'directory' ? '📁' : getFileIcon(file.name || (file.key ? file.key.split('/').pop() : 'file'))}
+                    </span>
+                    <span className="file-name">
+                      {file.name || (file.key ? file.key.split('/').pop() : 'Unknown')}
+                      {file.type === 'directory' && ` (${file.children_count || 0}개 항목)`}
+                    </span>
+                    <span className="file-size">
+                      {file.size ? `${(file.size / 1024).toFixed(1)}KB` : ''}
+                    </span>
+                  </div>
+                  <div className="file-actions">
+                    {file.type === 'file' && (
+                      <button 
+                        className="action-btn download-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadFile(file);
+                        }}
+                        title="다운로드"
+                      >
+                        ⬇️
+                      </button>
+                    )}
+                    {activeTab === 's3' && file.type === 'file' && (
+                      <button 
+                        className="action-btn delete-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteFile(file);
+                        }}
+                        title="삭제"
+                      >
+                        🗑️
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
-        {fileContent && (
-          <div className="file-view-container">
-            <div className="file-view-header">
-              <div className="file-header-info">
-                <span className="file-type-icon">
-                  {getFileIcon(fileContent.path.split('/').pop())}
-                </span>
-                <h3>📄 {fileContent.path.split('/').pop()}</h3>
-                <span className="file-language-badge">
-                  {getFileLanguage(fileContent.path)}
-                </span>
+        <div className="editor-panel">
+          {selectedFile ? (
+            <div className="editor-container">
+              <div className="editor-header">
+                <div className="file-info">
+                  <span className="file-icon">{getFileIcon(selectedFile.name || selectedFile.key)}</span>
+                  <span className="file-name">{selectedFile.name || selectedFile.key.split('/').pop()}</span>
+                  <span className="file-language">{editorLanguage}</span>
+                </div>
+                <div className="editor-actions">
+                  {isEditing ? (
+                    <>
+                      <button 
+                        className="save-button"
+                        onClick={saveFile}
+                        disabled={loading}
+                      >
+                        💾 저장
+                      </button>
+                      <button 
+                        className="cancel-button"
+                        onClick={() => {
+                          setIsEditing(false);
+                          loadFileContent(selectedFile);
+                        }}
+                      >
+                        ❌ 취소
+                      </button>
+                    </>
+                  ) : (
+                    <button 
+                      className="edit-button"
+                      onClick={() => setIsEditing(true)}
+                    >
+                      ✏️ 편집
+                    </button>
+                  )}
+                </div>
               </div>
-              <button className="btn btn-close" onClick={closeFileView}>
+              
+              <div className="monaco-editor-container">
+                <MonacoEditor
+                  height="100%"
+                  language={editorLanguage}
+                  value={fileContent}
+                  onChange={(value) => setFileContent(value || '')}
+                  options={{
+                    readOnly: !isEditing,
+                    theme: 'vs-dark',
+                    fontSize: 14,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    wordWrap: 'on',
+                    lineNumbers: 'on',
+                    folding: true,
+                    selectOnLineNumbers: true,
+                    roundedSelection: false,
+                    cursorStyle: 'line',
+                    automaticLayout: true,
+                  }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="no-file-selected">
+              <div className="no-file-icon">📄</div>
+              <p>파일을 선택하여 내용을 확인하세요</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 새 파일 생성 모달 */}
+      {showUploadModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>새 파일 생성</h3>
+              <button 
+                className="close-button"
+                onClick={() => setShowUploadModal(false)}
+              >
                 ✕
               </button>
             </div>
-            <div className="file-content">
-              <div className="code-editor">
-                <SyntaxHighlighter 
-                  language={getFileLanguage(fileContent.path)} 
-                  style={tomorrow}
-                  customStyle={{
-                    margin: 0,
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    lineHeight: '1.5'
-                  }}
-                  showLineNumbers={true}
-                  wrapLines={true}
-                >
-                  {fileContent.content}
-                </SyntaxHighlighter>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>파일명:</label>
+                <input
+                  type="text"
+                  value={newFileName}
+                  onChange={(e) => setNewFileName(e.target.value)}
+                  placeholder="예: test-script.js"
+                />
               </div>
-              <div className="file-info">
-                <div className="file-stats">
-                  <span className="stat-item">
-                    <strong>크기:</strong> {(fileContent.size / 1024).toFixed(1)} KB
-                  </span>
-                  <span className="stat-item">
-                    <strong>언어:</strong> {getFileLanguage(fileContent.path)}
-                  </span>
-                  <span className="stat-item">
-                    <strong>경로:</strong> {fileContent.path}
-                  </span>
-                </div>
+              <div className="form-group">
+                <label>파일 내용:</label>
+                <MonacoEditor
+                  height="300px"
+                  language={getFileLanguage(newFileName)}
+                  value={newFileContent}
+                  onChange={(value) => setNewFileContent(value || '')}
+                  options={{
+                    theme: 'vs-dark',
+                    fontSize: 14,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    wordWrap: 'on',
+                    lineNumbers: 'on',
+                  }}
+                />
               </div>
             </div>
+            <div className="modal-footer">
+              <button 
+                className="cancel-button"
+                onClick={() => setShowUploadModal(false)}
+              >
+                취소
+              </button>
+              <button 
+                className="create-button"
+                onClick={createNewFile}
+                disabled={!newFileName || !newFileContent || loading}
+              >
+                생성
+              </button>
+            </div>
           </div>
-        )}
-      </div>
-
-      <div className="manager-footer">
-        <div className="footer-info">
-          <p>
-            <strong>📊 Performance:</strong> K6 성능 테스트 스크립트
-          </p>
-          <p>
-            <strong>🎭 Playwright:</strong> 자동화 테스트 스크립트
-          </p>
         </div>
-      </div>
+      )}
     </div>
   );
 };
