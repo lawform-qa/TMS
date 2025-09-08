@@ -29,6 +29,15 @@ const AutomationTestManager = () => {
     assignee_id: null
   });
 
+  // 검색 및 필터링 관련 상태
+  const [searchTerm, setSearchTerm] = useState('');
+  const [testTypeFilter, setTestTypeFilter] = useState('all');
+  const [environmentFilter, setEnvironmentFilter] = useState('all');
+  const [assigneeFilter, setAssigneeFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
   useEffect(() => {
     fetchAutomationTests();
   }, []);
@@ -158,6 +167,89 @@ const AutomationTestManager = () => {
     setShowDetail(false);
   };
 
+  // 필터링된 자동화 테스트 목록 반환
+  const getFilteredAutomationTests = () => {
+    let filtered = [...automationTests];
+
+    // 검색어 필터링
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(test => 
+        (test.name && test.name.toLowerCase().includes(searchLower)) ||
+        (test.description && test.description.toLowerCase().includes(searchLower)) ||
+        (test.script_path && test.script_path.toLowerCase().includes(searchLower)) ||
+        (test.creator_name && test.creator_name.toLowerCase().includes(searchLower)) ||
+        (test.assignee_name && test.assignee_name.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // 테스트 타입 필터
+    if (testTypeFilter !== 'all') {
+      filtered = filtered.filter(test => test.test_type === testTypeFilter);
+    }
+
+    // 환경 필터
+    if (environmentFilter !== 'all') {
+      filtered = filtered.filter(test => test.environment === environmentFilter);
+    }
+
+    // 담당자 필터
+    if (assigneeFilter !== 'all') {
+      filtered = filtered.filter(test => test.assignee_name === assigneeFilter);
+    }
+
+    // 정렬
+    filtered.sort((a, b) => {
+      let aValue = a[sortBy];
+      let bValue = b[sortBy];
+
+      if (sortBy === 'created_at' || sortBy === 'updated_at') {
+        aValue = new Date(aValue);
+        bValue = new Date(bValue);
+      } else if (typeof aValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
+      }
+
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    return filtered;
+  };
+
+  // 검색 초기화
+  const clearSearch = () => {
+    setSearchTerm('');
+    setTestTypeFilter('all');
+    setEnvironmentFilter('all');
+    setAssigneeFilter('all');
+    setSortBy('name');
+    setSortOrder('asc');
+  };
+
+  // 정렬 핸들러
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+  };
+
+  // 고유한 담당자 목록 생성
+  const getUniqueAssignees = () => {
+    const assignees = automationTests
+      .map(test => test.assignee_name)
+      .filter(name => name)
+      .filter((name, index, arr) => arr.indexOf(name) === index);
+    return assignees;
+  };
+
   if (loading) {
     return <div className="loading">자동화 테스트 목록을 불러오는 중...</div>;
   }
@@ -165,6 +257,8 @@ const AutomationTestManager = () => {
   if (error) {
     return <div className="error">{error}</div>;
   }
+
+  const filteredTests = getFilteredAutomationTests();
 
   return (
     <div className="automation-test-manager">
@@ -182,83 +276,226 @@ const AutomationTestManager = () => {
         </div>
       </div>
 
-      {/* 테스트 목록 */}
-      <div className="automation-list">
-        {automationTests.length === 0 ? (
+      {/* 검색 섹션 */}
+      <div className="search-section">
+        <div className="search-container">
+          <div className="search-input-wrapper">
+            <input
+              type="text"
+              className="search-input"
+              placeholder="자동화 테스트 검색 (이름, 설명, 스크립트 경로, 작성자, 담당자)"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button 
+                className="btn-clear-search"
+                onClick={clearSearch}
+                title="검색 초기화"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          
+          <div className="search-info">
+            {searchTerm || testTypeFilter !== 'all' || environmentFilter !== 'all' || assigneeFilter !== 'all' ? (
+              <span>검색 결과: {filteredTests.length}개</span>
+            ) : (
+              <span>전체 자동화 테스트: {automationTests.length}개</span>
+            )}
+          </div>
+
+          {/* 고급 필터 */}
+          <div className="advanced-filters">
+            <div className="filter-row">
+              <div className="filter-group">
+                <label>테스트 타입</label>
+                <select
+                  value={testTypeFilter}
+                  onChange={(e) => setTestTypeFilter(e.target.value)}
+                  className="filter-select"
+                >
+                  <option value="all">전체</option>
+                  <option value="playwright">Playwright</option>
+                  <option value="selenium">Selenium</option>
+                  <option value="cypress">Cypress</option>
+                  <option value="puppeteer">Puppeteer</option>
+                </select>
+              </div>
+              
+              <div className="filter-group">
+                <label>환경</label>
+                <select
+                  value={environmentFilter}
+                  onChange={(e) => setEnvironmentFilter(e.target.value)}
+                  className="filter-select"
+                >
+                  <option value="all">전체</option>
+                  <option value="dev">DEV</option>
+                  <option value="alpha">ALPHA</option>
+                  <option value="production">PRODUCTION</option>
+                </select>
+              </div>
+              
+              <div className="filter-group">
+                <label>담당자</label>
+                <select
+                  value={assigneeFilter}
+                  onChange={(e) => setAssigneeFilter(e.target.value)}
+                  className="filter-select"
+                >
+                  <option value="all">전체</option>
+                  {getUniqueAssignees().map(assignee => (
+                    <option key={assignee} value={assignee}>
+                      {assignee}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 테이블 형태의 테스트 목록 */}
+      <div className="automation-table-container">
+        {filteredTests.length === 0 ? (
           <div className="empty-state">
-            <p>등록된 자동화 테스트가 없습니다.</p>
-            {user && (user.role === 'admin' || user.role === 'user') && (
+            <p>검색 조건에 맞는 자동화 테스트가 없습니다.</p>
+            {(searchTerm || testTypeFilter !== 'all' || environmentFilter !== 'all' || assigneeFilter !== 'all') && (
               <button 
                 className="btn btn-primary"
-                onClick={() => setShowAddModal(true)}
+                onClick={clearSearch}
               >
-                첫 번째 자동화 테스트 추가하기
+                검색 초기화
               </button>
             )}
           </div>
         ) : (
-          automationTests.map(test => (
-            <div 
-              key={test.id} 
-              className={`automation-item ${selectedTest && selectedTest.id === test.id ? 'selected' : ''}`}
-            >
-              <div className="automation-item-header" onClick={() => toggleTestDetails(test)}>
-                <div className="automation-header">
-                  <h3 className="automation-name">{test.name}</h3>
-                  <p className="automation-description">{test.description}</p>
-                </div>
-                <div className="automation-actions" onClick={(e) => e.stopPropagation()}>
-                  {user && (user.role === 'admin' || user.role === 'user') && (
-                    <button 
-                      className="btn btn-automation btn-icon"
-                      onClick={() => handleExecuteTest(test.id)}
-                      title="자동화 실행"
-                    >
-                      🤖
-                    </button>
-                  )}
-                  <button 
-                    className="btn btn-details btn-icon"
-                    onClick={() => toggleTestDetails(test)}
-                    title="상세보기"
+          <div className="automation-table">
+            <table className="automation-table-content">
+              <thead>
+                <tr>
+                  <th 
+                    className={`sortable ${sortBy === 'name' ? sortOrder : ''}`}
+                    onClick={() => handleSort('name')}
                   >
-                    {selectedTest && selectedTest.id === test.id ? '📋' : '📄'}
-                  </button>
-                  {user && (user.role === 'admin' || user.role === 'user') && (
-                    <button 
-                      className="btn btn-edit-icon btn-icon"
-                      onClick={() => handleEditClick(test)}
-                      title="수정"
-                    >
-                      ✏️
-                    </button>
-                  )}
-                  {user && user.role === 'admin' && (
-                    <button 
-                      className="btn btn-delete-icon btn-icon"
-                      onClick={() => handleDeleteTest(test.id)}
-                      title="삭제"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              </div>
-              
-              {/* 상세 정보 인라인 표시 */}
-              {selectedTest && selectedTest.id === test.id && (
-                <div className="automation-detail-inline">
-                  <AutomationTestDetail 
-                    test={test}
-                    onClose={closeDetail}
-                    onRefresh={fetchAutomationTests}
-                  />
-                </div>
-              )}
-            </div>
-          ))
+                    테스트명 {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className={`sortable ${sortBy === 'test_type' ? sortOrder : ''}`}
+                    onClick={() => handleSort('test_type')}
+                  >
+                    타입 {sortBy === 'test_type' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className={`sortable ${sortBy === 'environment' ? sortOrder : ''}`}
+                    onClick={() => handleSort('environment')}
+                  >
+                    환경 {sortBy === 'environment' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className={`sortable ${sortBy === 'creator_name' ? sortOrder : ''}`}
+                    onClick={() => handleSort('creator_name')}
+                  >
+                    작성자 {sortBy === 'creator_name' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className={`sortable ${sortBy === 'assignee_name' ? sortOrder : ''}`}
+                    onClick={() => handleSort('assignee_name')}
+                  >
+                    담당자 {sortBy === 'assignee_name' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className={`sortable ${sortBy === 'created_at' ? sortOrder : ''}`}
+                    onClick={() => handleSort('created_at')}
+                  >
+                    생성일 {sortBy === 'created_at' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th>작업</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTests.map(test => (
+                  <tr 
+                    key={test.id} 
+                    className={`automation-table-row ${selectedTest && selectedTest.id === test.id ? 'selected' : ''}`}
+                    onClick={() => toggleTestDetails(test)}
+                  >
+                    <td className="test-name-cell">
+                      <div className="test-name-content">
+                        <strong>{test.name}</strong>
+                        {test.description && (
+                          <div className="test-description">{test.description}</div>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <span className="test-type-badge">{test.test_type}</span>
+                    </td>
+                    <td>
+                      <span className="environment-badge">{test.environment}</span>
+                    </td>
+                    <td>{test.creator_name || '-'}</td>
+                    <td>{test.assignee_name || '-'}</td>
+                    <td>{test.created_at ? new Date(test.created_at).toLocaleDateString('ko-KR') : '-'}</td>
+                    <td className="action-cell" onClick={(e) => e.stopPropagation()}>
+                      <div className="action-buttons">
+                        {user && (user.role === 'admin' || user.role === 'user') && (
+                          <button 
+                            className="btn btn-automation btn-icon"
+                            onClick={() => handleExecuteTest(test.id)}
+                            title="자동화 실행"
+                          >
+                            🤖
+                          </button>
+                        )}
+                        <button 
+                          className="btn btn-details btn-icon"
+                          onClick={() => toggleTestDetails(test)}
+                          title="상세보기"
+                        >
+                          {selectedTest && selectedTest.id === test.id ? '📋' : '📄'}
+                        </button>
+                        {user && (user.role === 'admin' || user.role === 'user') && (
+                          <button 
+                            className="btn btn-edit-icon btn-icon"
+                            onClick={() => handleEditClick(test)}
+                            title="수정"
+                          >
+                            ✏️
+                          </button>
+                        )}
+                        {user && user.role === 'admin' && (
+                          <button 
+                            className="btn btn-delete-icon btn-icon"
+                            onClick={() => handleDeleteTest(test.id)}
+                            title="삭제"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
+
+      {/* 상세 정보 표시 */}
+      {selectedTest && (
+        <div className="automation-detail-section">
+          <AutomationTestDetail 
+            test={selectedTest}
+            onClose={closeDetail}
+            onRefresh={fetchAutomationTests}
+          />
+        </div>
+      )}
 
       {/* 하단 전체 화면 구조 제거 */}
       {/* {showDetail && selectedTest && (
