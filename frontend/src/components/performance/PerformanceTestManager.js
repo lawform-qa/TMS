@@ -436,7 +436,7 @@ const PerformanceTestManager = () => {
         <div className="header-actions">
           {user && (user.role === 'admin' || user.role === 'user') && (
                     <button 
-                        className="btn btn-add"
+                        className="performance-btn performance-btn-add"
               onClick={() => setShowAddModal(true)}
             >
               ➕ 성능 테스트 추가
@@ -454,20 +454,20 @@ const PerformanceTestManager = () => {
             </div>
             
       {/* 고급 검색 기능 */}
-      <div className="search-section">
-        <div className="search-container">
+      <div className="performance-search-section">
+        <div className="performance-search-container">
           {/* 기본 검색 */}
-          <div className="search-input-wrapper">
+          <div className="performance-search-input-wrapper">
                             <input 
-                                type="text" 
+                type="text" 
               placeholder="🔍 성능 테스트 검색... (테스트명, 설명, 스크립트 경로, 작성자, 담당자)"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
+              className="performance-search-input"
             />
             {searchTerm && (
               <button 
-                className="btn btn-clear-search"
+                className="performance-btn performance-btn-clear-search"
                 onClick={() => setSearchTerm('')}
                 title="검색어 지우기"
               >
@@ -477,14 +477,14 @@ const PerformanceTestManager = () => {
                         </div>
 
           {/* 고급 필터 */}
-          <div className="advanced-filters">
-            <div className="filter-row">
-              <div className="filter-group">
+          <div className="performance-advanced-filters">
+            <div className="performance-filter-row">
+              <div className="performance-filter-group">
                 <label>환경:</label>
                 <select
                   value={environmentFilter}
                   onChange={(e) => setEnvironmentFilter(e.target.value)}
-                  className="filter-select"
+                  className="performance-filter-select"
                 >
                   <option value="all">모든 환경</option>
                   {getUniqueEnvironments().map(env => (
@@ -493,12 +493,12 @@ const PerformanceTestManager = () => {
                 </select>
                         </div>
 
-              <div className="filter-group">
+              <div className="performance-filter-group">
                 <label>작성자:</label>
                 <select
                   value={creatorFilter}
                   onChange={(e) => setCreatorFilter(e.target.value)}
-                  className="filter-select"
+                  className="performance-filter-select"
                 >
                   <option value="all">모든 작성자</option>
                   {getUniqueCreators().map(creator => (
@@ -507,12 +507,12 @@ const PerformanceTestManager = () => {
                 </select>
                     </div>
 
-              <div className="filter-group">
+              <div className="performance-filter-group">
                 <label>담당자:</label>
                             <select 
                   value={assigneeFilter}
                   onChange={(e) => setAssigneeFilter(e.target.value)}
-                  className="filter-select"
+                  className="performance-filter-select"
                 >
                   <option value="all">모든 담당자</option>
                   {getUniqueAssignees().map(assignee => (
@@ -523,7 +523,7 @@ const PerformanceTestManager = () => {
 
                         <button 
                 onClick={clearAllFilters}
-                className="btn btn-clear-filters"
+                className="performance-btn performance-btn-clear-filters"
                 title="모든 필터 초기화"
               >
                 🗑️
@@ -532,7 +532,7 @@ const PerformanceTestManager = () => {
                 </div>
 
           {/* 검색 결과 요약 */}
-          <div className="search-summary">
+          <div className="performance-search-summary">
             <span>총 {filteredTests.length}개 성능 테스트</span>
             {searchTerm && <span> • 검색어: "{searchTerm}"</span>}
             {environmentFilter !== 'all' && <span> • 환경: {environmentFilter}</span>}
@@ -668,7 +668,7 @@ const PerformanceTestManager = () => {
                     <div className="action-buttons">
                       {/* 실행 버튼 */}
                                 <button 
-                        className="btn btn-automation btn-icon"
+                        className="performance-btn performance-btn-automation performance-btn-icon"
                                     onClick={() => executePerformanceTest(test.id)}
                                     disabled={executing}
                         title="테스트 실행"
@@ -677,7 +677,7 @@ const PerformanceTestManager = () => {
                                 </button>
                       {/* 상세보기 버튼 */}
                             <button 
-                                className="btn btn-details btn-icon"
+                                className="performance-btn performance-btn-details performance-btn-icon"
                         onClick={() => {
                           setSelectedTest(test);
                           setShowDetailModal(true);
@@ -689,7 +689,7 @@ const PerformanceTestManager = () => {
                       {/* 수정 버튼 */}
                             {user && (user.role === 'admin' || user.role === 'user') && (
                                 <button 
-                          className="btn btn-edit-icon btn-icon"
+                          className="performance-btn performance-btn-edit performance-btn-icon"
                                     onClick={() => {
                                         setEditingTest(test);
                                         setShowEditModal(true);
@@ -702,7 +702,7 @@ const PerformanceTestManager = () => {
                       {/* 삭제 버튼 */}
                             {user && user.role === 'admin' && (
                                 <button 
-                                    className="btn btn-delete-icon btn-icon"
+                                    className="performance-btn performance-btn-delete performance-btn-icon"
                           onClick={() => handleDeleteTest(test.id)}
                           title="삭제"
                                 >
@@ -813,13 +813,13 @@ const PerformanceTestManager = () => {
             </div>
             <div className="modal-actions">
               <button 
-                className="btn btn-primary"
+                className="performance-btn performance-btn-primary"
                 onClick={handleAddTest}
               >
                 추가
               </button>
               <button 
-                className="btn btn-secondary"
+                className="performance-btn performance-btn-secondary"
                 onClick={() => {
                   setShowAddModal(false);
                   setNewTest({
@@ -927,13 +927,13 @@ const PerformanceTestManager = () => {
                         </div>
                         <div className="modal-actions">
                             <button 
-                className="btn btn-primary"
+                className="performance-btn performance-btn-primary"
                                 onClick={handleEditTest}
                             >
                                 수정
                             </button>
               <button 
-                className="btn btn-secondary"
+                className="performance-btn performance-btn-secondary"
                 onClick={() => {
                   setShowEditModal(false);
                   setEditingTest(null);
@@ -983,7 +983,7 @@ const PerformanceTestManager = () => {
             </div>
             <div className="modal-actions">
               <button 
-                className="btn btn-delete"
+                className="performance-btn performance-btn-delete"
                 onClick={handleMultiDelete}
                 style={{ 
                   backgroundColor: '#d32f2f', 
@@ -999,7 +999,7 @@ const PerformanceTestManager = () => {
                 🗑️ 삭제하기
               </button>
               <button 
-                className="btn btn-secondary"
+                className="performance-btn performance-btn-secondary"
                 onClick={() => setShowDeleteModal(false)}
                 style={{ 
                   backgroundColor: '#6c757d', 
@@ -1093,7 +1093,7 @@ const PerformanceTestManager = () => {
             </div>
             <div className="modal-actions">
               <button 
-                className="btn btn-secondary"
+                className="performance-btn performance-btn-secondary"
                 onClick={() => {
                   setShowDetailModal(false);
                   setSelectedTest(null);

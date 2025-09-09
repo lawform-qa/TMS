@@ -931,7 +931,7 @@ const TestCaseAPP = () => {
         <div className="header-actions">
             {user && (user.role === 'admin' || user.role === 'user') && (
               <button 
-                className="btn btn-add"
+                className="testcase-btn testcase-btn-add"
                 onClick={() => setShowAddModal(true)}
               >
                 ➕ 테스트 케이스 추가
@@ -939,14 +939,14 @@ const TestCaseAPP = () => {
             )}
             {user && (user.role === 'admin' || user.role === 'user') && (
               <button 
-                className="btn btn-upload"
+                className="testcase-btn testcase-btn-upload"
                 onClick={() => setShowUploadModal(true)}
               >
                 📤 엑셀 업로드
               </button>
             )}
             <button 
-              className="btn btn-download"
+              className="testcase-btn testcase-btn-download"
               onClick={handleDownload}
             >
               📥 엑셀 다운로드
@@ -954,14 +954,14 @@ const TestCaseAPP = () => {
             {user && (user.role === 'admin' || user.role === 'user') && selectedTestCases.length > 0 && (
               <>
                 <button 
-                  className="btn btn-execute"
+                  className="testcase-btn testcase-btn-execute"
                   onClick={() => setShowMoveModal(true)}
                 >
                   📁 폴더 이동 ({selectedTestCases.length})
                 </button>
                 {user.role === 'admin' && (
                   <button 
-                    className="btn btn-delete"
+                    className="testcase-btn testcase-btn-delete"
                     onClick={() => setShowDeleteModal(true)}
                   >
                     🗑️ 다중 삭제 ({selectedTestCases.length})
@@ -973,20 +973,20 @@ const TestCaseAPP = () => {
       </div>
 
       {/* 고급 검색 기능 */}
-      <div className="search-section">
-        <div className="search-container">
+      <div className="testcase-search-section">
+        <div className="testcase-search-container">
           {/* 기본 검색 */}
-          <div className="search-input-wrapper">
+          <div className="testcase-search-input-wrapper">
             <input
               type="text"
               placeholder="🔍 테스트 케이스 검색... (대분류, 중분류, 소분류, 기대결과, 비고, 작성자, 담당자)"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
+              className="testcase-search-input"
             />
             {searchTerm && (
               <button 
-                className="btn btn-clear-search"
+                className="testcase-btn testcase-btn-clear-search"
                 onClick={() => setSearchTerm('')}
                 title="검색어 지우기"
               >
@@ -996,14 +996,14 @@ const TestCaseAPP = () => {
           </div>
 
           {/* 고급 필터 */}
-          <div className="advanced-filters">
-            <div className="filter-row">
-              <div className="filter-group">
+          <div className="testcase-advanced-filters">
+            <div className="testcase-filter-row">
+              <div className="testcase-filter-group">
                 <label>상태:</label>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="filter-select"
+                  className="testcase-filter-select"
                 >
                   <option value="all">모든 상태</option>
                   <option value="Pass">Pass</option>
@@ -1014,12 +1014,12 @@ const TestCaseAPP = () => {
                 </select>
               </div>
 
-              <div className="filter-group">
+              <div className="testcase-filter-group">
                 <label>환경:</label>
                 <select
                   value={environmentFilter}
                   onChange={(e) => setEnvironmentFilter(e.target.value)}
-                  className="filter-select"
+                  className="testcase-filter-select"
                 >
                   <option value="all">모든 환경</option>
                   {getUniqueEnvironments().map(env => (
@@ -1028,12 +1028,12 @@ const TestCaseAPP = () => {
                 </select>
               </div>
 
-              <div className="filter-group">
+              <div className="testcase-filter-group">
                 <label>카테고리:</label>
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="filter-select"
+                  className="testcase-filter-select"
                 >
                   <option value="all">모든 카테고리</option>
                   {getUniqueCategories().map(cat => (
@@ -1042,12 +1042,12 @@ const TestCaseAPP = () => {
                 </select>
               </div>
 
-              <div className="filter-group">
+              <div className="testcase-filter-group">
                 <label>작성자:</label>
                 <select
                   value={creatorFilter}
                   onChange={(e) => setCreatorFilter(e.target.value)}
-                  className="filter-select"
+                  className="testcase-filter-select"
                 >
                   <option value="all">모든 작성자</option>
                   {getUniqueCreators().map(creator => (
@@ -1056,12 +1056,12 @@ const TestCaseAPP = () => {
                 </select>
               </div>
 
-              <div className="filter-group">
+              <div className="testcase-filter-group">
                 <label>담당자:</label>
                 <select
                   value={assigneeFilter}
                   onChange={(e) => setAssigneeFilter(e.target.value)}
-                  className="filter-select"
+                  className="testcase-filter-select"
                 >
                   <option value="all">모든 담당자</option>
                   {getUniqueAssignees().map(assignee => (
@@ -1074,7 +1074,7 @@ const TestCaseAPP = () => {
 
               <button
                 onClick={clearAllFilters}
-                className="btn btn-clear-filters"
+                className="testcase-btn testcase-btn-clear-filters"
                 title="모든 필터 초기화"
               >
                 🗑️
@@ -1083,7 +1083,7 @@ const TestCaseAPP = () => {
           </div>
 
           {/* 검색 결과 요약 */}
-          <div className="search-summary">
+          <div className="testcase-search-summary">
             <span>총 {getFilteredTestCases().length}개 테스트 케이스</span>
             {searchTerm && <span> • 검색어: "{searchTerm}"</span>}
             {statusFilter !== 'all' && <span> • 상태: {statusFilter}</span>}
@@ -1102,7 +1102,7 @@ const TestCaseAPP = () => {
           <div className="folder-controls">
             {selectedFolder && (
               <button 
-                className="btn btn-secondary"
+                className="testcase-btn testcase-btn-secondary"
                 onClick={() => setSelectedFolder(null)}
                 style={{ fontSize: '0.8em', padding: '4px 8px' }}
               >
@@ -1267,7 +1267,7 @@ const TestCaseAPP = () => {
                         {/* 자동화 실행 버튼 */}
                         {testCase.automation_code_path && (
                           <button 
-                            className="btn btn-automation btn-icon"
+                            className="testcase-btn testcase-btn-automation testcase-btn-icon"
                             onClick={() => executeAutomationCode(testCase.id)}
                             title="자동화 실행"
                           >
@@ -1276,7 +1276,7 @@ const TestCaseAPP = () => {
                         )}
                         {/* 상세보기 버튼 */}
                         <button 
-                          className="btn btn-details btn-icon"
+                          className="testcase-btn testcase-btn-details testcase-btn-icon"
                           onClick={() => {
                             setSelectedTestCase(testCase);
                             setShowDetailModal(true);
@@ -1288,7 +1288,7 @@ const TestCaseAPP = () => {
                         {/* 수정 버튼 */}
                         {user && (user.role === 'admin' || user.role === 'user') && (
                           <button 
-                            className="btn btn-edit-icon btn-icon"
+                            className="testcase-btn testcase-btn-edit testcase-btn-icon"
                             onClick={() => {
                               setEditingTestCase(testCase);
                               setShowEditModal(true);
@@ -1301,7 +1301,7 @@ const TestCaseAPP = () => {
                         {/* 삭제 버튼 */}
                         {user && user.role === 'admin' && (
                           <button 
-                            className="btn btn-delete-icon btn-icon"
+                            className="testcase-btn testcase-btn-delete testcase-btn-icon"
                             onClick={() => handleDeleteTestCase(testCase.id)}
                             title="삭제"
                           >
@@ -1490,13 +1490,13 @@ const TestCaseAPP = () => {
             </div>
             <div className="modal-actions">
               <button 
-                className="btn btn-primary"
+                className="testcase-btn testcase-btn-primary"
                 onClick={handleAddTestCase}
               >
                 추가
               </button>
               <button 
-                className="btn btn-secondary"
+                className="testcase-btn testcase-btn-secondary"
                 onClick={() => {
                   setShowAddModal(false);
                   setNewTestCase({
@@ -1679,13 +1679,13 @@ const TestCaseAPP = () => {
             </div>
             <div className="modal-actions">
               <button 
-                className="btn btn-primary"
+                className="testcase-btn testcase-btn-primary"
                 onClick={handleEditTestCase}
               >
                 수정
               </button>
               <button 
-                className="btn btn-secondary"
+                className="testcase-btn testcase-btn-secondary"
                 onClick={() => {
                   setShowEditModal(false);
                   setEditingTestCase(null);
@@ -1771,13 +1771,13 @@ const TestCaseAPP = () => {
             </div>
             <div className="modal-actions">
               <button 
-                className="btn btn-primary"
+                className="testcase-btn testcase-btn-primary"
                 onClick={handleMoveToFolder}
               >
                 이동
               </button>
               <button 
-                className="btn btn-secondary"
+                className="testcase-btn testcase-btn-secondary"
                 onClick={() => {
                   setShowMoveModal(false);
                   setTargetFolderId('');
@@ -1865,7 +1865,7 @@ const TestCaseAPP = () => {
             </div>
             <div className="modal-actions">
               <button 
-                className="btn btn-delete"
+                className="testcase-btn testcase-btn-delete"
                 onClick={handleMultiDelete}
                 style={{ 
                   backgroundColor: '#d32f2f', 
@@ -1881,7 +1881,7 @@ const TestCaseAPP = () => {
                 🗑️ 삭제하기
               </button>
               <button 
-                className="btn btn-secondary"
+                className="testcase-btn testcase-btn-secondary"
                 onClick={() => setShowDeleteModal(false)}
                 style={{ 
                   backgroundColor: '#6c757d', 
@@ -1968,13 +1968,13 @@ const TestCaseAPP = () => {
             </div>
             <div className="modal-actions">
               <button 
-                className="btn btn-primary"
+                className="testcase-btn testcase-btn-primary"
                 onClick={handleFileUpload}
               >
                 업로드
               </button>
               <button 
-                className="btn btn-secondary"
+                className="testcase-btn testcase-btn-secondary"
                 onClick={() => {
                   setShowUploadModal(false);
                   setSelectedFile(null);
@@ -2143,7 +2143,7 @@ const TestCaseAPP = () => {
             </div>
             <div className="modal-actions">
               <button 
-                className="btn btn-secondary"
+                className="testcase-btn testcase-btn-secondary"
                 onClick={() => {
                   setShowDetailModal(false);
                   setSelectedTestCase(null);

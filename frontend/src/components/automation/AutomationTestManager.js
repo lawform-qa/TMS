@@ -250,6 +250,39 @@ const AutomationTestManager = () => {
     return assignees;
   };
 
+  // 담당자 변경 핸들러
+  const handleAssigneeChange = async (testId, newAssigneeId) => {
+    try {
+      const test = automationTests.find(t => t.id === testId);
+      if (!test) return;
+
+      const updatedTest = {
+        ...test,
+        assignee_id: newAssigneeId ? Number(newAssigneeId) : null
+      };
+
+      await axios.put(`/automation-tests/${testId}`, updatedTest);
+      
+      // 로컬 상태 업데이트
+      setAutomationTests(prev => 
+        prev.map(t => 
+          t.id === testId 
+            ? { 
+                ...t, 
+                assignee_id: newAssigneeId ? Number(newAssigneeId) : null,
+                assignee_name: newAssigneeId ? users.find(u => u.id === Number(newAssigneeId))?.username || users.find(u => u.id === Number(newAssigneeId))?.first_name || 'Unknown' : null
+              }
+            : t
+        )
+      );
+      
+      alert('담당자가 성공적으로 변경되었습니다.');
+    } catch (err) {
+      console.error('담당자 변경 오류:', err);
+      alert('담당자 변경 중 오류가 발생했습니다.');
+    }
+  };
+
   if (loading) {
     return <div className="loading">자동화 테스트 목록을 불러오는 중...</div>;
   }
@@ -261,13 +294,13 @@ const AutomationTestManager = () => {
   const filteredTests = getFilteredAutomationTests();
 
   return (
-    <div className="automation-test-manager">
+    <div className="automation-container">
       <div className="automation-header">
-        <h2>자동화 테스트 관리</h2>
+        <h1>자동화 테스트 관리</h1>
         <div className="header-actions">
           {user && (user.role === 'admin' || user.role === 'user') && (
             <button 
-              className="btn btn-add"
+              className="automation-btn automation-btn-add"
               onClick={() => setShowAddModal(true)}
             >
               ➕ 자동화 테스트 추가
@@ -277,19 +310,19 @@ const AutomationTestManager = () => {
       </div>
 
       {/* 검색 섹션 */}
-      <div className="search-section">
-        <div className="search-container">
-          <div className="search-input-wrapper">
+      <div className="automation-search-section">
+        <div className="automation-search-container">
+          <div className="automation-search-input-wrapper">
             <input
               type="text"
-              className="search-input"
-              placeholder="자동화 테스트 검색 (이름, 설명, 스크립트 경로, 작성자, 담당자)"
+              className="automation-search-input"
+              placeholder="🔍 자동화 테스트 검색... (이름, 설명, 스크립트 경로, 작성자, 담당자)"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
             {searchTerm && (
               <button 
-                className="btn-clear-search"
+                className="automation-btn-clear-search"
                 onClick={clearSearch}
                 title="검색 초기화"
               >
@@ -298,23 +331,16 @@ const AutomationTestManager = () => {
             )}
           </div>
           
-          <div className="search-info">
-            {searchTerm || testTypeFilter !== 'all' || environmentFilter !== 'all' || assigneeFilter !== 'all' ? (
-              <span>검색 결과: {filteredTests.length}개</span>
-            ) : (
-              <span>전체 자동화 테스트: {automationTests.length}개</span>
-            )}
-          </div>
 
           {/* 고급 필터 */}
-          <div className="advanced-filters">
-            <div className="filter-row">
-              <div className="filter-group">
+          <div className="automation-advanced-filters">
+            <div className="automation-filter-row">
+              <div className="automation-filter-group">
                 <label>테스트 타입</label>
                 <select
                   value={testTypeFilter}
                   onChange={(e) => setTestTypeFilter(e.target.value)}
-                  className="filter-select"
+                  className="automation-filter-select"
                 >
                   <option value="all">전체</option>
                   <option value="playwright">Playwright</option>
@@ -324,12 +350,12 @@ const AutomationTestManager = () => {
                 </select>
               </div>
               
-              <div className="filter-group">
+              <div className="automation-filter-group">
                 <label>환경</label>
                 <select
                   value={environmentFilter}
                   onChange={(e) => setEnvironmentFilter(e.target.value)}
-                  className="filter-select"
+                  className="automation-filter-select"
                 >
                   <option value="all">전체</option>
                   <option value="dev">DEV</option>
@@ -338,12 +364,12 @@ const AutomationTestManager = () => {
                 </select>
               </div>
               
-              <div className="filter-group">
+              <div className="automation-filter-group">
                 <label>담당자</label>
                 <select
                   value={assigneeFilter}
                   onChange={(e) => setAssigneeFilter(e.target.value)}
-                  className="filter-select"
+                  className="automation-filter-select"
                 >
                   <option value="all">전체</option>
                   {getUniqueAssignees().map(assignee => (
@@ -355,17 +381,26 @@ const AutomationTestManager = () => {
               </div>
             </div>
           </div>
+
+          {/* 검색 결과 요약 */}
+          <div className="automation-search-summary">
+            <span>총 {filteredTests.length}개 자동화 테스트</span>
+            {searchTerm && <span> • 검색어: "{searchTerm}"</span>}
+            {testTypeFilter !== 'all' && <span> • 테스트 타입: {testTypeFilter}</span>}
+            {environmentFilter !== 'all' && <span> • 환경: {environmentFilter}</span>}
+            {assigneeFilter !== 'all' && <span> • 담당자: {assigneeFilter}</span>}
+          </div>
         </div>
       </div>
 
       {/* 테이블 형태의 테스트 목록 */}
       <div className="automation-table-container">
         {filteredTests.length === 0 ? (
-          <div className="empty-state">
+          <div className="automation-empty-state">
             <p>검색 조건에 맞는 자동화 테스트가 없습니다.</p>
             {(searchTerm || testTypeFilter !== 'all' || environmentFilter !== 'all' || assigneeFilter !== 'all') && (
               <button 
-                className="btn btn-primary"
+                className="automation-btn automation-btn-primary"
                 onClick={clearSearch}
               >
                 검색 초기화
@@ -378,37 +413,37 @@ const AutomationTestManager = () => {
               <thead>
                 <tr>
                   <th 
-                    className={`sortable ${sortBy === 'name' ? sortOrder : ''}`}
+                    className={`automation-sortable ${sortBy === 'name' ? sortOrder : ''}`}
                     onClick={() => handleSort('name')}
                   >
                     테스트명 {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
                   </th>
                   <th 
-                    className={`sortable ${sortBy === 'test_type' ? sortOrder : ''}`}
+                    className={`automation-sortable ${sortBy === 'test_type' ? sortOrder : ''}`}
                     onClick={() => handleSort('test_type')}
                   >
                     타입 {sortBy === 'test_type' && (sortOrder === 'asc' ? '↑' : '↓')}
                   </th>
                   <th 
-                    className={`sortable ${sortBy === 'environment' ? sortOrder : ''}`}
+                    className={`automation-sortable ${sortBy === 'environment' ? sortOrder : ''}`}
                     onClick={() => handleSort('environment')}
                   >
                     환경 {sortBy === 'environment' && (sortOrder === 'asc' ? '↑' : '↓')}
                   </th>
                   <th 
-                    className={`sortable ${sortBy === 'creator_name' ? sortOrder : ''}`}
-                    onClick={() => handleSort('creator_name')}
-                  >
-                    작성자 {sortBy === 'creator_name' && (sortOrder === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th 
-                    className={`sortable ${sortBy === 'assignee_name' ? sortOrder : ''}`}
+                    className={`automation-sortable ${sortBy === 'assignee_name' ? sortOrder : ''}`}
                     onClick={() => handleSort('assignee_name')}
                   >
                     담당자 {sortBy === 'assignee_name' && (sortOrder === 'asc' ? '↑' : '↓')}
                   </th>
                   <th 
-                    className={`sortable ${sortBy === 'created_at' ? sortOrder : ''}`}
+                    className={`automation-sortable ${sortBy === 'creator_name' ? sortOrder : ''}`}
+                    onClick={() => handleSort('creator_name')}
+                  >
+                    작성자 {sortBy === 'creator_name' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className={`automation-sortable ${sortBy === 'created_at' ? sortOrder : ''}`}
                     onClick={() => handleSort('created_at')}
                   >
                     생성일 {sortBy === 'created_at' && (sortOrder === 'asc' ? '↑' : '↓')}
@@ -423,28 +458,54 @@ const AutomationTestManager = () => {
                     className={`automation-table-row ${selectedTest && selectedTest.id === test.id ? 'selected' : ''}`}
                     onClick={() => toggleTestDetails(test)}
                   >
-                    <td className="test-name-cell">
-                      <div className="test-name-content">
+                    <td className="automation-test-name-cell">
+                      <div className="automation-test-name-content">
                         <strong>{test.name}</strong>
                         {test.description && (
-                          <div className="test-description">{test.description}</div>
+                          <div className="automation-test-description">{test.description}</div>
                         )}
                       </div>
                     </td>
                     <td>
-                      <span className="test-type-badge">{test.test_type}</span>
+                      <span className="automation-test-type-badge">{test.test_type}</span>
                     </td>
                     <td>
-                      <span className="environment-badge">{test.environment}</span>
+                      <span className="automation-environment-badge">{test.environment}</span>
                     </td>
-                    <td>{test.creator_name || '-'}</td>
-                    <td>{test.assignee_name || '-'}</td>
+                    <td className="assignee-column">
+                      <div className="assignee-section">
+                        <span className="assignee-badge">
+                          👤 {test.assignee_name || '없음'}
+                        </span>
+                        <select
+                          className="assignee-select"
+                          value={test.assignee_id || ''}
+                          onChange={(e) => handleAssigneeChange(test.id, e.target.value)}
+                        >
+                          <option value="">담당자 변경</option>
+                          {users && users.length > 0 ? (
+                            users.map(user => (
+                              <option key={user.id} value={user.id}>
+                                {user.username || user.first_name || 'Unknown'}
+                              </option>
+                            ))
+                          ) : (
+                            <option value="" disabled>사용자 목록 로딩 중...</option>
+                          )}
+                        </select>
+                      </div>
+                    </td>
+                    <td className="creator-column">
+                      <span className="creator-badge">
+                        👤 {test.creator_name || '없음'}
+                      </span>
+                    </td>
                     <td>{test.created_at ? new Date(test.created_at).toLocaleDateString('ko-KR') : '-'}</td>
-                    <td className="action-cell" onClick={(e) => e.stopPropagation()}>
-                      <div className="action-buttons">
+                    <td className="automation-action-cell" onClick={(e) => e.stopPropagation()}>
+                      <div className="automation-action-buttons">
                         {user && (user.role === 'admin' || user.role === 'user') && (
                           <button 
-                            className="btn btn-automation btn-icon"
+                            className="automation-btn automation-btn-execute automation-btn-icon"
                             onClick={() => handleExecuteTest(test.id)}
                             title="자동화 실행"
                           >
@@ -452,7 +513,7 @@ const AutomationTestManager = () => {
                           </button>
                         )}
                         <button 
-                          className="btn btn-details btn-icon"
+                          className="automation-btn automation-btn-details automation-btn-icon"
                           onClick={() => toggleTestDetails(test)}
                           title="상세보기"
                         >
@@ -460,7 +521,7 @@ const AutomationTestManager = () => {
                         </button>
                         {user && (user.role === 'admin' || user.role === 'user') && (
                           <button 
-                            className="btn btn-edit-icon btn-icon"
+                            className="automation-btn automation-btn-edit automation-btn-icon"
                             onClick={() => handleEditClick(test)}
                             title="수정"
                           >
@@ -469,7 +530,7 @@ const AutomationTestManager = () => {
                         )}
                         {user && user.role === 'admin' && (
                           <button 
-                            className="btn btn-delete-icon btn-icon"
+                            className="automation-btn automation-btn-delete automation-btn-icon"
                             onClick={() => handleDeleteTest(test.id)}
                             title="삭제"
                           >
@@ -607,13 +668,13 @@ const AutomationTestManager = () => {
             </div>
             <div className="modal-actions">
               <button 
-                className="btn btn-cancel"
+                className="automation-btn automation-btn-cancel"
                 onClick={() => setShowAddModal(false)}
               >
                 취소
               </button>
               <button 
-                className="btn btn-save"
+                className="automation-btn automation-btn-save"
                 onClick={handleAddTest}
               >
                 추가
@@ -718,13 +779,13 @@ const AutomationTestManager = () => {
             </div>
             <div className="modal-actions">
               <button 
-                className="btn btn-cancel"
+                className="automation-btn automation-btn-cancel"
                 onClick={() => setShowEditModal(false)}
               >
                 취소
               </button>
               <button 
-                className="btn btn-save"
+                className="automation-btn automation-btn-save"
                 onClick={handleEditTest}
               >
                 수정
