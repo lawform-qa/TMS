@@ -216,10 +216,36 @@ class S3Service:
             if 'CommonPrefixes' in response:
                 for folder in response['CommonPrefixes']:
                     folder_name = folder['Prefix'].rstrip('/')
+                    
+                    # 폴더의 하위 항목 개수 계산
+                    children_count = 0
+                    try:
+                        # 해당 폴더의 하위 항목 조회
+                        folder_response = self.s3_client.list_objects_v2(
+                            Bucket=self.bucket_name,
+                            Prefix=folder['Prefix'],
+                            Delimiter='/'
+                        )
+                        
+                        # 하위 폴더 개수
+                        if 'CommonPrefixes' in folder_response:
+                            children_count += len(folder_response['CommonPrefixes'])
+                        
+                        # 하위 파일 개수
+                        if 'Contents' in folder_response:
+                            # 폴더 자체는 제외하고 실제 파일만 카운트
+                            file_count = sum(1 for obj in folder_response['Contents'] if not obj['Key'].endswith('/'))
+                            children_count += file_count
+                            
+                    except Exception as e:
+                        print(f"폴더 {folder_name}의 하위 항목 개수 계산 오류: {e}")
+                        children_count = 0
+                    
                     folders.append({
                         'key': folder_name,
                         'name': folder_name.split('/')[-1],
                         'type': 'folder',
+                        'children_count': children_count,
                         'url': f"https://{self.bucket_name}.s3.{self.region}.amazonaws.com/{folder['Prefix']}"
                     })
             
