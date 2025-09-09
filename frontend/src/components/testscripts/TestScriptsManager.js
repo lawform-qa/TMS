@@ -24,6 +24,7 @@ const TestScriptsManager = () => {
   const [uploadingFolder, setUploadingFolder] = useState(false);
   const [currentPath, setCurrentPath] = useState('test-scripts');
   const [pathHistory, setPathHistory] = useState(['test-scripts']);
+  const [s3PathHistory, setS3PathHistory] = useState(['test-scripts/']);
 
   // 파일 확장자에 따른 언어 감지
   const getFileLanguage = (filename) => {
@@ -96,19 +97,85 @@ const TestScriptsManager = () => {
 
   // 하위 폴더 탐색
   const exploreDirectory = (directory) => {
-    const newPath = directory.path.replace('/Users/ggpark/Desktop/Team_Git/integrated-test-platform/', '');
-    setPathHistory(prev => [...prev, newPath]);
-    loadLocalFiles(newPath);
+    if (activeTab === 's3') {
+      // S3 폴더 탐색
+      exploreS3Directory(directory);
+    } else {
+      // 로컬 폴더 탐색
+      const newPath = directory.path.replace('/Users/ggpark/Desktop/Team_Git/integrated-test-platform/', '');
+      setPathHistory(prev => [...prev, newPath]);
+      loadLocalFiles(newPath);
+    }
+  };
+
+  // S3 하위 폴더 탐색
+  const exploreS3Directory = async (directory) => {
+    try {
+      setLoading(true);
+      const prefix = directory.key.endsWith('/') ? directory.key : `${directory.key}/`;
+      const response = await axios.get(`${config.apiUrl}/api/test-scripts/s3/list?prefix=${encodeURIComponent(prefix)}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.data.success) {
+        setS3Files(response.data.files);
+        setS3PathHistory(prev => [...prev, directory.key]);
+      }
+    } catch (error) {
+      console.error('S3 폴더 탐색 오류:', error);
+      setError('S3 폴더를 탐색할 수 없습니다.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 상위 폴더로 이동
   const goBack = () => {
-    if (pathHistory.length > 1) {
-      const newHistory = [...pathHistory];
+    if (activeTab === 's3') {
+      // S3 뒤로가기
+      goBackS3();
+    } else {
+      // 로컬 뒤로가기
+      if (pathHistory.length > 1) {
+        const newHistory = [...pathHistory];
+        newHistory.pop(); // 현재 경로 제거
+        const parentPath = newHistory[newHistory.length - 1];
+        setPathHistory(newHistory);
+        loadLocalFiles(parentPath);
+      }
+    }
+  };
+
+  // S3 상위 폴더로 이동
+  const goBackS3 = async () => {
+    if (s3PathHistory.length > 1) {
+      const newHistory = [...s3PathHistory];
       newHistory.pop(); // 현재 경로 제거
       const parentPath = newHistory[newHistory.length - 1];
-      setPathHistory(newHistory);
-      loadLocalFiles(parentPath);
+      setS3PathHistory(newHistory);
+      
+      try {
+        setLoading(true);
+        const prefix = parentPath.endsWith('/') ? parentPath : `${parentPath}/`;
+        const response = await axios.get(`${config.apiUrl}/api/test-scripts/s3/list?prefix=${encodeURIComponent(prefix)}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.data.success) {
+          setS3Files(response.data.files);
+        }
+      } catch (error) {
+        console.error('S3 뒤로가기 오류:', error);
+        setError('S3 폴더를 탐색할 수 없습니다.');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -432,7 +499,7 @@ const TestScriptsManager = () => {
           <div className="file-list-header">
             <h3>{activeTab === 's3' ? 'S3 파일 목록' : '로컬 파일 목록'}</h3>
             <div className="header-actions">
-              {activeTab === 'local' && pathHistory.length > 1 && (
+              {((activeTab === 'local' && pathHistory.length > 1) || (activeTab === 's3' && s3PathHistory.length > 1)) && (
         <button 
                   className="back-button"
                   onClick={goBack}
@@ -450,11 +517,9 @@ const TestScriptsManager = () => {
       </div>
           </div>
           
-          {activeTab === 'local' && (
-            <div className="current-path">
-              📍 현재 경로: {currentPath}
-            </div>
-          )}
+          <div className="current-path">
+            📍 현재 경로: {activeTab === 's3' ? (s3PathHistory.length > 0 ? s3PathHistory[s3PathHistory.length - 1] : 'test-scripts/') : currentPath}
+          </div>
           
           <div className="file-list">
             {currentFiles.length === 0 ? (
@@ -471,7 +536,7 @@ const TestScriptsManager = () => {
                     (selectedFile.name && file.name && selectedFile.name === file.name)
                   ) ? 'selected' : ''}`}
                   onClick={() => {
-                    if (file.type === 'directory') {
+                    if (file.type === 'directory' || file.type === 'folder') {
                       // 디렉토리인 경우 하위 폴더 탐색
                       console.log('디렉토리 클릭:', file);
                       exploreDirectory(file);
@@ -483,11 +548,11 @@ const TestScriptsManager = () => {
                 >
                   <div className="file-info">
                     <span className="file-icon">
-                      {file.type === 'directory' ? '📁' : getFileIcon(file.name || (file.key ? file.key.split('/').pop() : 'file'))}
+                      {(file.type === 'directory' || file.type === 'folder') ? '📁' : getFileIcon(file.name || (file.key ? file.key.split('/').pop() : 'file'))}
                     </span>
                     <span className="file-name">
                       {file.name || (file.key ? file.key.split('/').pop() : 'Unknown')}
-                      {file.type === 'directory' && ` (${file.children_count || 0}개 항목)`}
+                      {(file.type === 'directory' || file.type === 'folder') && ` (${file.children_count || 0}개 항목)`}
                     </span>
                     <span className="file-size">
                       {file.size ? `${(file.size / 1024).toFixed(1)}KB` : ''}
