@@ -243,8 +243,11 @@ const TestCaseAPP = () => {
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
   
-  
-
+  // 페이지네이션 상태
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
   useEffect(() => {
     fetchData();
@@ -914,6 +917,41 @@ const TestCaseAPP = () => {
 
   const filteredTestCases = getFilteredTestCases();
 
+  // 페이지네이션 로직
+  const updatePagination = () => {
+    const total = filteredTestCases.length;
+    setTotalItems(total);
+    setTotalPages(Math.ceil(total / itemsPerPage));
+    
+    // 현재 페이지가 총 페이지 수를 초과하면 첫 페이지로 이동
+    if (currentPage > Math.ceil(total / itemsPerPage)) {
+      setCurrentPage(1);
+    }
+  };
+
+  // 페이지네이션된 데이터 가져오기
+  const getPaginatedTestCases = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredTestCases.slice(startIndex, endIndex);
+  };
+
+  // 페이지 변경 핸들러
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  // 페이지 크기 변경 핸들러
+  const handleItemsPerPageChange = (newItemsPerPage) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1); // 페이지 크기 변경 시 첫 페이지로 이동
+  };
+
+  // 페이지네이션 정보 업데이트
+  useEffect(() => {
+    updatePagination();
+  }, [filteredTestCases, itemsPerPage, currentPage]);
+
   // 필터링 완료
 
   if (loading) {
@@ -1084,13 +1122,14 @@ const TestCaseAPP = () => {
 
           {/* 검색 결과 요약 */}
           <div className="testcase-search-summary">
-            <span>총 {getFilteredTestCases().length}개 테스트 케이스</span>
+            <span>총 {totalItems}개 테스트 케이스</span>
             {searchTerm && <span> • 검색어: "{searchTerm}"</span>}
             {statusFilter !== 'all' && <span> • 상태: {statusFilter}</span>}
             {environmentFilter !== 'all' && <span> • 환경: {environmentFilter}</span>}
             {categoryFilter !== 'all' && <span> • 카테고리: {categoryFilter}</span>}
             {creatorFilter !== 'all' && <span> • 작성자: {creatorFilter}</span>}
             {assigneeFilter !== 'all' && <span> • 담당자: {assigneeFilter}</span>}
+            {/* {totalPages > 1 && <span> • 페이지 {currentPage}/{totalPages}</span>} */}
           </div>
         </div>
       </div>
@@ -1121,7 +1160,7 @@ const TestCaseAPP = () => {
             <div className="header-checkbox">
             </div>
             <h3>
-              테스트 케이스 ({filteredTestCases.length})
+              테스트 케이스 ({totalItems}개)
               {selectedFolder && (
                 <span className="folder-filter-info">
                   - {findFolderInTree(folderTree, selectedFolder)?.type === 'environment' ? '환경' : 
@@ -1139,6 +1178,29 @@ const TestCaseAPP = () => {
             </div>
           </div>
 
+          {/* 페이지 크기 선택 */}
+          <div className="pagination-controls-top">
+            <div className="items-per-page-selector">
+              <label htmlFor="items-per-page">페이지당 항목 수:</label>
+              <select
+                id="items-per-page"
+                value={itemsPerPage}
+                onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                className="items-per-page-select"
+              >
+                <option value={10}>10개</option>
+                <option value={20}>20개</option>
+                <option value={50}>50개</option>
+                <option value={100}>100개</option>
+              </select>
+            </div>
+            <div className="pagination-info-top">
+              <span>
+                {totalItems > 0 ? `${(currentPage - 1) * itemsPerPage + 1}-${Math.min(currentPage * itemsPerPage, totalItems)}` : '0'} / {totalItems}개
+              </span>
+            </div>
+          </div>
+
           {/* 테이블 형태로 변경 */}
           <div className="testcase-table-container">
             <table className="testcase-table">
@@ -1147,7 +1209,7 @@ const TestCaseAPP = () => {
                   <th className="checkbox-column">
                     <input 
                       type="checkbox"
-                      checked={selectedTestCases.length === filteredTestCases.length && filteredTestCases.length > 0}
+                      checked={selectedTestCases.length === getPaginatedTestCases().length && getPaginatedTestCases().length > 0}
                       onChange={handleSelectAll}
                     />
                   </th>
@@ -1190,7 +1252,7 @@ const TestCaseAPP = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredTestCases.map((testCase, index) => (
+                {getPaginatedTestCases().map((testCase, index) => (
                   <tr key={testCase.id} className="testcase-table-row">
                     <td className="checkbox-column">
                       <input 
@@ -1316,6 +1378,115 @@ const TestCaseAPP = () => {
               </tbody>
             </table>
             </div>
+
+          {/* 페이지네이션 */}
+          {totalPages > 1 && (
+            <div className="pagination-controls">
+              <div className="pagination-buttons">
+                <button
+                  className="pagination-btn"
+                  onClick={() => handlePageChange(1)}
+                  disabled={currentPage === 1}
+                  title="첫 페이지"
+                >
+                  &lt;&lt;
+                </button>
+                <button
+                  className="pagination-btn"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  title="이전 페이지"
+                >
+                  &lt;
+                </button>
+                
+                {/* 페이지 번호들 */}
+                {(() => {
+                  const pages = [];
+                  const maxVisiblePages = 5;
+                  let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+                  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+                  
+                  // 끝 페이지가 조정되면 시작 페이지도 조정
+                  if (endPage - startPage + 1 < maxVisiblePages) {
+                    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                  }
+                  
+                  // 첫 페이지가 1이 아니면 "..." 표시
+                  if (startPage > 1) {
+                    pages.push(
+                      <button
+                        key={1}
+                        className="pagination-btn"
+                        onClick={() => handlePageChange(1)}
+                      >
+                        1
+                      </button>
+                    );
+                    if (startPage > 2) {
+                      pages.push(
+                        <span key="ellipsis1" className="pagination-ellipsis">
+                          ...
+                        </span>
+                      );
+                    }
+                  }
+                  
+                  // 페이지 번호들
+                  for (let i = startPage; i <= endPage; i++) {
+                    pages.push(
+                      <button
+                        key={i}
+                        className={`pagination-btn ${currentPage === i ? 'active' : ''}`}
+                        onClick={() => handlePageChange(i)}
+                      >
+                        {i}
+                      </button>
+                    );
+                  }
+                  
+                  // 마지막 페이지가 끝이 아니면 "..." 표시
+                  if (endPage < totalPages) {
+                    if (endPage < totalPages - 1) {
+                      pages.push(
+                        <span key="ellipsis2" className="pagination-ellipsis">
+                          ...
+                        </span>
+                      );
+                    }
+                    pages.push(
+                      <button
+                        key={totalPages}
+                        className="pagination-btn"
+                        onClick={() => handlePageChange(totalPages)}
+                      >
+                        {totalPages}
+                      </button>
+                    );
+                  }
+                  
+                  return pages;
+                })()}
+                
+                <button
+                  className="pagination-btn"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  title="다음 페이지"
+                >
+                  &gt;
+                </button>
+                <button
+                  className="pagination-btn"
+                  onClick={() => handlePageChange(totalPages)}
+                  disabled={currentPage === totalPages}
+                  title="마지막 페이지"
+                >
+                  &gt;&gt;
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
