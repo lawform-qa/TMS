@@ -57,7 +57,6 @@ const UnifiedDashboard = ({ setActiveTab }) => {
   const [testcaseSummaries, setTestcaseSummaries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [dbInitializing, setDbInitializing] = useState(false);
   
   // 페이징 상태 추가
   const [testCasesPage, setTestCasesPage] = useState(1);
@@ -72,22 +71,6 @@ const UnifiedDashboard = ({ setActiveTab }) => {
     fetchDashboardData();
   }, []);
 
-  const initializeDatabase = async () => {
-    try {
-      setDbInitializing(true);
-      
-      const response = await axios.post('/init-db');
-      
-      // 초기화 후 데이터 다시 로드 (skipInit=true로 호출하여 무한 루프 방지)
-      await fetchDashboardData(true);
-      
-      return true;
-    } catch (err) {
-      return false;
-    } finally {
-      setDbInitializing(false);
-    }
-  };
 
   const fetchDashboardData = async (skipInit = false) => {
     try {
@@ -98,13 +81,6 @@ const UnifiedDashboard = ({ setActiveTab }) => {
       try {
         const healthRes = await axios.get('/health');
         
-        // 데이터베이스 상태 확인 (skipInit이 false일 때만)
-        if (!skipInit && healthRes.data.database && !healthRes.data.database.tables_exist) {
-          const initSuccess = await initializeDatabase();
-          if (!initSuccess) {
-            throw new Error('데이터베이스 초기화에 실패했습니다.');
-          }
-        }
       } catch (healthErr) {
         // 헬스체크 오류는 조용히 처리
       }
@@ -140,16 +116,6 @@ const UnifiedDashboard = ({ setActiveTab }) => {
         console.error('Dashboard 데이터 로드 오류:', err);
       }
       
-      // 데이터베이스 오류인 경우 초기화 시도 (skipInit이 false일 때만)
-      if (!skipInit && err.response?.status === 500 && err.response?.data?.error?.includes('no such table')) {
-        setError('데이터베이스 테이블이 없습니다. 초기화를 시도합니다...');
-        
-        const initSuccess = await initializeDatabase();
-        if (initSuccess) {
-          setError(null);
-          return; // 성공하면 함수 종료
-        }
-      }
       
       setError('데이터를 불러오는 중 오류가 발생했습니다.');
     } finally {
@@ -358,13 +324,6 @@ const UnifiedDashboard = ({ setActiveTab }) => {
           >
             다시 시도
           </button>
-          <button 
-            className="btn-init-db"
-            onClick={initializeDatabase}
-            disabled={dbInitializing}
-          >
-            {dbInitializing ? '초기화 중...' : '데이터베이스 초기화'}
-          </button>
         </div>
       </div>
     );
@@ -374,28 +333,6 @@ const UnifiedDashboard = ({ setActiveTab }) => {
     <div className="unified-dashboard">
       <h1>통합 테스트 플랫폼 대시보드</h1>
       
-      {/* 데이터베이스 초기화 버튼 */}
-      <div className="db-init-section">
-        <button 
-          className={`db-init-button ${dbInitializing ? 'initializing' : ''}`}
-          onClick={initializeDatabase}
-          disabled={dbInitializing}
-        >
-          {dbInitializing ? '데이터베이스 초기화 중...' : '데이터베이스 초기화'}
-        </button>
-        {error && (
-          <div className="error-message">
-            {error}
-            <button 
-              className="retry-button"
-              onClick={initializeDatabase}
-              disabled={dbInitializing}
-            >
-              다시 시도
-            </button>
-          </div>
-        )}
-      </div>
       
       {/* 환경별 테스트 케이스 상태 요약 */}
       <div className="environment-summary-section">
@@ -504,7 +441,7 @@ const UnifiedDashboard = ({ setActiveTab }) => {
               <div className="pagination-info">
                 <div className="pagination-stats">
                   <span>총 {testCasesPagination.total}개</span>
-                  <span>페이지 {testCasesPagination.page}/{testCasesPagination.pages}</span>
+                  <span>페이지 {testCasesPagination.page}/{testCasesPagination.pages || 1}</span>
                 </div>
               </div>
             )}
@@ -543,6 +480,14 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                 onClick={resetPerformanceTestsPaging}
               >
                 처음부터 보기
+              </div>
+            )}
+            {performanceTestsPagination && (
+              <div className="pagination-info">
+                <div className="pagination-stats">
+                  <span>총 {performanceTestsPagination.total_items}개</span>
+                  <span>페이지 {performanceTestsPagination.page}/{performanceTestsPagination.total_pages || 1}</span>
+                </div>
               </div>
             )}
           </div>
@@ -588,7 +533,7 @@ const UnifiedDashboard = ({ setActiveTab }) => {
               <div className="pagination-info">
                 <div className="pagination-stats">
                   <span>총 {testExecutionsPagination.total}개</span>
-                  <span>페이지 {testExecutionsPagination.page}/{testExecutionsPagination.pages}</span>
+                  <span>페이지 {testExecutionsPagination.page}/{testExecutionsPagination.pages || 1}</span>
                 </div>
               </div>
             )}

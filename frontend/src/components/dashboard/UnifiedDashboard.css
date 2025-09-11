@@ -10,72 +10,6 @@
   text-align: center;
 }
 
-/* 데이터베이스 초기화 섹션 */
-.db-init-section {
-  margin-bottom: 30px;
-  text-align: center;
-}
-
-.db-init-button {
-  background: #007bff;
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  margin-bottom: 10px;
-}
-
-.db-init-button:hover:not(:disabled) {
-  background: #0056b3;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
-}
-
-.db-init-button:disabled {
-  background: #6c757d;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.db-init-button.initializing {
-  background: #ffc107;
-  color: #212529;
-}
-
-.error-message {
-  color: #dc3545;
-  font-size: 14px;
-  margin-top: 10px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-.retry-button {
-  background: #dc3545;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.3s ease;
-}
-
-.retry-button:hover:not(:disabled) {
-  background: #c82333;
-}
-
-.retry-button:disabled {
-  background: #6c757d;
-  cursor: not-allowed;
-}
 
 /* 환경별 요약 섹션 */
 .environment-summary-section {
@@ -499,30 +433,6 @@
   box-shadow: none;
 }
 
-.btn-init-db {
-  background: #28a745;
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.btn-init-db:hover:not(:disabled) {
-  background: #1e7e34;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
-}
-
-.btn-init-db:disabled {
-  background: #6c757d;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
 
 /* 스크린샷 섹션 스타일 */
 .screenshots-section {
