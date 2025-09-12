@@ -107,8 +107,10 @@ def create_issue():
             description=data.get('description', ''),
             assignee_email=data.get('assignee_email'),
             labels=json.dumps(data.get('labels', [])) if data.get('labels') else None,
+            reporter_email=data.get('reporter_email', 'admin@example.com'),
             test_case_id=data.get('test_case_id'),
-            reporter_email=data.get('reporter_email', 'admin@example.com')
+            automation_test_id=data.get('automation_test_id'),
+            performance_test_id=data.get('performance_test_id')
         )
         
         db.session.add(issue)
@@ -181,6 +183,10 @@ def update_issue(issue_key):
             issue.labels = json.dumps(data['labels']) if data['labels'] else None
         if 'test_case_id' in data:
             issue.test_case_id = data['test_case_id']
+        if 'automation_test_id' in data:
+            issue.automation_test_id = data['automation_test_id']
+        if 'performance_test_id' in data:
+            issue.performance_test_id = data['performance_test_id']
         
         issue.updated_at = datetime.utcnow()
         

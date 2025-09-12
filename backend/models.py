@@ -321,10 +321,17 @@ class JiraIssue(db.Model):
     assignee_email = db.Column(db.String(100))  # 담당자 이메일
     labels = db.Column(db.Text)  # JSON 형태로 저장
     reporter_email = db.Column(db.String(100), default='admin@example.com')
+    # 테스트 케이스 연결 필드
+    test_case_id = db.Column(db.Integer, db.ForeignKey('TestCases.id'), nullable=True)
+    automation_test_id = db.Column(db.Integer, db.ForeignKey('AutomationTests.id'), nullable=True)
+    performance_test_id = db.Column(db.Integer, db.ForeignKey('PerformanceTests.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=get_kst_now)
     updated_at = db.Column(db.DateTime, default=get_kst_now, onupdate=get_kst_now)
     
-    # 관계 설정 (현재 없음)
+    # 관계 설정
+    test_case = db.relationship('TestCase', backref='jira_issues')
+    automation_test = db.relationship('AutomationTest', backref='jira_issues')
+    performance_test = db.relationship('PerformanceTest', backref='jira_issues')
     
     def to_dict(self):
         """JIRA 이슈 정보를 딕셔너리로 변환"""
@@ -340,6 +347,9 @@ class JiraIssue(db.Model):
             'assignee_email': self.assignee_email,
             'labels': self.labels,
             'reporter_email': self.reporter_email,
+            'test_case_id': self.test_case_id,
+            'automation_test_id': self.automation_test_id,
+            'performance_test_id': self.performance_test_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
