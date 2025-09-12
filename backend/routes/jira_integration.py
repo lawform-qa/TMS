@@ -54,7 +54,7 @@ def create_issue():
         data = request.get_json()
         
         # 필수 필드 검증
-        required_fields = ['test_id', 'test_type', 'summary']
+        required_fields = ['summary']
         for field in required_fields:
             if field not in data:
                 return jsonify({
@@ -62,8 +62,6 @@ def create_issue():
                     'error': f'필수 필드가 누락되었습니다: {field}'
                 }), 400
         
-        test_id = data['test_id']
-        test_type = data['test_type']
         summary = data['summary']
         description = data.get('description', '')
         issue_type = data.get('issue_type', 'Task')
@@ -83,9 +81,6 @@ def create_issue():
         
         # 데이터베이스에 연동 정보 저장
         jira_integration = JiraIntegration(
-            test_case_id=test_id if test_type == 'testcase' else None,
-            automation_test_id=test_id if test_type == 'automation' else None,
-            performance_test_id=test_id if test_type == 'performance' else None,
             jira_issue_key=issue['key'],
             jira_issue_id=issue['id'],
             jira_project_key=issue['fields']['project']['key'],
@@ -112,6 +107,70 @@ def create_issue():
         
     except Exception as e:
         db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@jira_bp.route('/sync-issue', methods=['POST'])
+# @user_required  # 개발 단계에서 임시로 비활성화
+def sync_issue():
+    """JIRA 이슈를 데이터베이스에 동기화"""
+    try:
+        data = request.get_json()
+        issue_key = data.get('issue_key')
+        
+        if not issue_key:
+            return jsonify({
+                'success': False,
+                'error': 'issue_key가 필요합니다.'
+            }), 400
+        
+        # JIRA에서 이슈 정보 가져오기
+        issue_data = jira_client.get_issue(issue_key)
+        
+        if not issue_data:
+            return jsonify({
+                'success': False,
+                'error': 'JIRA 이슈를 찾을 수 없습니다.'
+            }), 404
+        
+        # 데이터베이스에 저장 또는 업데이트
+        jira_integration = JiraIntegration.query.filter_by(jira_issue_key=issue_key).first()
+        
+        if not jira_integration:
+            jira_integration = JiraIntegration()
+            jira_integration.jira_issue_key = issue_key
+            jira_integration.created_at = datetime.utcnow()
+        
+        # 이슈 정보 업데이트
+        fields = issue_data.get('fields', {})
+        jira_integration.summary = fields.get('summary', '')
+        jira_integration.description = fields.get('description', '')
+        jira_integration.status = fields.get('status', {}).get('name', '')
+        jira_integration.priority = fields.get('priority', {}).get('name', '')
+        jira_integration.issue_type = fields.get('issuetype', {}).get('name', '')
+        jira_integration.assignee_account_id = fields.get('assignee', {}).get('accountId') if fields.get('assignee') else None
+        jira_integration.labels = json.dumps(fields.get('labels', [])) if fields.get('labels') else None
+        jira_integration.updated_at = datetime.utcnow()
+        jira_integration.last_sync_at = datetime.utcnow()
+        
+        if not jira_integration.id:
+            db.session.add(jira_integration)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '이슈가 성공적으로 동기화되었습니다.',
+            'data': {
+                'id': jira_integration.id,
+                'jira_issue_key': jira_integration.jira_issue_key,
+                'summary': jira_integration.summary
+            }
+        })
+        
+    except Exception as e:
         return jsonify({
             'success': False,
             'error': str(e)

@@ -3,6 +3,8 @@
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .jira-issues-header {
@@ -30,16 +32,22 @@
 .jira-issues-filters {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   margin-bottom: 30px;
   padding: 20px;
   background: #f8f9fa;
   border-radius: 8px;
   border: 1px solid #e1e5e9;
+  overflow: hidden;
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
 }
 
 .search-container {
-  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .search-input {
@@ -50,6 +58,8 @@
   font-size: 16px;
   transition: all 0.2s ease;
   background: white;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .search-input:focus {
@@ -62,6 +72,9 @@
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .filter-select {
@@ -72,6 +85,10 @@
   background: white;
   cursor: pointer;
   transition: all 0.2s ease;
+  min-width: 120px;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .filter-select:focus {
@@ -511,29 +528,6 @@
 }
 
 /* 추가 기능 스타일 */
-.linked-test-case {
-  margin: 8px 0;
-  padding: 8px 12px;
-  background: #e6f2ff;
-  border-radius: 4px;
-  border-left: 3px solid #0052cc;
-}
-
-.linked-label {
-  font-weight: 600;
-  color: #0052cc;
-  margin-right: 8px;
-}
-
-.test-case-link {
-  color: #0052cc;
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.test-case-link:hover {
-  text-decoration: underline;
-}
 
 .issue-labels {
   display: flex;
@@ -543,6 +537,8 @@
 }
 
 .label-tag {
+  display: inline-flex;
+  align-items: center;
   background: #f0f0f0;
   color: #42526e;
   padding: 4px 8px;
@@ -550,6 +546,47 @@
   font-size: 12px;
   font-weight: 500;
   border: 1px solid #dfe1e6;
+  position: relative;
+}
+
+.label-remove-btn {
+  background: none;
+  border: none;
+  color: #42526e;
+  font-size: 14px;
+  font-weight: bold;
+  margin-left: 6px;
+  cursor: pointer;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.label-remove-btn:hover {
+  background: #42526e;
+  color: white;
+}
+
+.existing-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.existing-label-tag {
+  background: #e8f4fd;
+  color: #1976d2;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid #bbdefb;
 }
 
 .issue-assignee {
@@ -629,12 +666,6 @@
   color: #172b4d;
 }
 
-.linked-test-case-detail {
-  padding: 12px;
-  background: #e6f2ff;
-  border-radius: 6px;
-  border: 1px solid #b3d9ff;
-}
 
 .assignee-detail {
   padding: 12px;
@@ -857,6 +888,21 @@
     align-items: stretch;
   }
   
+  .jira-issues-filters {
+    padding: 15px;
+    gap: 12px;
+  }
+  
+  .filter-container {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .filter-select {
+    min-width: auto;
+    width: 100%;
+  }
+  
   .jira-issues-header h1 {
     font-size: 24px;
     text-align: center;
@@ -910,7 +956,6 @@
     grid-template-columns: 1fr;
   }
   
-  .linked-test-case,
   .issue-assignee {
     margin: 6px 0;
     padding: 6px 10px;

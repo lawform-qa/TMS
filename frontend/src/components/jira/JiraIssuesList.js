@@ -21,7 +21,6 @@ const JiraIssuesList = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [assigneeEmail, setAssigneeEmail] = useState('');
   const [newLabel, setNewLabel] = useState('');
-  const [testCases, setTestCases] = useState([]);
   const [editFormData, setEditFormData] = useState({
     summary: '',
     description: '',
@@ -32,18 +31,15 @@ const JiraIssuesList = () => {
   const [comments, setComments] = useState([]);
   const [showComments, setShowComments] = useState(false);
   const [loadingComments, setLoadingComments] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newIssue, setNewIssue] = useState({
+    summary: '',
+    description: '',
+    issue_type: 'Task',
+    priority: 'Medium',
+    assignee_email: ''
+  });
 
-  // 테스트 케이스 목록 조회
-  const fetchTestCases = async () => {
-    try {
-      const response = await axios.get(`${config.apiUrl}/testcases`);
-      if (response.data.success) {
-        setTestCases(response.data.data);
-      }
-    } catch (err) {
-      console.error('테스트 케이스 조회 오류:', err);
-    }
-  };
 
   // JIRA 이슈 목록 조회
   const fetchJiraIssues = async () => {
@@ -51,11 +47,11 @@ const JiraIssuesList = () => {
       setLoading(true);
       setError(null);
       
-      const response = await axios.get(`${config.apiUrl}/api/jira/integrations`);
+      const response = await axios.get(`${config.apiUrl}/api/jira/issues`);
       
       if (response.data.success) {
-        setJiraIssues(response.data.data);
-        setTotalItems(response.data.data.length);
+        setJiraIssues(response.data.data.issues);
+        setTotalItems(response.data.data.pagination.total);
       }
     } catch (err) {
       console.error('JIRA 이슈 조회 오류:', err);
@@ -110,7 +106,7 @@ const JiraIssuesList = () => {
   const assignIssue = async (issueKey, assigneeEmail) => {
     try {
       const response = await axios.put(`${config.apiUrl}/api/jira/issues/${issueKey}`, {
-        assignee: assigneeEmail
+        assignee_email: assigneeEmail
       });
       
       if (response.data.success) {
@@ -126,21 +122,55 @@ const JiraIssuesList = () => {
   };
 
   // 레이블 추가
-  const addLabel = async (issueKey, label) => {
+  const addLabel = async (issueKey, labelInput) => {
     try {
+      // 현재 이슈의 기존 레이블 가져오기
+      const currentIssue = jiraIssues.find(issue => issue.issue_key === issueKey);
+      const existingLabels = currentIssue?.labels ? JSON.parse(currentIssue.labels) : [];
+      
+      // 입력된 레이블을 쉼표로 분리하고 공백 제거
+      const newLabels = labelInput.split(',').map(label => label.trim()).filter(label => label.length > 0);
+      
+      // 새 레이블 추가 (중복 제거)
+      const updatedLabels = [...new Set([...existingLabels, ...newLabels])];
+      
       const response = await axios.put(`${config.apiUrl}/api/jira/issues/${issueKey}`, {
-        labels: [label]
+        labels: updatedLabels
       });
       
       if (response.data.success) {
         fetchJiraIssues();
-        alert('레이블이 추가되었습니다.');
+        alert(`${newLabels.length}개의 레이블이 추가되었습니다.`);
         setShowLabelModal(false);
         setNewLabel('');
       }
     } catch (err) {
       console.error('레이블 추가 오류:', err);
       alert('레이블 추가 중 오류가 발생했습니다: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  // 레이블 삭제
+  const removeLabel = async (issueKey, labelToRemove) => {
+    try {
+      // 현재 이슈의 기존 레이블 가져오기
+      const currentIssue = jiraIssues.find(issue => issue.issue_key === issueKey);
+      const existingLabels = currentIssue?.labels ? JSON.parse(currentIssue.labels) : [];
+      
+      // 레이블 제거
+      const updatedLabels = existingLabels.filter(label => label !== labelToRemove);
+      
+      const response = await axios.put(`${config.apiUrl}/api/jira/issues/${issueKey}`, {
+        labels: updatedLabels
+      });
+      
+      if (response.data.success) {
+        fetchJiraIssues();
+        alert('레이블이 삭제되었습니다.');
+      }
+    } catch (err) {
+      console.error('레이블 삭제 오류:', err);
+      alert('레이블 삭제 중 오류가 발생했습니다: ' + (err.response?.data?.error || err.message));
     }
   };
 
@@ -160,11 +190,34 @@ const JiraIssuesList = () => {
     }
   };
 
+  // 이슈 생성
+  const createIssue = async (issueData) => {
+    try {
+      const response = await axios.post(`${config.apiUrl}/api/jira/issues`, issueData);
+      
+      if (response.data.success) {
+        fetchJiraIssues();
+        alert('이슈가 성공적으로 생성되었습니다.');
+        setShowCreateModal(false);
+        setNewIssue({
+          summary: '',
+          description: '',
+          issue_type: 'Task',
+          priority: 'Medium',
+          assignee_email: ''
+        });
+      }
+    } catch (err) {
+      console.error('이슈 생성 오류:', err);
+      alert('이슈 생성 중 오류가 발생했습니다: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
   // 이슈 상세보기
   const showIssueDetail = (issue) => {
     setSelectedIssue(issue);
     setShowDetailModal(true);
-    fetchComments(issue.jira_issue_key);
+    fetchComments(issue.issue_key);
   };
 
   // 이슈 수정 모달 열기
@@ -185,7 +238,7 @@ const JiraIssuesList = () => {
     if (!selectedIssue) return;
 
     try {
-      const response = await axios.put(`${config.apiUrl}/api/jira/issues/${selectedIssue.jira_issue_key}`, {
+      const response = await axios.put(`${config.apiUrl}/api/jira/issues/${selectedIssue.issue_key}`, {
         summary: editFormData.summary,
         description: editFormData.description,
         status: editFormData.status,
@@ -210,7 +263,7 @@ const JiraIssuesList = () => {
     return jiraIssues.filter(issue => {
       const matchesSearch = !searchTerm || 
         issue.summary.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        issue.jira_issue_key.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        issue.issue_key.toLowerCase().includes(searchTerm.toLowerCase()) ||
         issue.description.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesStatus = statusFilter === 'all' || issue.status === statusFilter;
@@ -242,7 +295,6 @@ const JiraIssuesList = () => {
 
   useEffect(() => {
     fetchJiraIssues();
-    fetchTestCases();
   }, []);
 
   if (loading) {
@@ -280,6 +332,13 @@ const JiraIssuesList = () => {
             disabled={loading}
           >
             🔄 새로고침
+          </button>
+          <button 
+            className="btn btn-success"
+            onClick={() => setShowCreateModal(true)}
+            style={{ marginLeft: '10px' }}
+          >
+            ➕ 새 이슈 생성
           </button>
         </div>
       </div>
@@ -367,7 +426,7 @@ const JiraIssuesList = () => {
             <div key={issue.id} className="jira-issue-card">
               <div className="issue-header">
                 <div className="issue-key-section">
-                  <span className="issue-key">{issue.jira_issue_key}</span>
+                  <span className="issue-key">{issue.issue_key}</span>
                   <span className={`issue-status status-${issue.status.toLowerCase().replace(' ', '-')}`}>
                     {issue.status}
                   </span>
@@ -388,15 +447,6 @@ const JiraIssuesList = () => {
                   <p className="issue-description">{issue.description}</p>
                 )}
                 
-                {/* 연결된 테스트 케이스 정보 */}
-                {issue.test_case_id && (
-                  <div className="linked-test-case">
-                    <span className="linked-label">연결된 테스트:</span>
-                    <span className="test-case-link">
-                      {testCases.find(tc => tc.id === issue.test_case_id)?.name || `테스트 케이스 #${issue.test_case_id}`}
-                    </span>
-                  </div>
-                )}
                 
                 {/* 레이블 표시 */}
                 {issue.labels && (
@@ -404,16 +454,26 @@ const JiraIssuesList = () => {
                     {JSON.parse(issue.labels).map((label, index) => (
                       <span key={index} className="label-tag">
                         {label}
+                        <button 
+                          className="label-remove-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeLabel(issue.issue_key, label);
+                          }}
+                          title="레이블 삭제"
+                        >
+                          ×
+                        </button>
                       </span>
                     ))}
                   </div>
                 )}
                 
                 {/* 담당자 표시 */}
-                {issue.assignee_account_id && (
+                {issue.assignee_email && (
                   <div className="issue-assignee">
                     <span className="assignee-label">담당자:</span>
-                    <span className="assignee-name">{issue.assignee_account_id}</span>
+                    <span className="assignee-name">{issue.assignee_email}</span>
                   </div>
                 )}
               </div>
@@ -442,7 +502,7 @@ const JiraIssuesList = () => {
                   <select
                     className="status-select"
                     value={issue.status}
-                    onChange={(e) => updateIssueStatus(issue.jira_issue_key, e.target.value)}
+                    onChange={(e) => updateIssueStatus(issue.issue_key, e.target.value)}
                   >
                     <option value="To Do">To Do</option>
                     <option value="In Progress">In Progress</option>
@@ -476,7 +536,7 @@ const JiraIssuesList = () => {
                     onClick={() => {
                       const comment = prompt('댓글을 입력하세요:');
                       if (comment) {
-                        addComment(issue.jira_issue_key, comment);
+                        addComment(issue.issue_key, comment);
                       }
                     }}
                     title="댓글 추가"
@@ -484,13 +544,6 @@ const JiraIssuesList = () => {
                     💬 댓글
                   </button>
                   
-                  <button 
-                    className="btn btn-info btn-sm"
-                    onClick={() => window.open(`https://mock-jira.atlassian.net/browse/${issue.jira_issue_key}`, '_blank')}
-                    title="JIRA에서 보기"
-                  >
-                    🔗 Jira에서 보기
-                  </button>
                 </div>
               </div>
             </div>
@@ -564,7 +617,7 @@ const JiraIssuesList = () => {
                   <div className="detail-grid">
                     <div className="detail-item">
                       <label>이슈 키:</label>
-                      <span className="issue-key">{selectedIssue.jira_issue_key}</span>
+                      <span className="issue-key">{selectedIssue.issue_key}</span>
                     </div>
                     <div className="detail-item">
                       <label>상태:</label>
@@ -599,16 +652,6 @@ const JiraIssuesList = () => {
                   </div>
                 </div>
                 
-                {selectedIssue.test_case_id && (
-                  <div className="detail-section">
-                    <h4>연결된 테스트 케이스</h4>
-                    <div className="linked-test-case-detail">
-                      <span className="test-case-link">
-                        {testCases.find(tc => tc.id === selectedIssue.test_case_id)?.name || `테스트 케이스 #${selectedIssue.test_case_id}`}
-                      </span>
-                    </div>
-                  </div>
-                )}
                 
                 {selectedIssue.labels && (
                   <div className="detail-section">
@@ -617,17 +660,24 @@ const JiraIssuesList = () => {
                       {JSON.parse(selectedIssue.labels).map((label, index) => (
                         <span key={index} className="label-tag">
                           {label}
+                          <button 
+                            className="label-remove-btn"
+                            onClick={() => removeLabel(selectedIssue.issue_key, label)}
+                            title="레이블 삭제"
+                          >
+                            ×
+                          </button>
                         </span>
                       ))}
                     </div>
                   </div>
                 )}
                 
-                {selectedIssue.assignee_account_id && (
+                {selectedIssue.assignee_email && (
                   <div className="detail-section">
                     <h4>담당자</h4>
                     <div className="assignee-detail">
-                      <span className="assignee-name">{selectedIssue.assignee_account_id}</span>
+                      <span className="assignee-name">{selectedIssue.assignee_email}</span>
                     </div>
                   </div>
                 )}
@@ -723,7 +773,7 @@ const JiraIssuesList = () => {
             
             <div className="jira-modal-body">
               <div className="form-group">
-                <label>이슈: {selectedIssue.jira_issue_key}</label>
+                <label>이슈: {selectedIssue.issue_key}</label>
                 <p className="issue-summary-small">{selectedIssue.summary}</p>
               </div>
               
@@ -746,7 +796,7 @@ const JiraIssuesList = () => {
               </button>
               <button 
                 className="btn btn-primary" 
-                onClick={() => assignIssue(selectedIssue.jira_issue_key, assigneeEmail)}
+                onClick={() => assignIssue(selectedIssue.issue_key, assigneeEmail)}
                 disabled={!assigneeEmail.trim()}
               >
                 할당
@@ -770,12 +820,26 @@ const JiraIssuesList = () => {
             
             <div className="jira-modal-body">
               <div className="form-group">
-                <label>이슈: {selectedIssue.jira_issue_key}</label>
+                <label>이슈: {selectedIssue.issue_key}</label>
                 <p className="issue-summary-small">{selectedIssue.summary}</p>
               </div>
               
+              {/* 기존 레이블 표시 */}
+              {selectedIssue.labels && JSON.parse(selectedIssue.labels).length > 0 && (
+                <div className="form-group">
+                  <label>기존 레이블</label>
+                  <div className="existing-labels">
+                    {JSON.parse(selectedIssue.labels).map((label, index) => (
+                      <span key={index} className="existing-label-tag">
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
               <div className="form-group">
-                <label>레이블 *</label>
+                <label>새 레이블 *</label>
                 <input
                   type="text"
                   className="form-control"
@@ -794,7 +858,7 @@ const JiraIssuesList = () => {
               </button>
               <button 
                 className="btn btn-primary" 
-                onClick={() => addLabel(selectedIssue.jira_issue_key, newLabel)}
+                onClick={() => addLabel(selectedIssue.issue_key, newLabel)}
                 disabled={!newLabel.trim()}
               >
                 추가
@@ -818,7 +882,7 @@ const JiraIssuesList = () => {
             
             <div className="jira-modal-body">
               <div className="form-group">
-                <label>이슈 키: {selectedIssue.jira_issue_key}</label>
+                <label>이슈 키: {selectedIssue.issue_key}</label>
               </div>
               
               <div className="form-group">
@@ -898,6 +962,96 @@ const JiraIssuesList = () => {
                 disabled={!editFormData.summary.trim()}
               >
                 저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 이슈 생성 모달 */}
+      {showCreateModal && (
+        <div className="jira-modal-overlay">
+          <div className="jira-modal">
+            <div className="jira-modal-header">
+              <h3>새 이슈 생성</h3>
+              <button className="jira-modal-close" onClick={() => setShowCreateModal(false)}>×</button>
+            </div>
+            
+            <div className="jira-modal-body">
+              <div className="form-group">
+                <label>제목 *</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={newIssue.summary}
+                  onChange={(e) => setNewIssue({...newIssue, summary: e.target.value})}
+                  placeholder="이슈 제목을 입력하세요"
+                />
+              </div>
+              
+              <div className="form-group">
+                <label>설명</label>
+                <textarea
+                  className="form-control"
+                  rows="4"
+                  value={newIssue.description}
+                  onChange={(e) => setNewIssue({...newIssue, description: e.target.value})}
+                  placeholder="이슈 설명을 입력하세요"
+                />
+              </div>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label>타입</label>
+                  <select
+                    className="form-control"
+                    value={newIssue.issue_type}
+                    onChange={(e) => setNewIssue({...newIssue, issue_type: e.target.value})}
+                  >
+                    <option value="Bug">🐛 Bug</option>
+                    <option value="Task">📋 Task</option>
+                    <option value="Story">📖 Story</option>
+                    <option value="Epic">🏗️ Epic</option>
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label>우선순위</label>
+                  <select
+                    className="form-control"
+                    value={newIssue.priority}
+                    onChange={(e) => setNewIssue({...newIssue, priority: e.target.value})}
+                  >
+                    <option value="Low">🟢 Low</option>
+                    <option value="Medium">🟡 Medium</option>
+                    <option value="High">🟠 High</option>
+                    <option value="Critical">🔴 Critical</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="form-group">
+                <label>담당자 이메일</label>
+                <input
+                  type="email"
+                  className="form-control"
+                  value={newIssue.assignee_email}
+                  onChange={(e) => setNewIssue({...newIssue, assignee_email: e.target.value})}
+                  placeholder="담당자 이메일을 입력하세요"
+                />
+              </div>
+            </div>
+            
+            <div className="jira-modal-actions">
+              <button className="btn btn-secondary" onClick={() => setShowCreateModal(false)}>
+                취소
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={() => createIssue(newIssue)}
+                disabled={!newIssue.summary.trim()}
+              >
+                생성
               </button>
             </div>
           </div>

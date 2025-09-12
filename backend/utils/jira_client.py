@@ -135,7 +135,8 @@ class JiraClient:
             'description': 'description',
             'status': 'status',
             'priority': 'priority',
-            'issue_type': 'issuetype'
+            'issue_type': 'issuetype',
+            'labels': 'labels'
         }
         
         for key, value in kwargs.items():

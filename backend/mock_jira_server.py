@@ -9,6 +9,8 @@ from datetime import datetime
 import json
 import uuid
 import random
+import requests
+import os
 
 app = Flask(__name__)
 
@@ -25,6 +27,97 @@ mock_projects = {
 
 # 이슈 카운터
 issue_counter = 1
+
+# 백엔드 API URL
+BACKEND_API_URL = os.getenv('BACKEND_API_URL', 'http://localhost:8000')
+
+def sync_issues_from_database():
+    """데이터베이스에서 기존 이슈들을 가져와서 Mock 서버에 로드"""
+    try:
+        print("🔄 데이터베이스에서 기존 이슈들을 동기화 중...")
+        
+        # 백엔드 API에서 이슈 목록 가져오기
+        response = requests.get(f"{BACKEND_API_URL}/api/jira/issues", timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('success') and 'data' in data:
+                issues = data['data'].get('issues', [])
+                
+                print(f"📋 {len(issues)}개의 기존 이슈를 발견했습니다.")
+                
+                for issue in issues:
+                    issue_key = issue.get('jira_issue_key')
+                    if issue_key:
+                        # Mock 이슈 데이터 생성
+                        mock_issue = {
+                            'id': str(uuid.uuid4()),
+                            'key': issue_key,
+                            'self': f"https://mock-jira.atlassian.net/rest/api/3/issue/{issue_key}",
+                            'fields': {
+                                'summary': issue.get('summary', ''),
+                                'description': issue.get('description', ''),
+                                'issuetype': {
+                                    'id': '10001',
+                                    'name': issue.get('issue_type', 'Task'),
+                                    'iconUrl': f"https://mock-jira.atlassian.net/secure/viewavatar?size=xsmall&avatarId=10318&avatarType=issuetype"
+                                },
+                                'priority': {
+                                    'id': '3',
+                                    'name': issue.get('priority', 'Medium')
+                                },
+                                'status': {
+                                    'id': '10000',
+                                    'name': issue.get('status', 'To Do'),
+                                    'statusCategory': {
+                                        'id': 2,
+                                        'key': 'new' if issue.get('status') == 'To Do' else 'in-progress',
+                                        'colorName': 'blue-gray' if issue.get('status') == 'To Do' else 'yellow'
+                                    }
+                                },
+                                'project': {
+                                    'id': '10000',
+                                    'key': 'TEST',
+                                    'name': 'Test Project'
+                                },
+                                'reporter': {
+                                    'accountId': 'admin',
+                                    'displayName': 'Admin User',
+                                    'emailAddress': 'admin@example.com'
+                                },
+                                'assignee': {
+                                    'accountId': issue.get('assignee'),
+                                    'displayName': f"User {issue.get('assignee')}",
+                                    'emailAddress': issue.get('assignee')
+                                } if issue.get('assignee') else None,
+                                'labels': json.loads(issue.get('labels', '[]')) if issue.get('labels') else [],
+                                'created': issue.get('created_at', datetime.now().isoformat() + 'Z'),
+                                'updated': issue.get('updated_at', datetime.now().isoformat() + 'Z'),
+                                'components': [],
+                                'fixVersions': [],
+                                'versions': []
+                            }
+                        }
+                        
+                        mock_issues[issue_key] = mock_issue
+                        print(f"  ✅ {issue_key}: {issue.get('summary', 'No title')}")
+                
+                # 이슈 카운터 업데이트
+                global issue_counter
+                if issues:
+                    max_issue_num = max([int(issue.get('jira_issue_key', 'TEST-0').split('-')[1]) for issue in issues if issue.get('jira_issue_key', '').startswith('TEST-')])
+                    issue_counter = max_issue_num + 1
+                
+                print(f"✅ 데이터베이스 동기화 완료! 다음 이슈 번호: {issue_counter}")
+            else:
+                print("⚠️ 데이터베이스에서 이슈를 가져올 수 없습니다.")
+        else:
+            print(f"⚠️ 백엔드 API 연결 실패: {response.status_code}")
+            
+    except requests.exceptions.ConnectionError:
+        print("⚠️ 백엔드 서버가 실행되지 않았습니다. 데이터베이스 동기화를 건너뜁니다.")
+    except Exception as e:
+        print(f"⚠️ 데이터베이스 동기화 중 오류 발생: {str(e)}")
 
 def generate_issue_key(project_key):
     global issue_counter
@@ -186,6 +279,9 @@ def update_issue(issue_key):
                 }
             else:
                 issue['fields']['assignee'] = None
+        
+        if 'labels' in fields:
+            issue['fields']['labels'] = fields['labels']
         
         issue['fields']['updated'] = datetime.now().isoformat() + 'Z'
         
@@ -349,5 +445,8 @@ if __name__ == '__main__':
     print("   GET /rest/api/3/project - List projects")
     print("   GET /health - Health check")
     print("\n🌐 Server will run on http://localhost:5004")
+    
+    # 서버 시작 전 데이터베이스 동기화
+    sync_issues_from_database()
     
     app.run(host='0.0.0.0', port=5004, debug=True)

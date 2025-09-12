@@ -19,6 +19,7 @@ from routes.auth import auth_bp
 from routes.test_scripts import test_scripts_bp
 from routes.file_upload import file_upload_bp
 from routes.jira_integration import jira_bp
+from routes.jira_issues import jira_issues_bp
 from utils.cors import setup_cors
 from flask_jwt_extended import JWTManager
 from datetime import timedelta
@@ -162,6 +163,7 @@ app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(test_scripts_bp, url_prefix='/api/test-scripts')
 app.register_blueprint(file_upload_bp, url_prefix='/api/files')
 app.register_blueprint(jira_bp)
+app.register_blueprint(jira_issues_bp)
 
 # 헬퍼 함수들
 def create_cors_response(data=None, status_code=200):
