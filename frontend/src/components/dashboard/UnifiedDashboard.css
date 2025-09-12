@@ -1370,26 +1370,20 @@
   cursor: grabbing;
   z-index: 1000;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-  /* 드래그 중에도 그리드 속성 유지 */
+  /* 드래그 중에도 그리드에서 유지 */
   position: relative;
 }
 
-/* 드래그 중에는 그리드에서 제거하고 절대 위치로 */
-.draggable-card.dragging {
-  grid-column: span 1 !important;
-  position: fixed !important;
-  pointer-events: none;
-}
-
-.dynamic-cards-container .draggable-card.dragging.card-size-large {
+/* 드래그 중에도 카드 크기 유지 */
+.draggable-card.dragging.card-size-large {
   grid-column: span 3 !important;
 }
 
-.dynamic-cards-container .draggable-card.dragging.card-size-medium {
+.draggable-card.dragging.card-size-medium {
   grid-column: span 1 !important;
 }
 
-.dynamic-cards-container .draggable-card.dragging.card-size-small {
+.draggable-card.dragging.card-size-small {
   grid-column: span 1 !important;
 }
 
