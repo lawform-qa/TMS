@@ -76,6 +76,11 @@ const UnifiedDashboard = ({ setActiveTab }) => {
     screenshots: { enabled: true, order: 6, size: 'small' }
   });
   
+  // 드래그 앤 드롭 상태
+  const [draggedCard, setDraggedCard] = useState(null);
+  const [dragOverCard, setDragOverCard] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  
   // 페이징 상태 추가
   const [testCasesPage, setTestCasesPage] = useState(1);
   const [performanceTestsPage, setPerformanceTestsPage] = useState(1);
@@ -140,6 +145,76 @@ const UnifiedDashboard = ({ setActiveTab }) => {
       }
     };
     saveCardSettings(newSettings);
+  };
+
+  // 드래그 시작
+  const handleDragStart = (e, cardKey) => {
+    setDraggedCard(cardKey);
+    setIsDragging(true);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', cardKey);
+    
+    // body에 드래그 클래스 추가
+    document.body.classList.add('dragging');
+    
+    // 드래그 이미지 설정
+    const dragImage = e.target.cloneNode(true);
+    dragImage.style.opacity = '0.5';
+    dragImage.style.transform = 'rotate(5deg)';
+    document.body.appendChild(dragImage);
+    e.dataTransfer.setDragImage(dragImage, 0, 0);
+    
+    // 드래그 이미지 제거
+    setTimeout(() => {
+      if (document.body.contains(dragImage)) {
+        document.body.removeChild(dragImage);
+      }
+    }, 0);
+  };
+
+  // 드래그 오버
+  const handleDragOver = (e, cardKey) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverCard(cardKey);
+  };
+
+  // 드래그 리브
+  const handleDragLeave = (e) => {
+    // 자식 요소로 이동하는 경우는 무시
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setDragOverCard(null);
+    }
+  };
+
+  // 드롭
+  const handleDrop = (e, targetCardKey) => {
+    e.preventDefault();
+    
+    if (draggedCard && draggedCard !== targetCardKey) {
+      const newSettings = { ...cardSettings };
+      const draggedOrder = newSettings[draggedCard].order;
+      const targetOrder = newSettings[targetCardKey].order;
+      
+      // 순서 교환
+      newSettings[draggedCard].order = targetOrder;
+      newSettings[targetCardKey].order = draggedOrder;
+      
+      saveCardSettings(newSettings);
+    }
+    
+    setDraggedCard(null);
+    setDragOverCard(null);
+    setIsDragging(false);
+    document.body.classList.remove('dragging');
+  };
+
+  // 드래그 종료
+  const handleDragEnd = () => {
+    setDraggedCard(null);
+    setDragOverCard(null);
+    setIsDragging(false);
+    document.body.classList.remove('dragging');
   };
 
   // 활성화된 카드들을 순서대로 정렬
@@ -437,13 +512,18 @@ const UnifiedDashboard = ({ setActiveTab }) => {
   return (
     <div className="unified-dashboard">
       <div className="dashboard-header">
-        <h1>통합 테스트 플랫폼 대시보드</h1>
+        <div className="dashboard-title-section">
+      <h1>통합 테스트 플랫폼 대시보드</h1>
+          <p className="dashboard-subtitle">
+            💡 카드를 드래그하여 순서를 변경하거나 ⚙️ 버튼으로 상세 설정할 수 있습니다
+          </p>
+        </div>
         <button 
           className="btn-card-settings"
           onClick={() => setShowCardSettings(!showCardSettings)}
           title="카드 설정"
         >
-          ⚙️ 카드 설정
+          ⚙️  
         </button>
       </div>
 
@@ -542,9 +622,23 @@ const UnifiedDashboard = ({ setActiveTab }) => {
         </div>
       )}
       
-      {/* 환경별 테스트 케이스 상태 요약 */}
-      {cardSettings.environmentSummary.enabled && (
-        <div className={`environment-summary-section card-size-${cardSettings.environmentSummary.size}`}>
+      {/* 동적으로 렌더링되는 카드들 */}
+      {getEnabledCards().map(([cardKey, config]) => {
+        const isDragging = draggedCard === cardKey;
+        const isDragOver = dragOverCard === cardKey;
+        
+        return (
+          <div key={cardKey}>
+            {cardKey === 'environmentSummary' && (
+              <div 
+                className={`environment-summary-section card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
+              >
         <h2>환경별 테스트 케이스 상태 요약</h2>
         <div className="environment-cards">
           {['dev', 'alpha', 'production'].map(env => {
@@ -606,101 +700,115 @@ const UnifiedDashboard = ({ setActiveTab }) => {
             );
           })}
         </div>
-        </div>
-      )}
-
-      {/* JIRA 통계 섹션 */}
-      {cardSettings.jiraStats.enabled && (
-        <div className={`jira-stats-section card-size-${cardSettings.jiraStats.size}`}>
-        <h2>JIRA 이슈 통계</h2>
-        <div className="jira-stats-grid">
-          {/* 전체 통계 카드 */}
-          <div className="jira-stats-card total-issues">
-            <div className="stats-icon">📊</div>
-            <div className="stats-content">
-              <h3>전체 이슈</h3>
-              <div className="stats-number">{jiraStats.totalIssues}</div>
-            </div>
-          </div>
-
-          {/* 상태별 통계 */}
-          <div className="jira-stats-card status-breakdown">
-            <h3>상태별 분포</h3>
-            <div className="status-list">
-              {Object.entries(jiraStats.issuesByStatus).map(([status, count]) => (
-                <div key={status} className="status-item">
-                  <span className="status-label">{status}</span>
-                  <span className="status-count">{count}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 우선순위별 통계 */}
-          <div className="jira-stats-card priority-breakdown">
-            <h3>우선순위별 분포</h3>
-            <div className="priority-list">
-              {Object.entries(jiraStats.issuesByPriority).map(([priority, count]) => (
-                <div key={priority} className="priority-item">
-                  <span className="priority-label">{priority}</span>
-                  <span className="priority-count">{count}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 타입별 통계 */}
-          <div className="jira-stats-card type-breakdown">
-            <h3>타입별 분포</h3>
-            <div className="type-list">
-              {Object.entries(jiraStats.issuesByType).map(([type, count]) => (
-                <div key={type} className="type-item">
-                  <span className="type-label">{type}</span>
-                  <span className="type-count">{count}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* 최근 이슈 목록 */}
-        {jiraStats.recentIssues.length > 0 && (
-          <div className="recent-issues-section">
-            <h3>최근 이슈</h3>
-            <div className="recent-issues-list">
-              {jiraStats.recentIssues.map(issue => (
-                <div key={issue.id} className="recent-issue-item">
-                  <div className="issue-info">
-                    <span className="issue-key">{issue.jira_issue_key}</span>
-                    <span className="issue-summary">{issue.summary}</span>
-                  </div>
-                  <div className="issue-meta">
-                    <span className={`issue-status status-${issue.status.toLowerCase().replace(' ', '-')}`}>
-                      {issue.status}
-                    </span>
-                    <span className={`issue-priority priority-${issue.priority.toLowerCase()}`}>
-                      {issue.priority}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="jira-actions">
-              <button 
-                className="btn-jira-more"
-                onClick={() => setActiveTab('jira')}
+      </div>
+            )}
+            
+            {cardKey === 'jiraStats' && (
+              <div 
+                className={`jira-stats-section card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
               >
-                JIRA 이슈 전체 보기 →
-              </button>
-            </div>
-          </div>
-        )}
-        </div>
-      )}
+                <h2>JIRA 이슈 통계</h2>
+                <div className="jira-stats-grid">
+                  {/* 전체 통계 카드 */}
+                  <div className="jira-stats-card total-issues">
+                    <div className="stats-icon">📊</div>
+                    <div className="stats-content">
+                      <h3>전체 이슈</h3>
+                      <div className="stats-number">{jiraStats.totalIssues}</div>
+                    </div>
+                  </div>
 
-      {/* 기존 대시보드 내용 */}
-      <div className="dashboard-grid">
-        <div className="dashboard-card">
+                  {/* 상태별 통계 */}
+                  <div className="jira-stats-card status-breakdown">
+                    <h3>상태별 분포</h3>
+                    <div className="status-list">
+                      {Object.entries(jiraStats.issuesByStatus).map(([status, count]) => (
+                        <div key={status} className="status-item">
+                          <span className="status-label">{status}</span>
+                          <span className="status-count">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 우선순위별 통계 */}
+                  <div className="jira-stats-card priority-breakdown">
+                    <h3>우선순위별 분포</h3>
+                    <div className="priority-list">
+                      {Object.entries(jiraStats.issuesByPriority).map(([priority, count]) => (
+                        <div key={priority} className="priority-item">
+                          <span className="priority-label">{priority}</span>
+                          <span className="priority-count">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 타입별 통계 */}
+                  <div className="jira-stats-card type-breakdown">
+                    <h3>타입별 분포</h3>
+                    <div className="type-list">
+                      {Object.entries(jiraStats.issuesByType).map(([type, count]) => (
+                        <div key={type} className="type-item">
+                          <span className="type-label">{type}</span>
+                          <span className="type-count">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 최근 이슈 목록 */}
+                {jiraStats.recentIssues.length > 0 && (
+                  <div className="recent-issues-section">
+                    <h3>최근 이슈</h3>
+                    <div className="recent-issues-list">
+                      {jiraStats.recentIssues.map(issue => (
+                        <div key={issue.id} className="recent-issue-item">
+                          <div className="issue-info">
+                            <span className="issue-key">{issue.jira_issue_key}</span>
+                            <span className="issue-summary">{issue.summary}</span>
+                          </div>
+                          <div className="issue-meta">
+                            <span className={`issue-status status-${issue.status.toLowerCase().replace(' ', '-')}`}>
+                              {issue.status}
+                            </span>
+                            <span className={`issue-priority priority-${issue.priority.toLowerCase()}`}>
+                              {issue.priority}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="jira-actions">
+                      <button 
+                        className="btn-jira-more"
+                        onClick={() => setActiveTab('jira')}
+                      >
+                        JIRA 이슈 전체 보기 →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {cardKey === 'testCases' && (
+              <div 
+                className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
+              >
           <div className="card-header">
             <h3>테스트 케이스 ({testCases.length})</h3>
             <button 
@@ -746,8 +854,18 @@ const UnifiedDashboard = ({ setActiveTab }) => {
             )}
           </div>
         </div>
-
-        <div className="dashboard-card">
+            )}
+            
+            {cardKey === 'performanceTests' && (
+              <div 
+                className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
+              >
           <div className="card-header">
             <h3>성능 테스트 ({performanceTests.length})</h3>
             <button 
@@ -791,8 +909,18 @@ const UnifiedDashboard = ({ setActiveTab }) => {
             )}
           </div>
         </div>
-
-        <div className="dashboard-card">
+            )}
+            
+            {cardKey === 'testExecutions' && (
+              <div 
+                className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
+              >
           <div className="card-header">
             <h3>최근 테스트 실행 ({testExecutions.length})</h3>
             <button 
@@ -838,7 +966,45 @@ const UnifiedDashboard = ({ setActiveTab }) => {
             )}
           </div>
         </div>
+            )}
+            
+            {cardKey === 'screenshots' && (
+              <div 
+                className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="card-header">
+                  <h3>스크린샷</h3>
+                  <button 
+                    className="btn-move-to-tab"
+                    onClick={() => setActiveTab('testcases')}
+                    title="스크린샷 상세 보기"
+                  >
+                    이동 &gt;
+                  </button>
+                </div>
+                <div className="card-content">
+                  <div className="screenshots-grid">
+                    <div className="screenshot-item">
+                      <div className="screenshot-placeholder">
+                        <span>📸</span>
+                        <p>스크린샷이 없습니다</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
       </div>
+        );
+      })}
+
+      {/* 기존 대시보드 내용은 동적 렌더링으로 이동됨 */}
     </div>
   );
 };
