@@ -516,7 +516,7 @@ const UnifiedDashboard = ({ setActiveTab }) => {
       <h1>통합 테스트 플랫폼 대시보드</h1>
           <p className="dashboard-subtitle">
             💡 카드를 드래그하여 순서를 변경하거나 ⚙️ 버튼으로 상세 설정할 수 있습니다<br/>
-            📐 큰 카드는 전체 너비, 보통/작은 카드는 3x3 그리드로 배치됩니다
+            📐 큰 카드는 전체 너비, 보통/작은 카드는 3열 그리드로 배치됩니다
           </p>
         </div>
         <button 
@@ -584,8 +584,8 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                               value={config.size}
                               onChange={(e) => changeCardSize(cardKey, e.target.value)}
                             >
-                              <option value="small">작게 (3x3 그리드)</option>
-                              <option value="medium">보통 (3x3 그리드)</option>
+                              <option value="small">작게 (3열 그리드)</option>
+                              <option value="medium">보통 (3열 그리드)</option>
                               <option value="large">크게 (전체 너비)</option>
                             </select>
                           </div>

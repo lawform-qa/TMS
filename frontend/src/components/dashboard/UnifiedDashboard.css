@@ -134,9 +134,10 @@
   margin-bottom: 30px;
 }
 
-/* 기본 그리드 (3x3) */
+/* 기본 그리드 (3열 고정, 세로 자동) */
 .dynamic-cards-container {
   grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: auto; /* 세로는 자동으로 조정 */
 }
 
 /* 카드 크기별 그리드 조정 */
@@ -155,31 +156,27 @@
   min-height: 200px; /* 작은 카드 최소 높이 */
 }
 
-/* 큰 카드가 있을 때 다음 카드들의 배치 조정 */
-.card-size-large + .card-size-medium,
-.card-size-large + .card-size-small {
-  grid-column: span 1;
-}
-
-/* 큰 카드 다음에 오는 카드들이 3개씩 배치되도록 */
-.dynamic-cards-container:has(.card-size-large) {
-  grid-template-rows: auto auto auto; /* 3행 */
-}
-
 /* 반응형 그리드 */
 @media (max-width: 1200px) {
   .dynamic-cards-container {
     grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: auto;
   }
   
   .card-size-large {
     grid-column: span 2; /* 큰 카드는 2칸 */
+  }
+  
+  .card-size-medium,
+  .card-size-small {
+    grid-column: span 1; /* 보통/작은 카드는 1칸 */
   }
 }
 
 @media (max-width: 768px) {
   .dynamic-cards-container {
     grid-template-columns: 1fr;
+    grid-auto-rows: auto;
   }
   
   .card-size-large,
