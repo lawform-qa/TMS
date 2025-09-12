@@ -421,7 +421,7 @@ const TestScriptsManager = () => {
     return (
       <div className="test-scripts-manager">
         <div className="loading-container">
-          <div className="loading-spinner">⏳</div>
+          <div className="test-scripts-loading-spinner">⏳</div>
           <p>파일 목록을 불러오는 중...</p>
         </div>
       </div>

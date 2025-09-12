@@ -55,8 +55,26 @@ const UnifiedDashboard = ({ setActiveTab }) => {
   const [testExecutions, setTestExecutions] = useState([]);
   const [dashboardSummaries, setDashboardSummaries] = useState([]);
   const [testcaseSummaries, setTestcaseSummaries] = useState([]);
+  const [jiraStats, setJiraStats] = useState({
+    totalIssues: 0,
+    issuesByStatus: {},
+    issuesByPriority: {},
+    issuesByType: {},
+    recentIssues: []
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // 대시보드 카드 설정 상태
+  const [showCardSettings, setShowCardSettings] = useState(false);
+  const [cardSettings, setCardSettings] = useState({
+    environmentSummary: { enabled: true, order: 1, size: 'large' },
+    jiraStats: { enabled: true, order: 2, size: 'large' },
+    testCases: { enabled: true, order: 3, size: 'medium' },
+    performanceTests: { enabled: true, order: 4, size: 'medium' },
+    testExecutions: { enabled: true, order: 5, size: 'medium' },
+    screenshots: { enabled: true, order: 6, size: 'small' }
+  });
   
   // 페이징 상태 추가
   const [testCasesPage, setTestCasesPage] = useState(1);
@@ -69,7 +87,81 @@ const UnifiedDashboard = ({ setActiveTab }) => {
 
   useEffect(() => {
     fetchDashboardData();
+    // 로컬 스토리지에서 카드 설정 불러오기
+    const savedSettings = localStorage.getItem('dashboardCardSettings');
+    if (savedSettings) {
+      setCardSettings(JSON.parse(savedSettings));
+    }
   }, []);
+
+  // 카드 설정 저장
+  const saveCardSettings = (newSettings) => {
+    setCardSettings(newSettings);
+    localStorage.setItem('dashboardCardSettings', JSON.stringify(newSettings));
+  };
+
+  // 카드 활성화/비활성화 토글
+  const toggleCard = (cardKey) => {
+    const newSettings = {
+      ...cardSettings,
+      [cardKey]: {
+        ...cardSettings[cardKey],
+        enabled: !cardSettings[cardKey].enabled
+      }
+    };
+    saveCardSettings(newSettings);
+  };
+
+  // 카드 순서 변경
+  const moveCard = (cardKey, direction) => {
+    const newSettings = { ...cardSettings };
+    const currentOrder = newSettings[cardKey].order;
+    const newOrder = direction === 'up' ? currentOrder - 1 : currentOrder + 1;
+    
+    // 다른 카드와 순서 교환
+    const otherCard = Object.keys(newSettings).find(key => 
+      newSettings[key].order === newOrder
+    );
+    
+    if (otherCard) {
+      newSettings[cardKey].order = newOrder;
+      newSettings[otherCard].order = currentOrder;
+      saveCardSettings(newSettings);
+    }
+  };
+
+  // 카드 크기 변경
+  const changeCardSize = (cardKey, size) => {
+    const newSettings = {
+      ...cardSettings,
+      [cardKey]: {
+        ...cardSettings[cardKey],
+        size: size
+      }
+    };
+    saveCardSettings(newSettings);
+  };
+
+  // 활성화된 카드들을 순서대로 정렬
+  const getEnabledCards = () => {
+    return Object.entries(cardSettings)
+      .filter(([key, config]) => config.enabled)
+      .sort((a, b) => a[1].order - b[1].order);
+  };
+
+  // 카드 표시 이름 반환
+  const getCardDisplayName = (cardKey) => {
+    const names = {
+      environmentSummary: '환경별 테스트 케이스 상태',
+      jiraStats: 'JIRA 이슈 통계',
+      testCases: '테스트 케이스',
+      performanceTests: '성능 테스트',
+      testExecutions: '테스트 실행 결과',
+      screenshots: '스크린샷'
+    };
+    return names[cardKey] || cardKey;
+  };
+
 
 
   const fetchDashboardData = async (skipInit = false) => {
@@ -85,12 +177,13 @@ const UnifiedDashboard = ({ setActiveTab }) => {
         // 헬스체크 오류는 조용히 처리
       }
       
-      const [testCasesRes, performanceTestsRes, testExecutionsRes, summariesRes, testcaseSummariesRes] = await Promise.all([
+      const [testCasesRes, performanceTestsRes, testExecutionsRes, summariesRes, testcaseSummariesRes, jiraStatsRes] = await Promise.all([
         axios.get(`/testcases?page=1&per_page=${itemsPerPage}`),
         axios.get(`/performance-tests?page=1&per_page=${itemsPerPage}`),
         axios.get(`/test-executions?page=1&per_page=${itemsPerPage}`),
         axios.get('/dashboard-summaries'),
-        axios.get('/testcases/summary/all')
+        axios.get('/testcases/summary/all'),
+        axios.get('/api/jira/stats')
       ]);
 
       setTestCases(testCasesRes.data.items || testCasesRes.data);
@@ -98,6 +191,18 @@ const UnifiedDashboard = ({ setActiveTab }) => {
       setTestExecutions(testExecutionsRes.data.items || testExecutionsRes.data);
       setDashboardSummaries(summariesRes.data);
       setTestcaseSummaries(testcaseSummariesRes.data);
+      
+      // JIRA 통계 처리
+      if (jiraStatsRes.data && jiraStatsRes.data.success) {
+        const stats = jiraStatsRes.data.data;
+        setJiraStats({
+          totalIssues: stats.total_issues || 0,
+          issuesByStatus: stats.issues_by_status || {},
+          issuesByPriority: stats.issues_by_priority || {},
+          issuesByType: stats.issues_by_type || {},
+          recentIssues: stats.recent_issues || []
+        });
+      }
       
       // 페이징 정보 설정
       if (testCasesRes.data.pagination) {
@@ -302,7 +407,7 @@ const UnifiedDashboard = ({ setActiveTab }) => {
   if (loading) {
     return (
       <div className="dashboard-loading">
-        <div className="loading-spinner">
+        <div className="dashboard-loading-spinner">
           <div className="spinner"></div>
         </div>
         <p>대시보드 데이터를 불러오는 중...</p>
@@ -331,11 +436,115 @@ const UnifiedDashboard = ({ setActiveTab }) => {
 
   return (
     <div className="unified-dashboard">
-      <h1>통합 테스트 플랫폼 대시보드</h1>
-      
+      <div className="dashboard-header">
+        <h1>통합 테스트 플랫폼 대시보드</h1>
+        <button 
+          className="btn-card-settings"
+          onClick={() => setShowCardSettings(!showCardSettings)}
+          title="카드 설정"
+        >
+          ⚙️ 카드 설정
+        </button>
+      </div>
+
+      {/* 카드 설정 모달 */}
+      {showCardSettings && (
+        <div className="card-settings-modal">
+          <div className="card-settings-content">
+            <div className="card-settings-header">
+              <h3>대시보드 카드 설정</h3>
+              <button 
+                className="btn-close"
+                onClick={() => setShowCardSettings(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="card-settings-body">
+              {Object.entries(cardSettings).map(([cardKey, config]) => (
+                <div key={cardKey} className="card-setting-item">
+                  <div className="card-setting-info">
+                    <div className="card-setting-header">
+                      <label className="card-toggle">
+                        <input
+                          type="checkbox"
+                          checked={config.enabled}
+                          onChange={() => toggleCard(cardKey)}
+                        />
+                        <span className="card-name">
+                          {getCardDisplayName(cardKey)}
+                        </span>
+                      </label>
+                    </div>
+                    {config.enabled && (
+                      <div className="card-setting-controls">
+                        <div className="card-order-controls">
+                          <button
+                            className="btn-move"
+                            onClick={() => moveCard(cardKey, 'up')}
+                            disabled={config.order === 1}
+                            title="위로 이동"
+                          >
+                            ↑
+                          </button>
+                          <span className="order-number">{config.order}</span>
+                          <button
+                            className="btn-move"
+                            onClick={() => moveCard(cardKey, 'down')}
+                            disabled={config.order === Object.keys(cardSettings).length}
+                            title="아래로 이동"
+                          >
+                            ↓
+                          </button>
+                        </div>
+                        <div className="card-size-controls">
+                          <label>크기:</label>
+                          <select
+                            value={config.size}
+                            onChange={(e) => changeCardSize(cardKey, e.target.value)}
+                          >
+                            <option value="small">작게</option>
+                            <option value="medium">보통</option>
+                            <option value="large">크게</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="card-settings-footer">
+              <button 
+                className="btn-reset"
+                onClick={() => {
+                  const defaultSettings = {
+                    environmentSummary: { enabled: true, order: 1, size: 'large' },
+                    jiraStats: { enabled: true, order: 2, size: 'large' },
+                    testCases: { enabled: true, order: 3, size: 'medium' },
+                    performanceTests: { enabled: true, order: 4, size: 'medium' },
+                    testExecutions: { enabled: true, order: 5, size: 'medium' },
+                    screenshots: { enabled: true, order: 6, size: 'small' }
+                  };
+                  saveCardSettings(defaultSettings);
+                }}
+              >
+                기본값으로 재설정
+              </button>
+              <button 
+                className="btn-close-modal"
+                onClick={() => setShowCardSettings(false)}
+              >
+                완료
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* 환경별 테스트 케이스 상태 요약 */}
-      <div className="environment-summary-section">
+      {cardSettings.environmentSummary.enabled && (
+        <div className={`environment-summary-section card-size-${cardSettings.environmentSummary.size}`}>
         <h2>환경별 테스트 케이스 상태 요약</h2>
         <div className="environment-cards">
           {['dev', 'alpha', 'production'].map(env => {
@@ -397,7 +606,97 @@ const UnifiedDashboard = ({ setActiveTab }) => {
             );
           })}
         </div>
-      </div>
+        </div>
+      )}
+
+      {/* JIRA 통계 섹션 */}
+      {cardSettings.jiraStats.enabled && (
+        <div className={`jira-stats-section card-size-${cardSettings.jiraStats.size}`}>
+        <h2>JIRA 이슈 통계</h2>
+        <div className="jira-stats-grid">
+          {/* 전체 통계 카드 */}
+          <div className="jira-stats-card total-issues">
+            <div className="stats-icon">📊</div>
+            <div className="stats-content">
+              <h3>전체 이슈</h3>
+              <div className="stats-number">{jiraStats.totalIssues}</div>
+            </div>
+          </div>
+
+          {/* 상태별 통계 */}
+          <div className="jira-stats-card status-breakdown">
+            <h3>상태별 분포</h3>
+            <div className="status-list">
+              {Object.entries(jiraStats.issuesByStatus).map(([status, count]) => (
+                <div key={status} className="status-item">
+                  <span className="status-label">{status}</span>
+                  <span className="status-count">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 우선순위별 통계 */}
+          <div className="jira-stats-card priority-breakdown">
+            <h3>우선순위별 분포</h3>
+            <div className="priority-list">
+              {Object.entries(jiraStats.issuesByPriority).map(([priority, count]) => (
+                <div key={priority} className="priority-item">
+                  <span className="priority-label">{priority}</span>
+                  <span className="priority-count">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 타입별 통계 */}
+          <div className="jira-stats-card type-breakdown">
+            <h3>타입별 분포</h3>
+            <div className="type-list">
+              {Object.entries(jiraStats.issuesByType).map(([type, count]) => (
+                <div key={type} className="type-item">
+                  <span className="type-label">{type}</span>
+                  <span className="type-count">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 최근 이슈 목록 */}
+        {jiraStats.recentIssues.length > 0 && (
+          <div className="recent-issues-section">
+            <h3>최근 이슈</h3>
+            <div className="recent-issues-list">
+              {jiraStats.recentIssues.map(issue => (
+                <div key={issue.id} className="recent-issue-item">
+                  <div className="issue-info">
+                    <span className="issue-key">{issue.jira_issue_key}</span>
+                    <span className="issue-summary">{issue.summary}</span>
+                  </div>
+                  <div className="issue-meta">
+                    <span className={`issue-status status-${issue.status.toLowerCase().replace(' ', '-')}`}>
+                      {issue.status}
+                    </span>
+                    <span className={`issue-priority priority-${issue.priority.toLowerCase()}`}>
+                      {issue.priority}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="jira-actions">
+              <button 
+                className="btn-jira-more"
+                onClick={() => setActiveTab('jira')}
+              >
+                JIRA 이슈 전체 보기 →
+              </button>
+            </div>
+          </div>
+        )}
+        </div>
+      )}
 
       {/* 기존 대시보드 내용 */}
       <div className="dashboard-grid">

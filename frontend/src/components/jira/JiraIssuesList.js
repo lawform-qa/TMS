@@ -665,7 +665,7 @@ const JiraIssuesList = () => {
                     <div className="comments-list">
                       {loadingComments ? (
                         <div className="comments-loading">
-                          <div className="loading-spinner"></div>
+                          <div className="comments-loading-spinner"></div>
                           <span>댓글을 불러오는 중...</span>
                         </div>
                       ) : comments.length === 0 ? (

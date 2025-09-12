@@ -286,6 +286,52 @@ def get_integrations():
             'error': str(e)
         }), 500
 
+@jira_bp.route('/stats', methods=['GET'])
+# @user_required  # 개발 단계에서 임시로 비활성화
+def get_jira_stats():
+    """JIRA 통계 조회"""
+    try:
+        # 모든 JIRA 이슈 조회
+        all_integrations = JiraIntegration.query.all()
+        
+        # 통계 계산
+        stats = {
+            'total_issues': len(all_integrations),
+            'issues_by_status': {},
+            'issues_by_priority': {},
+            'issues_by_type': {},
+            'recent_issues': []
+        }
+        
+        # 상태별, 우선순위별, 타입별 통계 계산
+        for integration in all_integrations:
+            # 상태별 통계
+            status = integration.status or 'Unknown'
+            stats['issues_by_status'][status] = stats['issues_by_status'].get(status, 0) + 1
+            
+            # 우선순위별 통계
+            priority = integration.priority or 'Unknown'
+            stats['issues_by_priority'][priority] = stats['issues_by_priority'].get(priority, 0) + 1
+            
+            # 타입별 통계
+            issue_type = integration.issue_type or 'Unknown'
+            stats['issues_by_type'][issue_type] = stats['issues_by_type'].get(issue_type, 0) + 1
+        
+        # 최근 이슈 (최대 5개, 생성일 기준 내림차순)
+        recent_issues = sorted(all_integrations, key=lambda x: x.created_at or datetime.min, reverse=True)[:5]
+        stats['recent_issues'] = [issue.to_dict() for issue in recent_issues]
+        
+        return jsonify({
+            'success': True,
+            'data': stats
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @jira_bp.route('/integrations/<int:integration_id>', methods=['DELETE'])
 @user_required
 def delete_integration(integration_id):
