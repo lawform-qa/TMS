@@ -7,7 +7,7 @@ from datetime import datetime
 import json
 from utils.jira_client import JiraClient, JiraIntegrationService
 from utils.auth_decorators import user_required
-from models import db, JiraIntegration, JiraComment, TestCase, AutomationTest, PerformanceTest
+from models import db, JiraIssue, JiraComment, TestCase, AutomationTest, PerformanceTest
 
 jira_bp = Blueprint('jira', __name__, url_prefix='/api/jira')
 

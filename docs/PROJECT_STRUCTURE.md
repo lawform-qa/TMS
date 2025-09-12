@@ -121,8 +121,8 @@ integrated-test-platform/
 │   ├── 📄 VERCEL_DEPLOYMENT_GUIDE.md # Vercel 배포 가이드
 │   ├── 📄 UBUNTU_MYSQL_SETUP.md  # Ubuntu MySQL 설정
 │   ├── 📄 MYSQL_WORKBENCH_CONNECTION.md # MySQL Workbench 연결
-│   ├── 📄 postman_collection_v2.json # Postman 컬렉션 v2
-│   ├── 📄 postman_environment_v2.json # Postman 환경 v2
+│   ├── 📄 postman_collection_v2.3.0.json # Postman 컬렉션 v2.3.0
+│   ├── 📄 postman_environment_v2.3.0.json # Postman 환경 v2.3.0
 │   ├── 📄 env.example             # 환경 변수 예시
 │   └── 📁 mysql-init/             # MySQL 초기화 스크립트
 ├── 📁 config/                     # 설정 파일들
@@ -181,6 +181,6 @@ integrated-test-platform/
 
 ---
 
-**마지막 업데이트**: 2025년 9월 8일  
+**마지막 업데이트**: 2025년 1월 9일  
 **버전**: 2.3.0  
 **상태**: 프로덕션 배포 완료 ✅

@@ -4,6 +4,11 @@ from models import db, User, UserSession
 from datetime import datetime, timedelta
 from utils.timezone_utils import get_kst_now, get_kst_isoformat
 from utils.logger import get_logger
+from utils.response_utils import (
+    success_response, error_response, created_response, 
+    validation_error_response, unauthorized_response, 
+    not_found_response, forbidden_response
+)
 import secrets
 import os
 
@@ -30,19 +35,19 @@ def register():
         required_fields = ['username', 'email', 'password']
         for field in required_fields:
             if not data.get(field):
-                return jsonify({'error': f'{field}는 필수입니다.'}), 400
+                return validation_error_response(f'{field}는 필수입니다.')
         
         # 사용자명 중복 확인
         if User.query.filter_by(username=data['username']).first():
-            return jsonify({'error': '이미 사용 중인 사용자명입니다.'}), 400
+            return validation_error_response('이미 사용 중인 사용자명입니다.')
         
         # 이메일 중복 확인
         if User.query.filter_by(email=data['email']).first():
-            return jsonify({'error': '이미 사용 중인 이메일입니다.'}), 400
+            return validation_error_response('이미 사용 중인 이메일입니다.')
         
         # 비밀번호 강도 검증
         if len(data['password']) < 8:
-            return jsonify({'error': '비밀번호는 최소 8자 이상이어야 합니다.'}), 400
+            return validation_error_response('비밀번호는 최소 8자 이상이어야 합니다.')
         
         # 사용자 생성
         user = User(
@@ -57,14 +62,15 @@ def register():
         db.session.add(user)
         db.session.commit()
         
-        return jsonify({
-            'message': '회원가입이 완료되었습니다.',
-            'user_id': user.id
-        }), 201
+        return created_response(
+            data={'user_id': user.id},
+            message='회원가입이 완료되었습니다.'
+        )
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': '회원가입 중 오류가 발생했습니다.'}), 500
+        logger.error(f"회원가입 오류: {str(e)}")
+        return error_response('회원가입 중 오류가 발생했습니다.')
 
 @auth_bp.route('/login', methods=['POST', 'OPTIONS'])
 def login():
@@ -87,7 +93,7 @@ def login():
         password = data.get('password')
         
         if not username or not password:
-            return jsonify({'error': '사용자명과 비밀번호를 입력해주세요.'}), 400
+            return validation_error_response('사용자명과 비밀번호를 입력해주세요.')
         
         logger.debug(f"사용자명: {username}")
         
@@ -96,13 +102,13 @@ def login():
         logger.debug(f"사용자 조회 결과: {user}")
         
         if not user:
-            return jsonify({'error': '사용자명 또는 비밀번호가 올바르지 않습니다.'}), 400
+            return unauthorized_response('사용자명 또는 비밀번호가 올바르지 않습니다.')
         
         if not user.check_password(password):
-            return jsonify({'error': '사용자명 또는 비밀번호가 올바르지 않습니다.'}), 400
+            return unauthorized_response('사용자명 또는 비밀번호가 올바르지 않습니다.')
         
         if not user.is_active:
-            return jsonify({'error': '비활성화된 계정입니다.'}), 400
+            return forbidden_response('비활성화된 계정입니다.')
         
         print(f"✅ 비밀번호 검증 성공")
         
@@ -183,19 +189,20 @@ def login():
         user_response = user.to_dict()
         print(f"📤 응답용 사용자 데이터 last_login: {user_response.get('last_login')}")
         
-        return jsonify({
-            'message': '로그인이 성공했습니다.',
-            'access_token': access_token,
-            'refresh_token': refresh_token,
-            'user': user_response
-        }), 200
+        return success_response(
+            data={
+                'access_token': access_token,
+                'refresh_token': refresh_token,
+                'user': user_response
+            },
+            message='로그인이 성공했습니다.'
+        )
         
     except Exception as e:
-        print(f"❌ 로그인 중 오류 발생: {str(e)}")
-        print(f"🔍 오류 타입: {type(e)}")
+        logger.error(f"로그인 중 오류 발생: {str(e)}")
         import traceback
-        print(f"📋 상세 오류: {traceback.format_exc()}")
-        return jsonify({'error': f'로그인 중 오류가 발생했습니다: {str(e)}'}), 500
+        logger.error(f"스택 트레이스: {traceback.format_exc()}")
+        return error_response('로그인 중 오류가 발생했습니다.')
 
 @auth_bp.route('/refresh', methods=['POST'])
 @jwt_required(refresh=True)
@@ -205,12 +212,14 @@ def refresh():
         current_user_id = get_jwt_identity()
         new_access_token = create_access_token(identity=current_user_id)
         
-        return jsonify({
-            'access_token': new_access_token
-        }), 200
+        return success_response(
+            data={'access_token': new_access_token},
+            message='토큰이 성공적으로 갱신되었습니다.'
+        )
         
     except Exception as e:
-        return jsonify({'error': '토큰 갱신 중 오류가 발생했습니다.'}), 500
+        logger.error(f"토큰 갱신 오류: {str(e)}")
+        return error_response('토큰 갱신 중 오류가 발생했습니다.')
 
 @auth_bp.route('/guest', methods=['POST', 'OPTIONS'])
 def guest_login():
