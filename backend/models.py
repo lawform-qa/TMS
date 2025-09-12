@@ -305,3 +305,125 @@ class TestPlanTestCase(db.Model):
     
     def __repr__(self):
         return f'<TestPlanTestCase {self.test_plan_id}:{self.test_case_id}>'
+
+class JiraIssue(db.Model):
+    """JIRA 이슈를 저장하는 모델 (DB 기반)"""
+    __tablename__ = 'JiraIssues'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    issue_key = db.Column(db.String(20), nullable=False, unique=True)  # TEST-1
+    project_key = db.Column(db.String(20), nullable=False, default='TEST')
+    issue_type = db.Column(db.String(50), nullable=False)  # Bug, Task, Story, Epic
+    status = db.Column(db.String(50), nullable=False, default='To Do')  # To Do, In Progress, Done
+    priority = db.Column(db.String(20), default='Medium')  # Low, Medium, High, Critical
+    summary = db.Column(db.Text, nullable=False)
+    description = db.Column(db.Text)
+    assignee_email = db.Column(db.String(100))  # 담당자 이메일
+    labels = db.Column(db.Text)  # JSON 형태로 저장
+    reporter_email = db.Column(db.String(100), default='admin@example.com')
+    created_at = db.Column(db.DateTime, default=get_kst_now)
+    updated_at = db.Column(db.DateTime, default=get_kst_now, onupdate=get_kst_now)
+    
+    # 관계 설정 (현재 없음)
+    
+    def to_dict(self):
+        """JIRA 이슈 정보를 딕셔너리로 변환"""
+        return {
+            'id': self.id,
+            'issue_key': self.issue_key,
+            'project_key': self.project_key,
+            'issue_type': self.issue_type,
+            'status': self.status,
+            'priority': self.priority,
+            'summary': self.summary,
+            'description': self.description,
+            'assignee_email': self.assignee_email,
+            'labels': self.labels,
+            'reporter_email': self.reporter_email,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+    
+    def __repr__(self):
+        return f'<JiraIssue {self.issue_key}>'
+
+# 기존 JiraIntegration 모델은 호환성을 위해 유지 (deprecated)
+class JiraIntegration(db.Model):
+    """JIRA 연동 정보를 저장하는 모델 (deprecated - JiraIssue 사용 권장)"""
+    __tablename__ = 'JiraIntegrations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    test_case_id = db.Column(db.Integer, db.ForeignKey('TestCases.id'), nullable=True)
+    automation_test_id = db.Column(db.Integer, db.ForeignKey('AutomationTests.id'), nullable=True)
+    performance_test_id = db.Column(db.Integer, db.ForeignKey('PerformanceTests.id'), nullable=True)
+    jira_issue_key = db.Column(db.String(20), nullable=False)  # PROJECT-123
+    jira_issue_id = db.Column(db.String(50), nullable=False)  # 내부 ID
+    jira_project_key = db.Column(db.String(20), nullable=False)
+    issue_type = db.Column(db.String(50), nullable=False)  # Bug, Task, Story, Epic
+    status = db.Column(db.String(50), nullable=False)  # To Do, In Progress, Done
+    priority = db.Column(db.String(20), default='Medium')  # Low, Medium, High, Critical
+    summary = db.Column(db.Text)
+    description = db.Column(db.Text)
+    assignee_account_id = db.Column(db.String(100))  # JIRA 사용자 계정 ID
+    labels = db.Column(db.Text)  # JSON 형태로 저장
+    created_at = db.Column(db.DateTime, default=get_kst_now)
+    updated_at = db.Column(db.DateTime, default=get_kst_now, onupdate=get_kst_now)
+    last_sync_at = db.Column(db.DateTime)  # 마지막 동기화 시간
+    
+    # 관계 설정
+    test_case = db.relationship('TestCase', backref='jira_integrations')
+    automation_test = db.relationship('AutomationTest', backref='jira_integrations')
+    performance_test = db.relationship('PerformanceTest', backref='jira_integrations')
+    
+    def to_dict(self):
+        """JIRA 연동 정보를 딕셔너리로 변환"""
+        return {
+            'id': self.id,
+            'test_case_id': self.test_case_id,
+            'automation_test_id': self.automation_test_id,
+            'performance_test_id': self.performance_test_id,
+            'jira_issue_key': self.jira_issue_key,
+            'jira_issue_id': self.jira_issue_id,
+            'jira_project_key': self.jira_project_key,
+            'issue_type': self.issue_type,
+            'status': self.status,
+            'priority': self.priority,
+            'summary': self.summary,
+            'description': self.description,
+            'assignee_account_id': self.assignee_account_id,
+            'labels': self.labels,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'last_sync_at': self.last_sync_at.isoformat() if self.last_sync_at else None
+        }
+    
+    def __repr__(self):
+        return f'<JiraIntegration {self.jira_issue_key}>'
+
+
+class JiraComment(db.Model):
+    """JIRA 댓글을 저장하는 모델"""
+    __tablename__ = 'JiraComments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    jira_issue_id = db.Column(db.Integer, db.ForeignKey('JiraIssues.id'), nullable=False)
+    body = db.Column(db.Text, nullable=False)  # 댓글 내용
+    author_email = db.Column(db.String(100), nullable=False)  # 작성자 이메일
+    created_at = db.Column(db.DateTime, default=get_kst_now)
+    updated_at = db.Column(db.DateTime, default=get_kst_now, onupdate=get_kst_now)
+    
+    # 관계 설정
+    jira_issue = db.relationship('JiraIssue', backref='comments')
+    
+    def to_dict(self):
+        """댓글 정보를 딕셔너리로 변환"""
+        return {
+            'id': self.id,
+            'body': self.body,
+            'author_email': self.author_email,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+    
+    def __repr__(self):
+        return f'<JiraComment {self.id}: {self.body[:50]}...>'

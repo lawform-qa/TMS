@@ -433,7 +433,7 @@
   color: #5f6368;
 }
 
-.loading-spinner {
+.test-scripts-loading-spinner {
   font-size: 32px;
   margin-bottom: 16px;
   animation: spin 1s linear infinite;

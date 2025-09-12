@@ -237,7 +237,7 @@ const TestScriptsExplorer = ({ scriptType = 'playwright' }) => {
           <h2>{getTitle()}</h2>
         </div>
         <div className="loading-container">
-          <div className="loading-spinner">⏳</div>
+          <div className="automation-loading-spinner">⏳</div>
           <p>테스트 스크립트 구조를 불러오는 중...</p>
         </div>
       </div>

@@ -67,7 +67,7 @@
   color: #666;
 }
 
-.loading-spinner {
+.automation-loading-spinner {
   font-size: 48px;
   margin-bottom: 20px;
   animation: spin 2s linear infinite;

@@ -4,6 +4,7 @@ import axios from 'axios';
 import config from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatUTCToKST } from '../../utils/dateUtils';
+import JiraIntegration from '../jira/JiraIntegration';
 import './TestCaseAPP.css';
 
 // axios 인터셉터 설정 - 인증 토큰 자동 추가
@@ -2310,6 +2311,21 @@ const TestCaseAPP = () => {
               <div className="testcase-execution-results" style={{ marginTop: '24px' }}>
                 <h5>🤖 자동화 실행 결과</h5>
                 <TestCaseExecutionResults testCaseId={selectedTestCase.id} />
+              </div>
+              
+              {/* JIRA 연동 */}
+              <div className="testcase-jira-integration" style={{ marginTop: '24px' }}>
+                <h5>🔗 JIRA 연동</h5>
+                <JiraIntegration 
+                  testId={selectedTestCase.id}
+                  testType="testcase"
+                  testName={selectedTestCase.main_category && selectedTestCase.sub_category && selectedTestCase.detail_category 
+                    ? `${selectedTestCase.main_category} > ${selectedTestCase.sub_category} > ${selectedTestCase.detail_category}`
+                    : selectedTestCase.expected_result || '제목 없음'
+                  }
+                  testResult={selectedTestCase.result_status}
+                  errorMessage={selectedTestCase.remark}
+                />
               </div>
             </div>
             <div className="modal-actions">
