@@ -117,6 +117,57 @@ def create_issue():
             'error': str(e)
         }), 500
 
+@jira_bp.route('/issues', methods=['GET'])
+# @user_required  # 개발 단계에서 임시로 비활성화
+def get_issues():
+    """JIRA 이슈 목록 조회 (페이지네이션 지원)"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        
+        # 데이터베이스에서 이슈 목록 조회
+        pagination = JiraIntegration.query.paginate(
+            page=page, 
+            per_page=per_page, 
+            error_out=False
+        )
+        
+        issues = []
+        for jira_integration in pagination.items:
+            issues.append({
+                'id': jira_integration.id,
+                'jira_issue_key': jira_integration.jira_issue_key,
+                'summary': jira_integration.summary,
+                'description': jira_integration.description,
+                'status': jira_integration.status,
+                'priority': jira_integration.priority,
+                'issue_type': jira_integration.issue_type,
+                'assignee': jira_integration.assignee_account_id,
+                'labels': jira_integration.labels,
+                'created_at': jira_integration.created_at.isoformat() if jira_integration.created_at else None,
+                'updated_at': jira_integration.updated_at.isoformat() if jira_integration.updated_at else None
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'issues': issues,
+                'pagination': {
+                    'page': pagination.page,
+                    'per_page': pagination.per_page,
+                    'total': pagination.total,
+                    'pages': pagination.pages,
+                    'has_next': pagination.has_next,
+                    'has_prev': pagination.has_prev
+                }
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @jira_bp.route('/issues/<issue_key>', methods=['GET'])
 @user_required
 def get_issue(issue_key):
