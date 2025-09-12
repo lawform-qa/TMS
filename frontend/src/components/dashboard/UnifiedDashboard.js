@@ -515,7 +515,8 @@ const UnifiedDashboard = ({ setActiveTab }) => {
         <div className="dashboard-title-section">
       <h1>통합 테스트 플랫폼 대시보드</h1>
           <p className="dashboard-subtitle">
-            💡 카드를 드래그하여 순서를 변경하거나 ⚙️ 버튼으로 상세 설정할 수 있습니다
+            💡 카드를 드래그하여 순서를 변경하거나 ⚙️ 버튼으로 상세 설정할 수 있습니다<br/>
+            📐 큰 카드는 전체 너비, 보통/작은 카드는 3x3 그리드로 배치됩니다
           </p>
         </div>
         <button 
@@ -557,38 +558,38 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                       </label>
                     </div>
                     {config.enabled && (
-                      <div className="card-setting-controls">
-                        <div className="card-order-controls">
-                          <button
-                            className="btn-move"
-                            onClick={() => moveCard(cardKey, 'up')}
-                            disabled={config.order === 1}
-                            title="위로 이동"
-                          >
-                            ↑
-                          </button>
-                          <span className="order-number">{config.order}</span>
-                          <button
-                            className="btn-move"
-                            onClick={() => moveCard(cardKey, 'down')}
-                            disabled={config.order === Object.keys(cardSettings).length}
-                            title="아래로 이동"
-                          >
-                            ↓
-                          </button>
+                        <div className="card-setting-controls">
+                          <div className="card-order-controls">
+                            <button
+                              className="btn-move"
+                              onClick={() => moveCard(cardKey, 'up')}
+                              disabled={config.order === 1}
+                              title="위로 이동"
+                            >
+                              ↑
+                            </button>
+                            <span className="order-number">{config.order}</span>
+                            <button
+                              className="btn-move"
+                              onClick={() => moveCard(cardKey, 'down')}
+                              disabled={config.order === Object.keys(cardSettings).length}
+                              title="아래로 이동"
+                            >
+                              ↓
+                            </button>
+                          </div>
+                          <div className="card-size-controls">
+                            <label>크기:</label>
+                            <select
+                              value={config.size}
+                              onChange={(e) => changeCardSize(cardKey, e.target.value)}
+                            >
+                              <option value="small">작게 (3x3 그리드)</option>
+                              <option value="medium">보통 (3x3 그리드)</option>
+                              <option value="large">크게 (전체 너비)</option>
+                            </select>
+                          </div>
                         </div>
-                        <div className="card-size-controls">
-                          <label>크기:</label>
-                          <select
-                            value={config.size}
-                            onChange={(e) => changeCardSize(cardKey, e.target.value)}
-                          >
-                            <option value="small">작게</option>
-                            <option value="medium">보통</option>
-                            <option value="large">크게</option>
-                          </select>
-                        </div>
-                      </div>
                     )}
                   </div>
                 </div>
@@ -623,7 +624,8 @@ const UnifiedDashboard = ({ setActiveTab }) => {
       )}
       
       {/* 동적으로 렌더링되는 카드들 */}
-      {getEnabledCards().map(([cardKey, config]) => {
+      <div className="dynamic-cards-container">
+        {getEnabledCards().map(([cardKey, config]) => {
         const isDragging = draggedCard === cardKey;
         const isDragOver = dragOverCard === cardKey;
         
@@ -1003,6 +1005,7 @@ const UnifiedDashboard = ({ setActiveTab }) => {
       </div>
         );
       })}
+      </div>
 
       {/* 기존 대시보드 내용은 동적 렌더링으로 이동됨 */}
     </div>
