@@ -130,28 +130,24 @@
 /* 동적 카드 그리드 레이아웃 */
 .dynamic-cards-container {
   display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: auto; /* 세로는 자동으로 조정 */
   gap: 20px;
   margin-bottom: 30px;
 }
 
-/* 기본 그리드 (3열 고정, 세로 자동) */
-.dynamic-cards-container {
-  grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: auto; /* 세로는 자동으로 조정 */
-}
-
 /* 카드 크기별 그리드 조정 */
-.card-size-large {
+.dynamic-cards-container .card-size-large {
   grid-column: span 3; /* 큰 카드는 전체 너비 (3칸) */
   min-height: 400px; /* 큰 카드 최소 높이 */
 }
 
-.card-size-medium {
+.dynamic-cards-container .card-size-medium {
   grid-column: span 1; /* 보통 카드는 1칸 */
   min-height: 300px; /* 보통 카드 최소 높이 */
 }
 
-.card-size-small {
+.dynamic-cards-container .card-size-small {
   grid-column: span 1; /* 작은 카드는 1칸 */
   min-height: 200px; /* 작은 카드 최소 높이 */
 }
@@ -163,12 +159,12 @@
     grid-auto-rows: auto;
   }
   
-  .card-size-large {
+  .dynamic-cards-container .card-size-large {
     grid-column: span 2; /* 큰 카드는 2칸 */
   }
   
-  .card-size-medium,
-  .card-size-small {
+  .dynamic-cards-container .card-size-medium,
+  .dynamic-cards-container .card-size-small {
     grid-column: span 1; /* 보통/작은 카드는 1칸 */
   }
 }
@@ -179,9 +175,9 @@
     grid-auto-rows: auto;
   }
   
-  .card-size-large,
-  .card-size-medium,
-  .card-size-small {
+  .dynamic-cards-container .card-size-large,
+  .dynamic-cards-container .card-size-medium,
+  .dynamic-cards-container .card-size-small {
     grid-column: span 1; /* 모든 카드가 1칸 */
   }
 }
@@ -1360,19 +1356,7 @@
 
 /* 그리드에서 드래그 앤 드롭 시 레이아웃 유지 */
 .dynamic-cards-container .draggable-card {
-  grid-column: span 1; /* 기본적으로 1칸 차지 */
-}
-
-.dynamic-cards-container .draggable-card.card-size-large {
-  grid-column: span 3; /* 큰 카드는 3칸 차지 */
-}
-
-.dynamic-cards-container .draggable-card.card-size-medium {
-  grid-column: span 1; /* 보통 카드는 1칸 차지 */
-}
-
-.dynamic-cards-container .draggable-card.card-size-small {
-  grid-column: span 1; /* 작은 카드는 1칸 차지 */
+  /* 기본 그리드 속성은 위의 카드 크기별 스타일에서 처리 */
 }
 
 .draggable-card:hover {
@@ -1386,6 +1370,27 @@
   cursor: grabbing;
   z-index: 1000;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  /* 드래그 중에도 그리드 속성 유지 */
+  position: relative;
+}
+
+/* 드래그 중에는 그리드에서 제거하고 절대 위치로 */
+.draggable-card.dragging {
+  grid-column: span 1 !important;
+  position: fixed !important;
+  pointer-events: none;
+}
+
+.dynamic-cards-container .draggable-card.dragging.card-size-large {
+  grid-column: span 3 !important;
+}
+
+.dynamic-cards-container .draggable-card.dragging.card-size-medium {
+  grid-column: span 1 !important;
+}
+
+.dynamic-cards-container .draggable-card.dragging.card-size-small {
+  grid-column: span 1 !important;
 }
 
 .draggable-card.drag-over {

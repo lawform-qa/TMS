@@ -161,8 +161,11 @@ const UnifiedDashboard = ({ setActiveTab }) => {
     const dragImage = e.target.cloneNode(true);
     dragImage.style.opacity = '0.5';
     dragImage.style.transform = 'rotate(5deg)';
+    dragImage.style.width = '300px'; // 고정 너비 설정
+    dragImage.style.height = '200px'; // 고정 높이 설정
+    dragImage.style.overflow = 'hidden';
     document.body.appendChild(dragImage);
-    e.dataTransfer.setDragImage(dragImage, 0, 0);
+    e.dataTransfer.setDragImage(dragImage, 150, 100); // 중앙에서 드래그
     
     // 드래그 이미지 제거
     setTimeout(() => {
