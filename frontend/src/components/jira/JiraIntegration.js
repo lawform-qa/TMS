@@ -3,7 +3,7 @@ import axios from 'axios';
 import config from '../../config';
 import './JiraIntegration.css';
 
-const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage }) => {
+const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage, setActiveTab }) => {
   const [jiraIssues, setJiraIssues] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -254,9 +254,9 @@ const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage 
                 <button 
                   className="btn btn-info btn-sm"
                   onClick={() => {
-                    // JIRA 탭으로 이동하는 함수 호출
-                    if (window.setActiveTab) {
-                      window.setActiveTab('jira');
+                    // 이슈 탭으로 이동하는 함수 호출
+                    if (setActiveTab) {
+                      setActiveTab('jira');
                     }
                   }}
                   title="이슈 탭에서 상세보기"

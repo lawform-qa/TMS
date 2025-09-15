@@ -29,7 +29,7 @@ function AppContent() {
       case 'testcases':
         return (
           <ErrorBoundary>
-            <TestCaseApp />
+            <TestCaseApp setActiveTab={setActiveTab} />
           </ErrorBoundary>
         );
       case 'jira':

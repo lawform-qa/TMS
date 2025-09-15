@@ -186,7 +186,7 @@ const TestCaseExecutionResults = ({ testCaseId }) => {
 // axios 기본 URL 설정
 axios.defaults.baseURL = config.apiUrl;
 
-const TestCaseAPP = () => {
+const TestCaseAPP = ({ setActiveTab }) => {
   const { user } = useAuth();
   const [testCases, setTestCases] = useState([]);
   const [folderTree, setFolderTree] = useState([]);
@@ -2325,6 +2325,7 @@ const TestCaseAPP = () => {
                   }
                   testResult={selectedTestCase.result_status}
                   errorMessage={selectedTestCase.remark}
+                  setActiveTab={setActiveTab}
                 />
               </div>
             </div>
