@@ -126,7 +126,7 @@ def generate_issue_key(project_key):
     return issue_key
 
 def create_mock_issue(project_key, summary, description, issue_type, **kwargs):
-    """Mock JIRA 이슈 생성"""
+    """Mock 이슈 생성"""
     issue_id = str(uuid.uuid4())
     issue_key = generate_issue_key(project_key)
     
@@ -188,7 +188,7 @@ def create_mock_issue(project_key, summary, description, issue_type, **kwargs):
 
 @app.route('/rest/api/3/issue', methods=['POST'])
 def create_issue():
-    """JIRA 이슈 생성 API"""
+    """이슈 생성 API"""
     try:
         data = request.get_json()
         
@@ -231,7 +231,7 @@ def create_issue():
 
 @app.route('/rest/api/3/issue/<issue_key>', methods=['GET'])
 def get_issue(issue_key):
-    """JIRA 이슈 조회 API"""
+    """이슈 조회 API"""
     if issue_key not in mock_issues:
         return jsonify({
             'errorMessages': [f'Issue {issue_key} does not exist'],
@@ -242,7 +242,7 @@ def get_issue(issue_key):
 
 @app.route('/rest/api/3/issue/<issue_key>', methods=['PUT'])
 def update_issue(issue_key):
-    """JIRA 이슈 업데이트 API"""
+    """이슈 업데이트 API"""
     if issue_key not in mock_issues:
         return jsonify({
             'errorMessages': [f'Issue {issue_key} does not exist'],
@@ -295,7 +295,7 @@ def update_issue(issue_key):
 
 @app.route('/rest/api/3/issue/<issue_key>/comment', methods=['POST'])
 def add_comment(issue_key):
-    """JIRA 이슈에 댓글 추가 API"""
+    """이슈에 댓글 추가 API"""
     if issue_key not in mock_issues:
         return jsonify({
             'errorMessages': [f'Issue {issue_key} does not exist'],
@@ -334,7 +334,7 @@ def add_comment(issue_key):
 
 @app.route('/rest/api/3/issue/<issue_key>/comment', methods=['GET'])
 def get_comments(issue_key):
-    """JIRA 이슈 댓글 목록 조회 API"""
+    """이슈 댓글 목록 조회 API"""
     if issue_key not in mock_issues:
         return jsonify({
             'errorMessages': [f'Issue {issue_key} does not exist'],
@@ -358,7 +358,7 @@ def get_comments(issue_key):
 
 @app.route('/rest/api/3/search', methods=['GET'])
 def search_issues():
-    """JIRA 이슈 검색 API (JQL)"""
+    """이슈 검색 API (JQL)"""
     try:
         jql = request.args.get('jql', '')
         start_at = int(request.args.get('startAt', 0))

@@ -41,7 +41,7 @@ const JiraIssuesList = () => {
   });
 
 
-  // JIRA 이슈 목록 조회
+  // 이슈 목록 조회
   const fetchJiraIssues = async () => {
     try {
       setLoading(true);
@@ -54,8 +54,8 @@ const JiraIssuesList = () => {
         setTotalItems(response.data.data.pagination.total);
       }
     } catch (err) {
-      console.error('JIRA 이슈 조회 오류:', err);
-      setError('JIRA 이슈를 불러오는 중 오류가 발생했습니다.');
+      console.error('이슈 조회 오류:', err);
+      setError('이슈를 불러오는 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -81,8 +81,9 @@ const JiraIssuesList = () => {
   // 이슈에 댓글 추가
   const addComment = async (issueKey, comment) => {
     try {
-      const response = await axios.post(`${config.apiUrl}/api/jira/issues/${issueKey}/comment`, {
-        comment: comment
+      const response = await axios.post(`${config.apiUrl}/api/jira/issues/${issueKey}/comments`, {
+        body: comment,
+        author_email: 'admin@example.com'
       });
       
       if (response.data.success) {
@@ -180,7 +181,7 @@ const JiraIssuesList = () => {
     try {
       const response = await axios.get(`${config.apiUrl}/api/jira/issues/${issueKey}/comments`);
       if (response.data.success) {
-        setComments(response.data.data.comments || []);
+        setComments(response.data.data || []);
       }
     } catch (err) {
       console.error('댓글 조회 오류:', err);
@@ -301,7 +302,7 @@ const JiraIssuesList = () => {
     return (
       <div className="jira-issues-loading">
         <div className="loading-spinner"></div>
-        <p>JIRA 이슈를 불러오는 중...</p>
+        <p>이슈를 불러오는 중...</p>
       </div>
     );
   }
@@ -324,7 +325,7 @@ const JiraIssuesList = () => {
   return (
     <div className="jira-issues-list-container">
       <div className="jira-issues-header">
-        <h1>🔗 JIRA 이슈 관리</h1>
+        <h1>🔗 이슈 관리</h1>
         <div className="header-actions">
           <button 
             className="btn btn-primary"
@@ -418,7 +419,7 @@ const JiraIssuesList = () => {
         {paginatedIssues.length === 0 ? (
           <div className="no-issues">
             <div className="no-issues-icon">📝</div>
-            <p>표시할 JIRA 이슈가 없습니다.</p>
+            <p>표시할 이슈가 없습니다.</p>
             <p>필터 조건을 조정해보세요.</p>
           </div>
         ) : (
@@ -466,6 +467,52 @@ const JiraIssuesList = () => {
                         </button>
                       </span>
                     ))}
+                  </div>
+                )}
+                
+                {/* 연결된 테스트 케이스 정보 */}
+                {(issue.test_case_id || issue.automation_test_id || issue.performance_test_id) && (
+                  <div className="linked-test-case">
+                    <span className="linked-label">연결된 테스트:</span>
+                    {issue.test_case_id && (
+                      <button 
+                        className="test-case-link"
+                        onClick={() => {
+                          if (window.setActiveTab) {
+                            window.setActiveTab('testcases');
+                          }
+                        }}
+                        title="테스트 케이스로 이동"
+                      >
+                        테스트 케이스 #{issue.test_case_id}
+                      </button>
+                    )}
+                    {issue.automation_test_id && (
+                      <button 
+                        className="test-case-link"
+                        onClick={() => {
+                          if (window.setActiveTab) {
+                            window.setActiveTab('automation');
+                          }
+                        }}
+                        title="자동화 테스트로 이동"
+                      >
+                        자동화 테스트 #{issue.automation_test_id}
+                      </button>
+                    )}
+                    {issue.performance_test_id && (
+                      <button 
+                        className="test-case-link"
+                        onClick={() => {
+                          if (window.setActiveTab) {
+                            window.setActiveTab('performance');
+                          }
+                        }}
+                        title="성능 테스트로 이동"
+                      >
+                        성능 테스트 #{issue.performance_test_id}
+                      </button>
+                    )}
                   </div>
                 )}
                 

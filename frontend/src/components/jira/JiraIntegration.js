@@ -3,25 +3,24 @@ import axios from 'axios';
 import config from '../../config';
 import './JiraIntegration.css';
 
-const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage }) => {
+const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage, setActiveTab }) => {
   const [jiraIssues, setJiraIssues] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedIssue, setSelectedIssue] = useState(null);
+  const [comments, setComments] = useState([]);
+  const [showComments, setShowComments] = useState(false);
+  const [loadingComments, setLoadingComments] = useState(false);
 
   // Jira 이슈 조회
   const fetchJiraIssues = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${config.apiUrl}/jira/integrations`, {
-        params: {
-          test_id: testId,
-          test_type: testType
-        }
-      });
+      const response = await axios.get(`${config.apiUrl}/api/jira/issues`);
       
       if (response.data.success) {
-        setJiraIssues(response.data.data);
+        setJiraIssues(response.data.data.issues || []);
       }
     } catch (err) {
       console.error('Jira 이슈 조회 오류:', err);
@@ -35,10 +34,11 @@ const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage 
   const createJiraIssue = async (issueData) => {
     try {
       setLoading(true);
-      const response = await axios.post(`${config.apiUrl}/jira/issues`, {
-        test_id: testId,
-        test_type: testType,
-        ...issueData
+      const response = await axios.post(`${config.apiUrl}/api/jira/issues`, {
+        ...issueData,
+        test_case_id: testType === 'testcase' ? testId : null,
+        automation_test_id: testType === 'automation' ? testId : null,
+        performance_test_id: testType === 'performance' ? testId : null
       });
       
       if (response.data.success) {
@@ -58,21 +58,26 @@ const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage 
   const autoCreateIssue = async () => {
     try {
       setLoading(true);
-      const response = await axios.post(`${config.apiUrl}/jira/auto-create`, {
-        test_id: testId,
-        test_type: testType,
-        test_name: testName,
-        test_result: testResult,
-        error_message: errorMessage
-      });
       
-      if (response.data.success) {
-        if (response.data.data) {
-          fetchJiraIssues();
+      if (testResult && ['Fail', 'Error'].includes(testResult)) {
+        const issueData = {
+          summary: `테스트 실패: ${testName}`,
+          description: `**테스트 정보**\n- 테스트명: ${testName}\n- 결과: ${testResult}\n\n**오류 정보**\n${errorMessage || '오류 정보 없음'}`,
+          issue_type: 'Bug',
+          priority: 'Medium',
+          test_case_id: testType === 'testcase' ? testId : null,
+          automation_test_id: testType === 'automation' ? testId : null,
+          performance_test_id: testType === 'performance' ? testId : null
+        };
+        
+        const response = await axios.post(`${config.apiUrl}/api/jira/issues`, issueData);
+        
+        if (response.data.success) {
           alert('테스트 실패로 인해 Jira 이슈가 자동 생성되었습니다.');
-        } else {
-          alert('테스트가 성공했으므로 이슈를 생성하지 않습니다.');
+          fetchJiraIssues();
         }
+      } else {
+        alert('테스트가 성공했으므로 이슈를 생성하지 않습니다.');
       }
     } catch (err) {
       console.error('자동 이슈 생성 오류:', err);
@@ -85,7 +90,7 @@ const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage 
   // Jira 이슈 상태 업데이트
   const updateIssueStatus = async (issueKey, newStatus) => {
     try {
-      const response = await axios.put(`${config.apiUrl}/jira/issues/${issueKey}`, {
+      const response = await axios.put(`${config.apiUrl}/api/jira/issues/${issueKey}`, {
         status: newStatus
       });
       
@@ -102,17 +107,53 @@ const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage 
   // Jira 이슈에 댓글 추가
   const addComment = async (issueKey, comment) => {
     try {
-      const response = await axios.post(`${config.apiUrl}/jira/issues/${issueKey}/comment`, {
-        comment: comment
+      const response = await axios.post(`${config.apiUrl}/api/jira/issues/${issueKey}/comments`, {
+        body: comment,
+        author_email: 'admin@example.com'
       });
       
       if (response.data.success) {
         alert('댓글이 추가되었습니다.');
+        fetchJiraIssues(); // 댓글 추가 후 이슈 목록 새로고침
+        // 댓글 모달이 열려있다면 댓글 목록도 새로고침
+        if (showComments && selectedIssue) {
+          fetchComments(selectedIssue.issue_key);
+        }
       }
     } catch (err) {
       console.error('댓글 추가 오류:', err);
       alert('댓글 추가 중 오류가 발생했습니다: ' + (err.response?.data?.error || err.message));
     }
+  };
+
+  // 댓글 조회
+  const fetchComments = async (issueKey) => {
+    setLoadingComments(true);
+    try {
+      const response = await axios.get(`${config.apiUrl}/api/jira/issues/${issueKey}/comments`);
+      if (response.data.success) {
+        setComments(response.data.data || []);
+      }
+    } catch (err) {
+      console.error('댓글 조회 오류:', err);
+      setComments([]);
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
+  // 댓글 모달 열기
+  const showCommentsModal = (issue) => {
+    setSelectedIssue(issue);
+    setShowComments(true);
+    fetchComments(issue.issue_key);
+  };
+
+  // 댓글 모달 닫기
+  const closeCommentsModal = () => {
+    setShowComments(false);
+    setSelectedIssue(null);
+    setComments([]);
   };
 
   useEffect(() => {
@@ -124,14 +165,14 @@ const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage 
   return (
     <div className="jira-integration">
       <div className="jira-header">
-        <h3>🔗 Jira 연동</h3>
+        <h3>🔗 이슈 관리</h3>
         <div className="jira-actions">
           <button 
             className="btn btn-primary"
             onClick={() => setShowCreateModal(true)}
             disabled={loading}
           >
-            ➕ Jira 이슈 생성
+            ➕ 이슈 생성
           </button>
           {testResult && ['Fail', 'Error'].includes(testResult) && (
             <button 
@@ -157,14 +198,14 @@ const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage 
       <div className="jira-issues">
         {jiraIssues.length === 0 ? (
           <div className="no-issues">
-            <p>연동된 Jira 이슈가 없습니다.</p>
+            <p>연결된 이슈가 없습니다.</p>
           </div>
         ) : (
           jiraIssues.map(issue => (
             <div key={issue.id} className="jira-issue">
               <div className="issue-info">
                 <div className="issue-header">
-                  <span className="issue-key">{issue.jira_issue_key}</span>
+                  <span className="issue-key">{issue.issue_key}</span>
                   <span className={`issue-status status-${issue.status.toLowerCase().replace(' ', '-')}`}>
                     {issue.status}
                   </span>
@@ -183,7 +224,7 @@ const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage 
                 <select
                   className="status-select"
                   value={issue.status}
-                  onChange={(e) => updateIssueStatus(issue.jira_issue_key, e.target.value)}
+                  onChange={(e) => updateIssueStatus(issue.issue_key, e.target.value)}
                 >
                   <option value="To Do">To Do</option>
                   <option value="In Progress">In Progress</option>
@@ -195,19 +236,34 @@ const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage 
                   onClick={() => {
                     const comment = prompt('댓글을 입력하세요:');
                     if (comment) {
-                      addComment(issue.jira_issue_key, comment);
+                      addComment(issue.issue_key, comment);
                     }
                   }}
                 >
-                  💬 댓글
+                  💬 댓글 추가
+                </button>
+                
+                <button 
+                  className="btn btn-primary btn-sm"
+                  onClick={() => showCommentsModal(issue)}
+                  title="댓글 보기"
+                >
+                  📝 댓글 보기
                 </button>
                 
                 <button 
                   className="btn btn-info btn-sm"
-                  onClick={() => window.open(`https://mock-jira.atlassian.net/browse/${issue.jira_issue_key}`, '_blank')}
+                  onClick={() => {
+                    // 이슈 탭으로 이동하는 함수 호출
+                    if (setActiveTab) {
+                      setActiveTab('jira');
+                    }
+                  }}
+                  title="이슈 탭에서 상세보기"
                 >
-                  🔗 Jira에서 보기
+                  🔗 상세보기
                 </button>
+                
               </div>
             </div>
           ))
@@ -222,6 +278,17 @@ const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage 
           testName={testName}
           testResult={testResult}
           errorMessage={errorMessage}
+        />
+      )}
+
+      {/* 댓글 모달 */}
+      {showComments && selectedIssue && (
+        <CommentsModal 
+          issue={selectedIssue}
+          comments={comments}
+          loading={loadingComments}
+          onClose={closeCommentsModal}
+          onAddComment={addComment}
         />
       )}
     </div>
@@ -297,7 +364,7 @@ const JiraIssueModal = ({ onSubmit, onClose, testName, testResult, errorMessage 
         <div className="jira-modal-header">
           <div className="jira-modal-title">
             <span className="jira-modal-icon">🔗</span>
-            <h3>Jira 이슈 생성</h3>
+            <h3>이슈 생성</h3>
           </div>
           <button className="jira-modal-close" onClick={handleClose} title="닫기">×</button>
         </div>
@@ -371,6 +438,95 @@ const JiraIssueModal = ({ onSubmit, onClose, testName, testResult, errorMessage 
           >
             {isSubmitting ? '생성 중...' : '생성'}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 댓글 모달 컴포넌트
+const CommentsModal = ({ issue, comments, loading, onClose, onAddComment }) => {
+  const [newComment, setNewComment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return;
+    
+    setIsSubmitting(true);
+    try {
+      await onAddComment(issue.issue_key, newComment);
+      setNewComment('');
+    } catch (err) {
+      console.error('댓글 추가 오류:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleAddComment();
+    }
+  };
+
+  return (
+    <div className="jira-modal-overlay">
+      <div className="jira-modal comments-modal">
+        <div className="jira-modal-header">
+          <div className="jira-modal-title">
+            <span className="jira-modal-icon">💬</span>
+            <h3>{issue.issue_key} - 댓글</h3>
+          </div>
+          <button className="jira-modal-close" onClick={onClose} title="닫기">×</button>
+        </div>
+        
+        <div className="jira-modal-body comments-body">
+          {/* 댓글 목록 */}
+          <div className="comments-list">
+            {loading ? (
+              <div className="loading">댓글을 불러오는 중...</div>
+            ) : comments.length === 0 ? (
+              <div className="no-comments">
+                <p>아직 댓글이 없습니다.</p>
+              </div>
+            ) : (
+              comments.map(comment => (
+                <div key={comment.id} className="comment-item">
+                  <div className="comment-header">
+                    <span className="comment-author">{comment.author_email}</span>
+                    <span className="comment-date">
+                      {new Date(comment.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="comment-body">
+                    {comment.body}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          
+          {/* 댓글 추가 */}
+          <div className="comment-add">
+            <textarea
+              className="form-control"
+              placeholder="댓글을 입력하세요..."
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              onKeyPress={handleKeyPress}
+              rows="3"
+            />
+            <div className="comment-actions">
+              <button 
+                className="btn btn-primary btn-sm"
+                onClick={handleAddComment}
+                disabled={!newComment.trim() || isSubmitting}
+              >
+                {isSubmitting ? '추가 중...' : '댓글 추가'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

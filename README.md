@@ -89,8 +89,8 @@ integrated-test-platform/
 │   │   └── config.js       # API 설정
 │   └── package.json
 ├── docs/                    # 문서 및 설정 파일
-│   ├── postman_collection_v2.json
-│   ├── postman_environment_v2.json
+│   ├── postman_collection_v2.3.0.json
+│   ├── postman_environment_v2.3.0.json
 │   ├── PERMISSION_GUIDE.md # 권한별 기능 가이드
 │   ├── API_TESTING_GUIDE.md # API 테스트 가이드
 │   ├── TESTING_GUIDE.md    # 테스트 가이드
@@ -143,7 +143,7 @@ FLASK_ENV=production
 ### API 테스트
 ```bash
 # Postman Collection 사용
-docs/postman_collection_v2.json
+docs/postman_collection_v2.3.0.json
 ```
 
 ### 성능 테스트

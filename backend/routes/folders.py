@@ -2,7 +2,14 @@ from flask import Blueprint, request, jsonify
 from models import db, Folder, TestCase
 from utils.cors import add_cors_headers
 from utils.auth_decorators import guest_allowed, user_required, admin_required
+from utils.response_utils import (
+    success_response, error_response, created_response, 
+    validation_error_response, not_found_response
+)
+from utils.logger import get_logger
 from datetime import datetime
+
+logger = get_logger(__name__)
 
 # Blueprint 생성
 folders_bp = Blueprint('folders', __name__)
@@ -23,12 +30,12 @@ def get_folders():
             'created_at': f.created_at.isoformat() if f.created_at else None
         } for f in folders]
         
-        response = jsonify(data)
-        return add_cors_headers(response), 200
+        response = success_response(data=data, message='폴더 목록을 성공적으로 조회했습니다.')
+        return add_cors_headers(response[0]), response[1]
     except Exception as e:
-        print(f"❌ 폴더 조회 오류: {str(e)}")
-        response = jsonify({'error': '폴더 조회 오류', 'message': str(e)})
-        return add_cors_headers(response), 500
+        logger.error(f"폴더 조회 오류: {str(e)}")
+        response = error_response('폴더 조회 중 오류가 발생했습니다.')
+        return add_cors_headers(response[0]), response[1]
 
 @folders_bp.route('/folders', methods=['POST'])
 @user_required

@@ -1,5 +1,5 @@
 """
-JIRA 이슈 관리 API (DB 기반)
+이슈 관리 API (DB 기반)
 Mock JIRA 서버 대신 데이터베이스에 직접 저장
 """
 
@@ -11,9 +11,78 @@ import uuid
 
 jira_issues_bp = Blueprint('jira_issues', __name__, url_prefix='/api/jira')
 
+@jira_issues_bp.route('/stats', methods=['GET'])
+def get_jira_stats():
+    """JIRA 통계 정보 조회"""
+    try:
+        # 전체 이슈 수
+        total_issues = JiraIssue.query.count()
+        
+        # 상태별 이슈 수
+        issues_by_status = {}
+        status_counts = db.session.query(
+            JiraIssue.status, 
+            db.func.count(JiraIssue.id)
+        ).group_by(JiraIssue.status).all()
+        
+        for status, count in status_counts:
+            issues_by_status[status] = count
+        
+        # 우선순위별 이슈 수
+        issues_by_priority = {}
+        priority_counts = db.session.query(
+            JiraIssue.priority, 
+            db.func.count(JiraIssue.id)
+        ).group_by(JiraIssue.priority).all()
+        
+        for priority, count in priority_counts:
+            issues_by_priority[priority] = count
+        
+        # 타입별 이슈 수
+        issues_by_type = {}
+        type_counts = db.session.query(
+            JiraIssue.issue_type, 
+            db.func.count(JiraIssue.id)
+        ).group_by(JiraIssue.issue_type).all()
+        
+        for issue_type, count in type_counts:
+            issues_by_type[issue_type] = count
+        
+        # 최근 이슈 (최근 5개)
+        recent_issues = JiraIssue.query.order_by(
+            JiraIssue.created_at.desc()
+        ).limit(5).all()
+        
+        recent_issues_data = []
+        for issue in recent_issues:
+            recent_issues_data.append({
+                'issue_key': issue.issue_key,
+                'summary': issue.summary,
+                'status': issue.status,
+                'priority': issue.priority,
+                'created_at': issue.created_at.isoformat() if issue.created_at else None
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'total_issues': total_issues,
+                'issues_by_status': issues_by_status,
+                'issues_by_priority': issues_by_priority,
+                'issues_by_type': issues_by_type,
+                'recent_issues': recent_issues_data
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'통계 조회 중 오류가 발생했습니다: {str(e)}'
+        }), 500
+
 @jira_issues_bp.route('/issues', methods=['GET'])
 def get_issues():
-    """JIRA 이슈 목록 조회 (페이지네이션 지원)"""
+    """이슈 목록 조회 (페이지네이션 지원)"""
     try:
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
@@ -73,7 +142,7 @@ def get_issues():
 
 @jira_issues_bp.route('/issues', methods=['POST'])
 def create_issue():
-    """새 JIRA 이슈 생성"""
+    """새 이슈 생성"""
     try:
         data = request.get_json()
         
@@ -107,8 +176,10 @@ def create_issue():
             description=data.get('description', ''),
             assignee_email=data.get('assignee_email'),
             labels=json.dumps(data.get('labels', [])) if data.get('labels') else None,
+            reporter_email=data.get('reporter_email', 'admin@example.com'),
             test_case_id=data.get('test_case_id'),
-            reporter_email=data.get('reporter_email', 'admin@example.com')
+            automation_test_id=data.get('automation_test_id'),
+            performance_test_id=data.get('performance_test_id')
         )
         
         db.session.add(issue)
@@ -129,7 +200,7 @@ def create_issue():
 
 @jira_issues_bp.route('/issues/<issue_key>', methods=['GET'])
 def get_issue(issue_key):
-    """특정 JIRA 이슈 조회"""
+    """특정 이슈 조회"""
     try:
         issue = JiraIssue.query.filter_by(issue_key=issue_key).first()
         
@@ -152,7 +223,7 @@ def get_issue(issue_key):
 
 @jira_issues_bp.route('/issues/<issue_key>', methods=['PUT'])
 def update_issue(issue_key):
-    """JIRA 이슈 업데이트"""
+    """이슈 업데이트"""
     try:
         issue = JiraIssue.query.filter_by(issue_key=issue_key).first()
         
@@ -181,6 +252,10 @@ def update_issue(issue_key):
             issue.labels = json.dumps(data['labels']) if data['labels'] else None
         if 'test_case_id' in data:
             issue.test_case_id = data['test_case_id']
+        if 'automation_test_id' in data:
+            issue.automation_test_id = data['automation_test_id']
+        if 'performance_test_id' in data:
+            issue.performance_test_id = data['performance_test_id']
         
         issue.updated_at = datetime.utcnow()
         
@@ -201,7 +276,7 @@ def update_issue(issue_key):
 
 @jira_issues_bp.route('/issues/<issue_key>', methods=['DELETE'])
 def delete_issue(issue_key):
-    """JIRA 이슈 삭제"""
+    """이슈 삭제"""
     try:
         issue = JiraIssue.query.filter_by(issue_key=issue_key).first()
         

@@ -1,7 +1,7 @@
 // src/App.js
 import React, { useState } from 'react';
 import './App.css';
-import TestCaseApp from './components/testcases';
+import {TestCaseApp} from './components/testcases';
 import PerformanceTestManager from './components/performance';
 import AutomationTestManager from './components/automation';
 import TestScriptsManager from './components/testscripts/TestScriptsManager';
@@ -29,7 +29,7 @@ function AppContent() {
       case 'testcases':
         return (
           <ErrorBoundary>
-            <TestCaseApp />
+            <TestCaseApp setActiveTab={setActiveTab} />
           </ErrorBoundary>
         );
       case 'jira':
@@ -146,7 +146,7 @@ function AppContent() {
                 className={`nav-link ${activeTab === 'jira' ? 'active' : ''}`}
                 onClick={() => setActiveTab('jira')}
               >
-                🔗 JIRA 이슈
+                🔗 이슈
               </button>
             )}
             {canAccessAutomation() && (

@@ -1,4 +1,4 @@
-/* JIRA 이슈 목록 컴포넌트 스타일 */
+/* 이슈 목록 컴포넌트 스타일 */
 .jira-issues-list-container {
   padding: 20px;
   max-width: 1200px;
@@ -977,5 +977,63 @@
   
   .form-control[type="textarea"] {
     min-height: 80px;
+  }
+}
+
+/* 연결된 테스트 케이스 스타일 */
+.linked-test-case {
+  margin: 8px 0;
+  padding: 8px 12px;
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.linked-label {
+  font-size: 12px;
+  color: #6c757d;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.test-case-link {
+  background: none;
+  border: 1px solid #007bff;
+  color: #007bff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.test-case-link:hover {
+  background-color: #007bff;
+  color: white;
+  text-decoration: none;
+}
+
+.test-case-link:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+/* 반응형 스타일 */
+@media (max-width: 768px) {
+  .linked-test-case {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  
+  .test-case-link {
+    width: 100%;
+    text-align: center;
   }
 }
