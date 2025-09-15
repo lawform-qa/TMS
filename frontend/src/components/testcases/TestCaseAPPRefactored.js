@@ -3,7 +3,7 @@ import axios from 'axios';
 import config from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatUTCToKST } from '../../utils/dateUtils';
-import JiraIntegration from '../jira/JiraIntegration';
+import JiraIssuesList from '../jira/JiraIssuesList';
 
 // 컴포넌트 임포트
 import TestCaseSearch from './TestCaseSearch';
@@ -825,20 +825,10 @@ const TestCaseAPP = ({ setActiveTab }) => {
             </table>
           </div>
           
-          {/* 이슈 관리 */}
+          {/* 이슈 관리: 목록 컴포넌트로 교체 */}
           <div className="testcase-jira-integration" style={{ marginTop: '24px' }}>
             <h5>🔗 이슈 관리</h5>
-            <JiraIntegration 
-              testId={selectedTestCase.id}
-              testType="testcase"
-              testName={selectedTestCase.main_category && selectedTestCase.sub_category && selectedTestCase.detail_category 
-                ? `${selectedTestCase.main_category} > ${selectedTestCase.sub_category} > ${selectedTestCase.detail_category}`
-                : selectedTestCase.expected_result || '제목 없음'
-              }
-              testResult={selectedTestCase.result_status}
-              errorMessage={selectedTestCase.remark}
-              setActiveTab={setActiveTab}
-            />
+            <JiraIssuesList />
           </div>
         </TestCaseModal>
       )}
