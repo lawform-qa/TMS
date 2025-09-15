@@ -41,7 +41,7 @@ const JiraIssuesList = () => {
   });
 
 
-  // JIRA 이슈 목록 조회
+  // 이슈 목록 조회
   const fetchJiraIssues = async () => {
     try {
       setLoading(true);
@@ -54,8 +54,8 @@ const JiraIssuesList = () => {
         setTotalItems(response.data.data.pagination.total);
       }
     } catch (err) {
-      console.error('JIRA 이슈 조회 오류:', err);
-      setError('JIRA 이슈를 불러오는 중 오류가 발생했습니다.');
+      console.error('이슈 조회 오류:', err);
+      setError('이슈를 불러오는 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -302,7 +302,7 @@ const JiraIssuesList = () => {
     return (
       <div className="jira-issues-loading">
         <div className="loading-spinner"></div>
-        <p>JIRA 이슈를 불러오는 중...</p>
+        <p>이슈를 불러오는 중...</p>
       </div>
     );
   }
@@ -325,7 +325,7 @@ const JiraIssuesList = () => {
   return (
     <div className="jira-issues-list-container">
       <div className="jira-issues-header">
-        <h1>🔗 JIRA 이슈 관리</h1>
+        <h1>🔗 이슈 관리</h1>
         <div className="header-actions">
           <button 
             className="btn btn-primary"
@@ -419,7 +419,7 @@ const JiraIssuesList = () => {
         {paginatedIssues.length === 0 ? (
           <div className="no-issues">
             <div className="no-issues-icon">📝</div>
-            <p>표시할 JIRA 이슈가 없습니다.</p>
+            <p>표시할 이슈가 없습니다.</p>
             <p>필터 조건을 조정해보세요.</p>
           </div>
         ) : (

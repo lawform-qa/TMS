@@ -307,7 +307,7 @@ class TestPlanTestCase(db.Model):
         return f'<TestPlanTestCase {self.test_plan_id}:{self.test_case_id}>'
 
 class JiraIssue(db.Model):
-    """JIRA 이슈를 저장하는 모델 (DB 기반)"""
+    """이슈를 저장하는 모델 (DB 기반)"""
     __tablename__ = 'JiraIssues'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -334,7 +334,7 @@ class JiraIssue(db.Model):
     performance_test = db.relationship('PerformanceTest', backref='jira_issues')
     
     def to_dict(self):
-        """JIRA 이슈 정보를 딕셔너리로 변환"""
+        """이슈 정보를 딕셔너리로 변환"""
         return {
             'id': self.id,
             'issue_key': self.issue_key,

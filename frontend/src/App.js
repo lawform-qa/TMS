@@ -146,7 +146,7 @@ function AppContent() {
                 className={`nav-link ${activeTab === 'jira' ? 'active' : ''}`}
                 onClick={() => setActiveTab('jira')}
               >
-                🔗 JIRA 이슈
+                🔗 이슈
               </button>
             )}
             {canAccessAutomation() && (

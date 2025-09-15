@@ -1,5 +1,5 @@
 """
-JIRA 이슈 관리 API (DB 기반)
+이슈 관리 API (DB 기반)
 Mock JIRA 서버 대신 데이터베이스에 직접 저장
 """
 
@@ -82,7 +82,7 @@ def get_jira_stats():
 
 @jira_issues_bp.route('/issues', methods=['GET'])
 def get_issues():
-    """JIRA 이슈 목록 조회 (페이지네이션 지원)"""
+    """이슈 목록 조회 (페이지네이션 지원)"""
     try:
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
@@ -142,7 +142,7 @@ def get_issues():
 
 @jira_issues_bp.route('/issues', methods=['POST'])
 def create_issue():
-    """새 JIRA 이슈 생성"""
+    """새 이슈 생성"""
     try:
         data = request.get_json()
         
@@ -200,7 +200,7 @@ def create_issue():
 
 @jira_issues_bp.route('/issues/<issue_key>', methods=['GET'])
 def get_issue(issue_key):
-    """특정 JIRA 이슈 조회"""
+    """특정 이슈 조회"""
     try:
         issue = JiraIssue.query.filter_by(issue_key=issue_key).first()
         
@@ -223,7 +223,7 @@ def get_issue(issue_key):
 
 @jira_issues_bp.route('/issues/<issue_key>', methods=['PUT'])
 def update_issue(issue_key):
-    """JIRA 이슈 업데이트"""
+    """이슈 업데이트"""
     try:
         issue = JiraIssue.query.filter_by(issue_key=issue_key).first()
         
@@ -276,7 +276,7 @@ def update_issue(issue_key):
 
 @jira_issues_bp.route('/issues/<issue_key>', methods=['DELETE'])
 def delete_issue(issue_key):
-    """JIRA 이슈 삭제"""
+    """이슈 삭제"""
     try:
         issue = JiraIssue.query.filter_by(issue_key=issue_key).first()
         

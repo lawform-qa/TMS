@@ -165,14 +165,14 @@ const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage 
   return (
     <div className="jira-integration">
       <div className="jira-header">
-        <h3>🔗 Jira 연동</h3>
+        <h3>🔗 이슈 관리</h3>
         <div className="jira-actions">
           <button 
             className="btn btn-primary"
             onClick={() => setShowCreateModal(true)}
             disabled={loading}
           >
-            ➕ Jira 이슈 생성
+            ➕ 이슈 생성
           </button>
           {testResult && ['Fail', 'Error'].includes(testResult) && (
             <button 
@@ -198,7 +198,7 @@ const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage 
       <div className="jira-issues">
         {jiraIssues.length === 0 ? (
           <div className="no-issues">
-            <p>연동된 Jira 이슈가 없습니다.</p>
+            <p>연결된 이슈가 없습니다.</p>
           </div>
         ) : (
           jiraIssues.map(issue => (
@@ -259,7 +259,7 @@ const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage 
                       window.setActiveTab('jira');
                     }
                   }}
-                  title="JIRA 탭에서 상세보기"
+                  title="이슈 탭에서 상세보기"
                 >
                   🔗 상세보기
                 </button>
@@ -364,7 +364,7 @@ const JiraIssueModal = ({ onSubmit, onClose, testName, testResult, errorMessage 
         <div className="jira-modal-header">
           <div className="jira-modal-title">
             <span className="jira-modal-icon">🔗</span>
-            <h3>Jira 이슈 생성</h3>
+            <h3>이슈 생성</h3>
           </div>
           <button className="jira-modal-close" onClick={handleClose} title="닫기">×</button>
         </div>

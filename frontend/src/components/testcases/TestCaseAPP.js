@@ -2313,9 +2313,9 @@ const TestCaseAPP = () => {
                 <TestCaseExecutionResults testCaseId={selectedTestCase.id} />
               </div>
               
-              {/* JIRA 연동 */}
+              {/* 이슈 관리 */}
               <div className="testcase-jira-integration" style={{ marginTop: '24px' }}>
-                <h5>🔗 JIRA 연동</h5>
+                <h5>🔗 이슈 관리</h5>
                 <JiraIntegration 
                   testId={selectedTestCase.id}
                   testType="testcase"

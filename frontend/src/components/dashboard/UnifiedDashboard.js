@@ -260,7 +260,7 @@ const UnifiedDashboard = ({ setActiveTab }) => {
       environmentDev: 'DEV 환경 테스트 케이스',
       environmentAlpha: 'ALPHA 환경 테스트 케이스',
       environmentProduction: 'PRODUCTION 환경 테스트 케이스',
-      jiraSummary: 'JIRA 이슈 요약',
+      jiraSummary: '이슈 요약',
       jiraRecentIssues: 'JIRA 최근 이슈',
       testCases: '테스트 케이스',
       performanceTests: '성능 테스트',
@@ -844,11 +844,11 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                 onDragEnd={handleDragEnd}
               >
                 <div className="card-header">
-                  <h3>JIRA 이슈 요약</h3>
+                  <h3>이슈 요약</h3>
                   <button 
                     className="btn-move-to-tab"
                     onClick={() => setActiveTab('jira')}
-                    title="JIRA 이슈 상세 보기"
+                    title="이슈 상세 보기"
                   >
                     이동 &gt;
                   </button>
@@ -922,7 +922,7 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                   <button 
                     className="btn-move-to-tab"
                     onClick={() => setActiveTab('jira')}
-                    title="JIRA 이슈 상세 보기"
+                    title="이슈 상세 보기"
                   >
                     이동 &gt;
                   </button>

@@ -88,7 +88,7 @@ class JiraClient:
     def create_issue(self, summary: str, description: str = "", issue_type: str = None, 
                     priority: str = "Medium", project_key: str = None) -> Dict:
         """
-        JIRA 이슈 생성
+        이슈 생성
         
         Args:
             summary: 이슈 제목
@@ -116,12 +116,12 @@ class JiraClient:
         return self._make_request('POST', '/rest/api/3/issue', data=issue_data)
     
     def get_issue(self, issue_key: str) -> Dict:
-        """JIRA 이슈 조회"""
+        """이슈 조회"""
         return self._make_request('GET', f'/rest/api/3/issue/{issue_key}')
     
     def update_issue(self, issue_key: str, **kwargs) -> Dict:
         """
-        JIRA 이슈 업데이트
+        이슈 업데이트
         
         Args:
             issue_key: 이슈 키
@@ -155,7 +155,7 @@ class JiraClient:
     
     def add_comment(self, issue_key: str, comment: str) -> Dict:
         """
-        JIRA 이슈에 댓글 추가
+        이슈에 댓글 추가
         
         Args:
             issue_key: 이슈 키
@@ -202,7 +202,7 @@ class JiraIntegrationService:
     def create_issue_from_test_case(self, test_case_id: int, test_case_name: str, 
                                   test_case_description: str = "") -> Dict:
         """
-        테스트 케이스에서 JIRA 이슈 생성
+        테스트 케이스에서 이슈 생성
         
         Args:
             test_case_id: 테스트 케이스 ID
@@ -226,7 +226,7 @@ class JiraIntegrationService:
                                         automation_test_name: str, 
                                         automation_test_description: str = "") -> Dict:
         """
-        자동화 테스트에서 JIRA 이슈 생성
+        자동화 테스트에서 이슈 생성
         
         Args:
             automation_test_id: 자동화 테스트 ID
@@ -250,7 +250,7 @@ class JiraIntegrationService:
                                          performance_test_name: str, 
                                          performance_test_description: str = "") -> Dict:
         """
-        성능 테스트에서 JIRA 이슈 생성
+        성능 테스트에서 이슈 생성
         
         Args:
             performance_test_id: 성능 테스트 ID
@@ -272,7 +272,7 @@ class JiraIntegrationService:
     
     def sync_issue_status(self, jira_integration_id: int) -> bool:
         """
-        JIRA 이슈 상태 동기화
+        이슈 상태 동기화
         
         Args:
             jira_integration_id: JIRA 연동 ID

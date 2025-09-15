@@ -49,7 +49,7 @@ def get_projects():
 @jira_bp.route('/issues', methods=['POST'])
 # @user_required  # 개발 단계에서 임시로 비활성화
 def create_issue():
-    """JIRA 이슈 생성"""
+    """이슈 생성"""
     try:
         data = request.get_json()
         
@@ -69,7 +69,7 @@ def create_issue():
         assignee = data.get('assignee')
         labels = data.get('labels', [])
         
-        # JIRA 이슈 생성
+        # 이슈 생성
         issue = jira_client.create_issue(
             summary=summary,
             description=description,
@@ -115,7 +115,7 @@ def create_issue():
 @jira_bp.route('/sync-issue', methods=['POST'])
 # @user_required  # 개발 단계에서 임시로 비활성화
 def sync_issue():
-    """JIRA 이슈를 데이터베이스에 동기화"""
+    """이슈를 데이터베이스에 동기화"""
     try:
         data = request.get_json()
         issue_key = data.get('issue_key')
@@ -132,7 +132,7 @@ def sync_issue():
         if not issue_data:
             return jsonify({
                 'success': False,
-                'error': 'JIRA 이슈를 찾을 수 없습니다.'
+                'error': '이슈를 찾을 수 없습니다.'
             }), 404
         
         # 데이터베이스에 저장 또는 업데이트
@@ -179,7 +179,7 @@ def sync_issue():
 @jira_bp.route('/issues', methods=['GET'])
 # @user_required  # 개발 단계에서 임시로 비활성화
 def get_issues():
-    """JIRA 이슈 목록 조회 (페이지네이션 지원)"""
+    """이슈 목록 조회 (페이지네이션 지원)"""
     try:
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
@@ -230,7 +230,7 @@ def get_issues():
 @jira_bp.route('/issues/<issue_key>', methods=['GET'])
 @user_required
 def get_issue(issue_key):
-    """JIRA 이슈 조회"""
+    """이슈 조회"""
     try:
         issue = jira_client.get_issue(issue_key)
         return jsonify({
@@ -246,11 +246,11 @@ def get_issue(issue_key):
 @jira_bp.route('/issues/<issue_key>', methods=['PUT'])
 # @user_required  # 개발 단계에서 임시로 비활성화
 def update_issue(issue_key):
-    """JIRA 이슈 업데이트"""
+    """이슈 업데이트"""
     try:
         data = request.get_json()
         
-        # JIRA 이슈 업데이트
+        # 이슈 업데이트
         issue = jira_client.update_issue(issue_key, **data)
         
         # 데이터베이스 연동 정보 업데이트
@@ -289,7 +289,7 @@ def update_issue(issue_key):
 @jira_bp.route('/issues/<issue_key>/comment', methods=['POST'])
 # @user_required  # 개발 단계에서 임시로 비활성화
 def add_comment(issue_key):
-    """JIRA 이슈에 댓글 추가"""
+    """이슈에 댓글 추가"""
     try:
         data = request.get_json()
         comment = data.get('comment', '')
@@ -346,7 +346,7 @@ def add_comment(issue_key):
 @jira_bp.route('/search', methods=['GET'])
 @user_required
 def search_issues():
-    """JIRA 이슈 검색"""
+    """이슈 검색"""
     try:
         jql = request.args.get('jql', '')
         start_at = int(request.args.get('startAt', 0))
@@ -401,7 +401,7 @@ def get_integrations():
 def get_jira_stats():
     """JIRA 통계 조회"""
     try:
-        # 모든 JIRA 이슈 조회
+        # 모든 이슈 조회
         all_integrations = JiraIntegration.query.all()
         
         # 통계 계산
@@ -472,7 +472,7 @@ def delete_integration(integration_id):
 @jira_bp.route('/sync', methods=['POST'])
 @user_required
 def sync_issues():
-    """JIRA 이슈 상태 동기화"""
+    """이슈 상태 동기화"""
     try:
         data = request.get_json()
         integration_id = data.get('integration_id')
