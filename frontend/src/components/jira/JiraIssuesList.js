@@ -13,7 +13,7 @@ const JiraIssuesList = () => {
   const [issueTypeFilter, setIssueTypeFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
-  const [totalItems, setTotalItems] = useState(0);
+  // const [totalItems, setTotalItems] = useState(0);
   const [selectedIssue, setSelectedIssue] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showAssigneeModal, setShowAssigneeModal] = useState(false);
@@ -51,7 +51,7 @@ const JiraIssuesList = () => {
       
       if (response.data.success) {
         setJiraIssues(response.data.data.issues);
-        setTotalItems(response.data.data.pagination.total);
+        // setTotalItems(response.data.data.pagination.total);
       }
     } catch (err) {
       console.error('이슈 조회 오류:', err);

@@ -4,7 +4,7 @@ import TestCaseModal from './TestCaseModal';
 const TestCaseFormModal = ({ 
   isOpen, 
   onClose, 
-  testCase, 
+  testCase = {}, 
   onChange, 
   onSubmit, 
   onCancel,
