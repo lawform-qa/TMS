@@ -1,4 +1,3 @@
-// src/TestCaseApp.js - 리팩토링된 버전
 import React, { useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import config from '../../config';

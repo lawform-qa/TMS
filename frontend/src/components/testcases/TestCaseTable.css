@@ -1,0 +1,294 @@
+/* TestCaseTable.css */
+.testcase-table-container {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.testcase-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.testcase-table thead {
+  background: #f8f9fa;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.testcase-table th {
+  padding: 12px 8px;
+  text-align: left;
+  font-weight: 600;
+  color: #555;
+  border-bottom: 1px solid #e0e0e0;
+  position: sticky;
+  top: 0;
+  background: #f8f9fa;
+  z-index: 10;
+}
+
+.testcase-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+}
+
+.testcase-table th.sortable:hover {
+  background: #e9ecef;
+}
+
+.testcase-table td {
+  padding: 12px 8px;
+  border-bottom: 1px solid #f0f0f0;
+  vertical-align: top;
+}
+
+.testcase-table-row:hover {
+  background: #f8f9fa;
+}
+
+.testcase-table-row:nth-child(even) {
+  background: #fafafa;
+}
+
+.testcase-table-row:nth-child(even):hover {
+  background: #f0f0f0;
+}
+
+/* 컬럼 너비 */
+.checkbox-column {
+  width: 40px;
+  text-align: center;
+}
+
+.no-column {
+  width: 60px;
+  text-align: center;
+}
+
+.summary-column {
+  width: 300px;
+  min-width: 200px;
+}
+
+.status-column {
+  width: 120px;
+}
+
+.assignee-column {
+  width: 150px;
+}
+
+.creator-column {
+  width: 120px;
+}
+
+.actions-column {
+  width: 120px;
+  text-align: center;
+}
+
+/* 테스트 케이스 요약 */
+.testcase-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.testcase-title {
+  font-weight: 500;
+  color: #333;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.testcase-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.environment-badge {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.automation-badge {
+  background: #f3e5f5;
+  color: #7b1fa2;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* 상태 섹션 */
+.status-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.status-badge.pass {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.fail {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.status-badge.n-t {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-badge.n-a {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+.status-badge.block {
+  background: #f5c6cb;
+  color: #721c24;
+}
+
+.status-select {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  background: white;
+}
+
+/* 담당자 섹션 */
+.assignee-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.assignee-badge,
+.creator-badge {
+  font-size: 12px;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.assignee-select {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  background: white;
+}
+
+/* 액션 버튼들 */
+.action-buttons {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.testcase-btn-icon {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.testcase-btn-automation {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.testcase-btn-automation:hover {
+  background: #bbdefb;
+}
+
+.testcase-btn-details {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.testcase-btn-details:hover {
+  background: #e1bee7;
+}
+
+.testcase-btn-edit {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.testcase-btn-edit:hover {
+  background: #ffe0b2;
+}
+
+.testcase-btn-delete {
+  background: #ffebee;
+  color: #d32f2f;
+}
+
+.testcase-btn-delete:hover {
+  background: #ffcdd2;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .testcase-table-container {
+    overflow-x: auto;
+  }
+  
+  .testcase-table {
+    min-width: 800px;
+  }
+  
+  .testcase-table th,
+  .testcase-table td {
+    padding: 8px 4px;
+    font-size: 12px;
+  }
+  
+  .summary-column {
+    min-width: 150px;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+    gap: 2px;
+  }
+  
+  .testcase-btn-icon {
+    width: 24px;
+    height: 24px;
+    font-size: 12px;
+  }
+}

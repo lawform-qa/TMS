@@ -1,0 +1,147 @@
+/* TestCasePagination.css */
+.pagination-container {
+  margin-top: 20px;
+}
+
+.pagination-controls-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.items-per-page-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.items-per-page-selector label {
+  font-size: 14px;
+  color: #555;
+  font-weight: 500;
+}
+
+.items-per-page-select {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.items-per-page-select:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.pagination-info-top {
+  font-size: 14px;
+  color: #666;
+}
+
+.pagination-controls {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.pagination-buttons {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.pagination-btn {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  background: white;
+  color: #333;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: all 0.2s;
+  min-width: 40px;
+  text-align: center;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #f8f9fa;
+  border-color: #007bff;
+  color: #007bff;
+}
+
+.pagination-btn:disabled {
+  background: #f8f9fa;
+  color: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.pagination-btn.active {
+  background: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.pagination-btn.active:hover {
+  background: #0056b3;
+  border-color: #0056b3;
+}
+
+.pagination-ellipsis {
+  padding: 8px 4px;
+  color: #6c757d;
+  font-size: 14px;
+  user-select: none;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .pagination-controls-top {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+  
+  .items-per-page-selector {
+    justify-content: center;
+  }
+  
+  .pagination-info-top {
+    text-align: center;
+  }
+  
+  .pagination-buttons {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2px;
+  }
+  
+  .pagination-btn {
+    padding: 6px 8px;
+    font-size: 12px;
+    min-width: 32px;
+  }
+  
+  .pagination-ellipsis {
+    padding: 6px 2px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .pagination-buttons {
+    gap: 1px;
+  }
+  
+  .pagination-btn {
+    padding: 4px 6px;
+    font-size: 11px;
+    min-width: 28px;
+  }
+}
