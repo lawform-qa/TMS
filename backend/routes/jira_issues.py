@@ -11,6 +11,75 @@ import uuid
 
 jira_issues_bp = Blueprint('jira_issues', __name__, url_prefix='/api/jira')
 
+@jira_issues_bp.route('/stats', methods=['GET'])
+def get_jira_stats():
+    """JIRA 통계 정보 조회"""
+    try:
+        # 전체 이슈 수
+        total_issues = JiraIssue.query.count()
+        
+        # 상태별 이슈 수
+        issues_by_status = {}
+        status_counts = db.session.query(
+            JiraIssue.status, 
+            db.func.count(JiraIssue.id)
+        ).group_by(JiraIssue.status).all()
+        
+        for status, count in status_counts:
+            issues_by_status[status] = count
+        
+        # 우선순위별 이슈 수
+        issues_by_priority = {}
+        priority_counts = db.session.query(
+            JiraIssue.priority, 
+            db.func.count(JiraIssue.id)
+        ).group_by(JiraIssue.priority).all()
+        
+        for priority, count in priority_counts:
+            issues_by_priority[priority] = count
+        
+        # 타입별 이슈 수
+        issues_by_type = {}
+        type_counts = db.session.query(
+            JiraIssue.issue_type, 
+            db.func.count(JiraIssue.id)
+        ).group_by(JiraIssue.issue_type).all()
+        
+        for issue_type, count in type_counts:
+            issues_by_type[issue_type] = count
+        
+        # 최근 이슈 (최근 5개)
+        recent_issues = JiraIssue.query.order_by(
+            JiraIssue.created_at.desc()
+        ).limit(5).all()
+        
+        recent_issues_data = []
+        for issue in recent_issues:
+            recent_issues_data.append({
+                'issue_key': issue.issue_key,
+                'summary': issue.summary,
+                'status': issue.status,
+                'priority': issue.priority,
+                'created_at': issue.created_at.isoformat() if issue.created_at else None
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'total_issues': total_issues,
+                'issues_by_status': issues_by_status,
+                'issues_by_priority': issues_by_priority,
+                'issues_by_type': issues_by_type,
+                'recent_issues': recent_issues_data
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'통계 조회 중 오류가 발생했습니다: {str(e)}'
+        }), 500
+
 @jira_issues_bp.route('/issues', methods=['GET'])
 def get_issues():
     """JIRA 이슈 목록 조회 (페이지네이션 지원)"""

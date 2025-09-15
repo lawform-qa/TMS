@@ -403,7 +403,8 @@ def health_check():
     """헬스 체크 엔드포인트"""
     try:
         # 데이터베이스 연결 확인
-        db.session.execute('SELECT 1')
+        from sqlalchemy import text
+        db.session.execute(text('SELECT 1'))
         return jsonify({
             'status': 'healthy',
             'timestamp': get_kst_now().isoformat(),
