@@ -451,8 +451,16 @@ def upload_content_to_s3():
         
         content = data['content']
         filename = secure_filename(data['filename'])
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        s3_key = f"test-scripts/{timestamp}_{filename}"
+        is_new_file = data.get('is_new_file', True)  # 기본값은 새 파일
+        existing_s3_key = data.get('existing_s3_key', None)  # 기존 파일의 S3 키
+        
+        if is_new_file or not existing_s3_key:
+            # 새 파일인 경우 타임스탬프 추가
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            s3_key = f"test-scripts/{timestamp}_{filename}"
+        else:
+            # 기존 파일 수정인 경우 기존 S3 키 사용 (덮어쓰기)
+            s3_key = existing_s3_key
         
         # Content-Type 결정
         content_type = 'text/plain'
@@ -515,6 +523,31 @@ def list_s3_files():
     except Exception as e:
         current_app.logger.error(f"S3 파일 목록 조회 오류: {e}")
         response = jsonify({'error': f'파일 목록 조회 중 오류가 발생했습니다: {str(e)}'})
+        return add_cors_headers(response), 500
+
+@test_scripts_bp.route('/s3/folders', methods=['GET'])
+def list_s3_folders():
+    """S3에서 모든 폴더 목록 조회 (재귀적)"""
+    try:
+        # S3 서비스 가져오기
+        s3_service = get_s3_service()
+        if not s3_service:
+            response = jsonify({'error': 'S3 서비스를 사용할 수 없습니다.'})
+            return add_cors_headers(response), 500
+        
+        prefix = request.args.get('prefix', 'test-scripts/')
+        folders = s3_service.list_all_folders(prefix)
+        
+        response = jsonify({
+            'success': True,
+            'folders': folders,
+            'total_count': len(folders)
+        })
+        return add_cors_headers(response), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"S3 폴더 목록 조회 오류: {e}")
+        response = jsonify({'error': f'폴더 목록 조회 중 오류가 발생했습니다: {str(e)}'})
         return add_cors_headers(response), 500
 
 @test_scripts_bp.route('/s3/content', methods=['GET'])
@@ -710,4 +743,68 @@ def upload_folder_to_s3():
     except Exception as e:
         current_app.logger.error(f"폴더 업로드 오류: {e}")
         response = jsonify({'error': f'폴더 업로드 중 오류가 발생했습니다: {str(e)}'})
+        return add_cors_headers(response), 500
+
+def _get_user_settings_path():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    settings_dir = os.path.join(base_dir, '..', 'config')
+    settings_dir = os.path.abspath(settings_dir)
+    os.makedirs(settings_dir, exist_ok=True)
+    return os.path.join(settings_dir, 'test_scripts_user_settings.json')
+
+
+def _read_user_settings():
+    path = _get_user_settings_path()
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f) or {}
+    except Exception:
+        return {}
+
+
+def _write_user_settings(settings: dict):
+    path = _get_user_settings_path()
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(settings, f, ensure_ascii=False, indent=2)
+
+@test_scripts_bp.route('/s3/settings/prefix', methods=['GET'])
+@user_required
+def get_user_s3_prefix():
+    try:
+        settings = _read_user_settings()
+        user_id = str(request.user.id)
+        user_settings = settings.get(user_id, {})
+        prefix = user_settings.get('s3_base_prefix', 'test-scripts/')
+        response = jsonify({'success': True, 's3_base_prefix': prefix})
+        return add_cors_headers(response), 200
+    except Exception as e:
+        current_app.logger.error(f"사용자 S3 프리픽스 조회 오류: {e}")
+        response = jsonify({'error': '설정을 조회할 수 없습니다.'})
+        return add_cors_headers(response), 500
+
+@test_scripts_bp.route('/s3/settings/prefix', methods=['POST'])
+@user_required
+def set_user_s3_prefix():
+    try:
+        data = request.get_json() or {}
+        new_prefix = data.get('s3_base_prefix')
+        if not new_prefix:
+            response = jsonify({'error': 's3_base_prefix가 필요합니다.'})
+            return add_cors_headers(response), 400
+        # 접미사 슬래시 보정
+        if not new_prefix.endswith('/'):
+            new_prefix = new_prefix + '/'
+        settings = _read_user_settings()
+        user_id = str(request.user.id)
+        user_settings = settings.get(user_id, {})
+        user_settings['s3_base_prefix'] = new_prefix
+        settings[user_id] = user_settings
+        _write_user_settings(settings)
+        response = jsonify({'success': True, 's3_base_prefix': new_prefix})
+        return add_cors_headers(response), 200
+    except Exception as e:
+        current_app.logger.error(f"사용자 S3 프리픽스 저장 오류: {e}")
+        response = jsonify({'error': '설정을 저장할 수 없습니다.'})
         return add_cors_headers(response), 500

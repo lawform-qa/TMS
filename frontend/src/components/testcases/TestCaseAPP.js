@@ -1,10 +1,10 @@
 // src/TestCaseApp.js - 리팩토링된 버전
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import axios from 'axios';
 import config from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatUTCToKST } from '../../utils/dateUtils';
-import JiraIntegration from '../jira/JiraIntegration';
+import JiraIssuesList from '../jira/JiraIssuesList';
 
 // 컴포넌트 임포트
 import TestCaseSearch from './TestCaseSearch';
@@ -20,6 +20,67 @@ import { useTestCasePagination } from '../../hooks/useTestCasePagination';
 
 // 스타일 임포트
 import './TestCaseAPP.css';
+
+// 헬퍼 함수들
+const findFolderInTree = (nodes, folderId) => {
+  for (const node of nodes) {
+    if (node.id === folderId) {
+      return node;
+    }
+    if (node.children) {
+      const found = findFolderInTree(node.children, folderId);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+const getFolderType = (folderId, folderTree) => {
+  const folder = findFolderInTree(folderTree, folderId);
+  if (!folder) return 'unknown';
+  return folder.type || 'unknown';
+};
+
+const getEnvironmentFolderIds = (nodes, environmentFolderId) => {
+  const environmentNode = findFolderInTree(nodes, environmentFolderId);
+  if (!environmentNode || environmentNode.type !== 'environment') {
+    return [];
+  }
+  
+  const folderIds = [];
+  if (environmentNode.children) {
+    for (const child of environmentNode.children) {
+      if (child.type === 'deployment_date') {
+        folderIds.push(child.id);
+        if (child.children) {
+          for (const grandChild of child.children) {
+            if (grandChild.type === 'feature') {
+              folderIds.push(grandChild.id);
+            }
+          }
+        }
+      }
+    }
+  }
+  return folderIds;
+};
+
+const getDeploymentFolderIds = (nodes, deploymentFolderId) => {
+  const deploymentNode = findFolderInTree(nodes, deploymentFolderId);
+  if (!deploymentNode || deploymentNode.type !== 'deployment_date') {
+    return [];
+  }
+  
+  const folderIds = [deploymentNode.id];
+  if (deploymentNode.children) {
+    for (const child of deploymentNode.children) {
+      if (child.type === 'feature') {
+        folderIds.push(child.id);
+      }
+    }
+  }
+  return folderIds;
+};
 
 // axios 인터셉터 설정
 axios.interceptors.request.use(
@@ -61,7 +122,7 @@ const TestCaseAPP = ({ setActiveTab }) => {
     testCases,
     setTestCases,
     folderTree,
-    allFolders,
+    // allFolders,
     users,
     loading,
     error,
@@ -94,36 +155,36 @@ const TestCaseAPP = ({ setActiveTab }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showMoveModal, setShowMoveModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [, setShowMoveModal] = useState(false);
+  const [, setShowDeleteModal] = useState(false);
   
   // 선택 및 편집 상태
   const [selectedTestCases, setSelectedTestCases] = useState([]);
   const [editingTestCase, setEditingTestCase] = useState(null);
   const [selectedTestCase, setSelectedTestCase] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [targetFolderId, setTargetFolderId] = useState('');
+  const [, setTargetFolderId] = useState('');
   
   // 폴더 및 정렬 상태
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [expandedFolders, setExpandedFolders] = useState(new Set());
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
-
+  
   // 새 테스트 케이스 기본값
   const defaultTestCase = {
-    name: '',
-    main_category: '',
-    sub_category: '',
-    detail_category: '',
-    pre_condition: '',
-    expected_result: '',
-    result_status: 'N/T',
-    remark: '',
-    folder_id: null,
-    automation_code_path: '',
-    automation_code_type: 'playwright',
-    assignee_id: null
+        name: '',
+        main_category: '',
+        sub_category: '',
+        detail_category: '',
+        pre_condition: '',
+        expected_result: '',
+        result_status: 'N/T',
+        remark: '',
+        folder_id: null,
+        automation_code_path: '',
+        automation_code_type: 'playwright',
+        assignee_id: null
   };
 
   const [newTestCase, setNewTestCase] = useState(defaultTestCase);
@@ -135,8 +196,7 @@ const TestCaseAPP = ({ setActiveTab }) => {
           const tcFolderId = Number(tc.folder_id);
           const selectedFolderId = Number(selectedFolder);
           
-          const selectedFolderInfo = findFolderInTree(folderTree, selectedFolderId);
-          const selectedFolderType = getFolderType(selectedFolderId);
+          const selectedFolderType = getFolderType(selectedFolderId, folderTree);
           
           if (selectedFolderType === 'environment') {
             const environmentFolderIds = getEnvironmentFolderIds(folderTree, selectedFolderId);
@@ -226,14 +286,18 @@ const TestCaseAPP = ({ setActiveTab }) => {
         case 'environment':
           comparison = (a.environment || '').localeCompare(b.environment || '');
           break;
+        default:
+          comparison = 0;
+          break;
       }
       return sortOrder === 'asc' ? comparison : -comparison;
     });
 
     return filtered;
   }, [
-    testCases, selectedFolder, folderTree, searchTerm, statusFilter, 
-    environmentFilter, categoryFilter, creatorFilter, assigneeFilter, sortBy, sortOrder
+    testCases, selectedFolder, folderTree, searchTerm, statusFilter,
+    environmentFilter, categoryFilter, creatorFilter, assigneeFilter,
+    sortBy, sortOrder
   ]);
 
   // 페이지네이션 훅
@@ -247,66 +311,6 @@ const TestCaseAPP = ({ setActiveTab }) => {
     handleItemsPerPageChange
   } = useTestCasePagination(filteredTestCases);
 
-  // 헬퍼 함수들
-  const findFolderInTree = (nodes, folderId) => {
-    for (const node of nodes) {
-      if (node.id === folderId) {
-        return node;
-      }
-      if (node.children) {
-        const found = findFolderInTree(node.children, folderId);
-        if (found) return found;
-      }
-    }
-    return null;
-  };
-
-  const getFolderType = (folderId) => {
-    const folder = findFolderInTree(folderTree, folderId);
-    if (!folder) return 'unknown';
-    return folder.type || 'unknown';
-  };
-
-  const getEnvironmentFolderIds = (nodes, environmentFolderId) => {
-    const environmentNode = findFolderInTree(nodes, environmentFolderId);
-    if (!environmentNode || environmentNode.type !== 'environment') {
-      return [];
-    }
-    
-    const folderIds = [];
-    if (environmentNode.children) {
-      for (const child of environmentNode.children) {
-        if (child.type === 'deployment_date') {
-          folderIds.push(child.id);
-          if (child.children) {
-            for (const featureChild of child.children) {
-              if (featureChild.type === 'feature') {
-                folderIds.push(featureChild.id);
-              }
-            }
-          }
-        }
-      }
-    }
-    return folderIds;
-  };
-
-  const getDeploymentFolderIds = (nodes, deploymentFolderId) => {
-    const deploymentNode = findFolderInTree(nodes, deploymentFolderId);
-    if (!deploymentNode || deploymentNode.type !== 'deployment_date') {
-      return [];
-    }
-    
-    const folderIds = [deploymentNode.id];
-    if (deploymentNode.children) {
-      for (const child of deploymentNode.children) {
-        if (child.type === 'feature') {
-          folderIds.push(child.id);
-        }
-      }
-    }
-    return folderIds;
-  };
 
   // 이벤트 핸들러들
   const handleFolderSelect = (folderId) => {
@@ -531,16 +535,16 @@ const TestCaseAPP = ({ setActiveTab }) => {
               </span>
             )}
             <span className="folder-icon">
-              {getFolderType(node.id) === 'environment' ? '🌍' : 
-               getFolderType(node.id) === 'deployment_date' ? '📅' : 
-               getFolderType(node.id) === 'feature' ? '🔧' : '📄'}
+              {getFolderType(node.id, folderTree) === 'environment' ? '🌍' : 
+               getFolderType(node.id, folderTree) === 'deployment_date' ? '📅' : 
+               getFolderType(node.id, folderTree) === 'feature' ? '🔧' : '📄'}
             </span>
             <span className="folder-name">{node.name}</span>
             {isFolder && (
               <span className="folder-type-badge">
-                {getFolderType(node.id) === 'environment' ? '환경' : 
-                 getFolderType(node.id) === 'deployment_date' ? '배포일자' : 
-                 getFolderType(node.id) === 'feature' ? '기능명' : ''}
+                {getFolderType(node.id, folderTree) === 'environment' ? '환경' : 
+                 getFolderType(node.id, folderTree) === 'deployment_date' ? '배포일자' : 
+                 getFolderType(node.id, folderTree) === 'feature' ? '기능명' : ''}
               </span>
             )}
           </div>
@@ -567,47 +571,47 @@ const TestCaseAPP = ({ setActiveTab }) => {
       <div className="testcase-header">
         <h1>테스트 케이스 관리</h1>
         <div className="header-actions">
-          {user && (user.role === 'admin' || user.role === 'user') && (
-            <button 
-              className="testcase-btn testcase-btn-add"
-              onClick={() => setShowAddModal(true)}
-            >
-              ➕ 테스트 케이스 추가
-            </button>
-          )}
-          {user && (user.role === 'admin' || user.role === 'user') && (
-            <button 
-              className="testcase-btn testcase-btn-upload"
-              onClick={() => setShowUploadModal(true)}
-            >
-              📤 엑셀 업로드
-            </button>
-          )}
-          <button 
-            className="testcase-btn testcase-btn-download"
-            onClick={handleDownload}
-          >
-            📥 엑셀 다운로드
-          </button>
-          {user && (user.role === 'admin' || user.role === 'user') && selectedTestCases.length > 0 && (
-            <>
+            {user && (user.role === 'admin' || user.role === 'user') && (
               <button 
-                className="testcase-btn testcase-btn-execute"
-                onClick={() => setShowMoveModal(true)}
+                className="testcase-btn testcase-btn-add"
+                onClick={() => setShowAddModal(true)}
               >
-                📁 폴더 이동 ({selectedTestCases.length})
+                ➕ 테스트 케이스 추가
               </button>
-              {user.role === 'admin' && (
+            )}
+            {user && (user.role === 'admin' || user.role === 'user') && (
+              <button 
+                className="testcase-btn testcase-btn-upload"
+                onClick={() => setShowUploadModal(true)}
+              >
+                📤 엑셀 업로드
+              </button>
+            )}
+            <button 
+              className="testcase-btn testcase-btn-download"
+              onClick={handleDownload}
+            >
+              📥 엑셀 다운로드
+            </button>
+            {user && (user.role === 'admin' || user.role === 'user') && selectedTestCases.length > 0 && (
+              <>
                 <button 
-                  className="testcase-btn testcase-btn-delete"
-                  onClick={() => setShowDeleteModal(true)}
+                  className="testcase-btn testcase-btn-execute"
+                  onClick={() => setShowMoveModal(true)}
                 >
-                  🗑️ 다중 삭제 ({selectedTestCases.length})
+                  📁 폴더 이동 ({selectedTestCases.length})
                 </button>
-              )}
-            </>
-          )}
-        </div>
+                {user.role === 'admin' && (
+                  <button 
+                    className="testcase-btn testcase-btn-delete"
+                    onClick={() => setShowDeleteModal(true)}
+                  >
+                    🗑️ 다중 삭제 ({selectedTestCases.length})
+                  </button>
+                )}
+              </>
+            )}
+          </div>
       </div>
 
       <TestCaseSearch
@@ -681,9 +685,9 @@ const TestCaseAPP = ({ setActiveTab }) => {
             onStatusChange={handleStatusChange}
             onAssigneeChange={handleAssigneeChange}
             onEdit={(testCase) => {
-              setEditingTestCase(testCase);
-              setShowEditModal(true);
-            }}
+                              setEditingTestCase(testCase);
+                              setShowEditModal(true);
+                            }}
             onDelete={handleDeleteTestCase}
             onExecute={handleExecuteAutomation}
             onViewDetails={(testCase) => {
@@ -712,14 +716,14 @@ const TestCaseAPP = ({ setActiveTab }) => {
       <TestCaseFormModal
         isOpen={showAddModal}
         onClose={() => {
-          setShowAddModal(false);
+                  setShowAddModal(false);
           setNewTestCase(defaultTestCase);
         }}
-        testCase={newTestCase}
+        testCase={newTestCase || defaultTestCase}
         onChange={setNewTestCase}
         onSubmit={handleAddTestCase}
         onCancel={() => {
-          setShowAddModal(false);
+                  setShowAddModal(false);
           setNewTestCase(defaultTestCase);
         }}
         users={users}
@@ -729,16 +733,16 @@ const TestCaseAPP = ({ setActiveTab }) => {
       <TestCaseFormModal
         isOpen={showEditModal}
         onClose={() => {
-          setShowEditModal(false);
-          setEditingTestCase(null);
-        }}
-        testCase={editingTestCase}
+                  setShowEditModal(false);
+                  setEditingTestCase(null);
+                }}
+        testCase={editingTestCase || defaultTestCase}
         onChange={setEditingTestCase}
         onSubmit={handleEditTestCase}
         onCancel={() => {
-          setShowEditModal(false);
-          setEditingTestCase(null);
-        }}
+                  setShowEditModal(false);
+                  setEditingTestCase(null);
+                }}
         users={users}
         isEdit={true}
       />
@@ -754,93 +758,83 @@ const TestCaseAPP = ({ setActiveTab }) => {
           title="📋 테스트 케이스 상세 정보"
           size="fullscreen"
           actions={
-            <button 
+              <button 
               className="testcase-btn testcase-btn-secondary"
-              onClick={() => {
-                setShowDetailModal(false);
-                setSelectedTestCase(null);
-              }}
-            >
+                onClick={() => {
+                  setShowDetailModal(false);
+                  setSelectedTestCase(null);
+                }}
+              >
               닫기
-            </button>
+              </button>
           }
         >
-          <div className="testcase-info-table">
-            <table className="info-table">
-              <tbody>
-                <tr>
-                  <th>대분류</th>
-                  <td>{selectedTestCase.main_category || '없음'}</td>
-                  <th>중분류</th>
-                  <td>{selectedTestCase.sub_category || '없음'}</td>
-                </tr>
-                <tr>
-                  <th>소분류</th>
-                  <td>{selectedTestCase.detail_category || '없음'}</td>
-                  <th>환경</th>
-                  <td>
-                    <span className={`environment-badge ${selectedTestCase.environment || 'dev'}`}>
-                      {selectedTestCase.environment || 'dev'}
-                    </span>
-                  </td>
-                </tr>
-                <tr>
-                  <th>작성자</th>
-                  <td>
-                    <span className="creator-badge">
-                      👤 {selectedTestCase.creator_name || '없음'}
-                    </span>
-                  </td>
-                  <th>담당자</th>
-                  <td>
-                    <span className="assignee-badge">
-                      👤 {selectedTestCase.assignee_name || '없음'}
-                    </span>
-                  </td>
-                </tr>
-                <tr>
-                  <th>사전조건</th>
-                  <td colSpan="3" className="pre-condition">
-                    {selectedTestCase.pre_condition || '없음'}
-                  </td>
-                </tr>
-                <tr>
-                  <th>기대결과</th>
-                  <td colSpan="3" className="expected-result">
-                    {selectedTestCase.expected_result || '없음'}
-                  </td>
-                </tr>
-                <tr>
-                  <th>비고</th>
-                  <td colSpan="3" className="remark">
-                    {selectedTestCase.remark || '없음'}
-                  </td>
-                </tr>
-                <tr>
-                  <th>생성일</th>
-                  <td>{selectedTestCase.created_at ? formatUTCToKST(selectedTestCase.created_at) : '없음'}</td>
-                  <th>수정일</th>
-                  <td>{selectedTestCase.updated_at ? formatUTCToKST(selectedTestCase.updated_at) : '없음'}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          
-          {/* 이슈 관리 */}
-          <div className="testcase-jira-integration" style={{ marginTop: '24px' }}>
-            <h5>🔗 이슈 관리</h5>
-            <JiraIntegration 
-              testId={selectedTestCase.id}
-              testType="testcase"
-              testName={selectedTestCase.main_category && selectedTestCase.sub_category && selectedTestCase.detail_category 
-                ? `${selectedTestCase.main_category} > ${selectedTestCase.sub_category} > ${selectedTestCase.detail_category}`
-                : selectedTestCase.expected_result || '제목 없음'
-              }
-              testResult={selectedTestCase.result_status}
-              errorMessage={selectedTestCase.remark}
-              setActiveTab={setActiveTab}
-            />
-          </div>
+              <div className="testcase-info-table">
+                <table className="info-table">
+                  <tbody>
+                    <tr>
+                      <th>대분류</th>
+                      <td>{selectedTestCase.main_category || '없음'}</td>
+                      <th>중분류</th>
+                      <td>{selectedTestCase.sub_category || '없음'}</td>
+                    </tr>
+                    <tr>
+                      <th>소분류</th>
+                      <td>{selectedTestCase.detail_category || '없음'}</td>
+                      <th>환경</th>
+                      <td>
+                        <span className={`environment-badge ${selectedTestCase.environment || 'dev'}`}>
+                          {selectedTestCase.environment || 'dev'}
+                        </span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>작성자</th>
+                      <td>
+                        <span className="creator-badge">
+                          👤 {selectedTestCase.creator_name || '없음'}
+                        </span>
+                      </td>
+                      <th>담당자</th>
+                      <td>
+                        <span className="assignee-badge">
+                          👤 {selectedTestCase.assignee_name || '없음'}
+                        </span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>사전조건</th>
+                      <td colSpan="3" className="pre-condition">
+                        {selectedTestCase.pre_condition || '없음'}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>기대결과</th>
+                      <td colSpan="3" className="expected-result">
+                        {selectedTestCase.expected_result || '없음'}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>비고</th>
+                      <td colSpan="3" className="remark">
+                        {selectedTestCase.remark || '없음'}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>생성일</th>
+                      <td>{selectedTestCase.created_at ? formatUTCToKST(selectedTestCase.created_at) : '없음'}</td>
+                      <th>수정일</th>
+                      <td>{selectedTestCase.updated_at ? formatUTCToKST(selectedTestCase.updated_at) : '없음'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              
+          {/* 이슈 관리: 목록 컴포넌트로 교체 */}
+              <div className="testcase-jira-integration" style={{ marginTop: '24px' }}>
+                <h5>🔗 이슈 관리</h5>
+            <JiraIssuesList />
+              </div>
         </TestCaseModal>
       )}
 
@@ -861,15 +855,15 @@ const TestCaseAPP = ({ setActiveTab }) => {
             >
               업로드
             </button>
-            <button 
-              className="testcase-btn testcase-btn-secondary"
-              onClick={() => {
+              <button 
+                className="testcase-btn testcase-btn-secondary"
+                onClick={() => {
                 setShowUploadModal(false);
                 setSelectedFile(null);
-              }}
-            >
+                }}
+              >
               취소
-            </button>
+              </button>
           </>
         }
       >
@@ -881,7 +875,7 @@ const TestCaseAPP = ({ setActiveTab }) => {
             onChange={(e) => setSelectedFile(e.target.files[0])}
           />
           <p className="help-text">지원 형식: .xlsx 파일</p>
-        </div>
+            </div>
       </TestCaseModal>
     </div>
   );

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import config from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import './FolderManager.css';
 
@@ -34,8 +35,9 @@ const FolderManager = () => {
   const fetchFolders = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/folders');
-      setFolders(response.data.items || response.data);
+      const response = await axios.get(`${config.apiUrl}/folders`);
+      const foldersData = response.data.data || response.data.items || response.data;
+      setFolders(Array.isArray(foldersData) ? foldersData : []);
       setError(null);
     } catch (err) {
       console.error('폴더 조회 오류:', err);
@@ -47,8 +49,8 @@ const FolderManager = () => {
 
   const fetchFolderTree = async () => {
     try {
-      const response = await axios.get('/folders/tree');
-      setFolderTree(response.data);
+      const response = await axios.get(`${config.apiUrl}/folders/tree`);
+      setFolderTree(response.data.data || response.data);
     } catch (err) {
       console.error('폴더 트리 조회 오류:', err);
     }
@@ -57,7 +59,7 @@ const FolderManager = () => {
   const handleCreateFolder = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('/folders', formData);
+      const response = await axios.post(`${config.apiUrl}/folders`, formData);
       if (process.env.NODE_ENV === 'development') {
         console.log('폴더 생성 완료:', response.data);
       }
@@ -79,7 +81,7 @@ const FolderManager = () => {
 
   const handleUpdateFolder = async (id) => {
     try {
-      await axios.put(`/folders/${id}`, editFormData);
+      await axios.put(`${config.apiUrl}/folders/${id}`, editFormData);
       if (process.env.NODE_ENV === 'development') {
         console.log('폴더 수정 완료');
       }
@@ -105,7 +107,7 @@ const FolderManager = () => {
     }
     
     try {
-      await axios.delete(`/folders/${id}`);
+      await axios.delete(`${config.apiUrl}/folders/${id}`);
       if (process.env.NODE_ENV === 'development') {
         console.log('폴더 삭제 완료');
       }
@@ -416,7 +418,7 @@ const FolderManager = () => {
               </tr>
             </thead>
             <tbody>
-              {folders.map(folder => (
+              {Array.isArray(folders) && folders.map(folder => (
                 <tr key={folder.id}>
                   <td>{folder.id}</td>
                   <td>{folder.folder_name}</td>

@@ -3,8 +3,6 @@ import axios from 'axios';
 import config from '../../config';
 import './FolderManager.css';
 
-axios.defaults.baseURL = config.apiUrl;
-
 const FolderManager = () => {
   const [folders, setFolders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,8 +27,9 @@ const FolderManager = () => {
   const fetchFolders = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/folders');
-      setFolders(response.data.items || response.data);
+      const response = await axios.get(`${config.apiUrl}/folders`);
+      const foldersData = response.data.data || response.data.items || response.data;
+      setFolders(Array.isArray(foldersData) ? foldersData : []);
     } catch (err) {
       setError('폴더 목록을 불러오는 중 오류가 발생했습니다.');
       console.error('Folder fetch error:', err);
@@ -41,8 +40,8 @@ const FolderManager = () => {
 
   const fetchFolderTree = async () => {
     try {
-      const response = await axios.get('/folders/tree');
-      setFolderTree(response.data);
+      const response = await axios.get(`${config.apiUrl}/folders/tree`);
+      setFolderTree(response.data.data || response.data);
     } catch (err) {
       console.error('Folder tree fetch error:', err);
     }
@@ -55,7 +54,7 @@ const FolderManager = () => {
     }
 
     try {
-      await axios.post('/folders', newFolder);
+      await axios.post(`${config.apiUrl}/folders`, newFolder);
       alert('폴더가 성공적으로 추가되었습니다.');
       setShowAddModal(false);
       setNewFolder({
@@ -78,7 +77,7 @@ const FolderManager = () => {
     }
 
     try {
-      await axios.put(`/folders/${editingFolder.id}`, editingFolder);
+      await axios.put(`${config.apiUrl}/folders/${editingFolder.id}`, editingFolder);
       alert('폴더가 성공적으로 수정되었습니다.');
       setShowEditModal(false);
       setEditingFolder(null);
@@ -94,7 +93,7 @@ const FolderManager = () => {
     }
 
     try {
-      await axios.delete(`/folders/${folderId}`);
+      await axios.delete(`${config.apiUrl}/folders/${folderId}`);
       alert('폴더가 성공적으로 삭제되었습니다.');
       fetchFolders();
     } catch (err) {
@@ -156,7 +155,7 @@ const FolderManager = () => {
       </div>
 
       <div className="folder-list">
-        {folders.map(folder => (
+        {Array.isArray(folders) && folders.map(folder => (
           <div key={folder.id} className="folder-card">
             <div className="folder-info">
               <h3>{folder.folder_name}</h3>

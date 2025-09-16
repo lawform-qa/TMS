@@ -25,6 +25,17 @@ const TestScriptsManager = () => {
   const [currentPath, setCurrentPath] = useState('test-scripts');
   const [pathHistory, setPathHistory] = useState(['test-scripts']);
   const [s3PathHistory, setS3PathHistory] = useState(['test-scripts/']);
+  const [s3Folders, setS3Folders] = useState([]);
+  const [showFolderSelectModal, setShowFolderSelectModal] = useState(false);
+  const [selectedFolder, setSelectedFolder] = useState('test-scripts/');
+  const [tempFileName, setTempFileName] = useState('');
+  const [isLocalFileSave, setIsLocalFileSave] = useState(false);
+  // 신규: 사용자 지정 기본 경로 설정 상태 (서버 저장)
+  const [showFolderSettingsModal, setShowFolderSettingsModal] = useState(false);
+  const [s3BasePrefix, setS3BasePrefix] = useState('test-scripts/');
+  const [localBasePath, setLocalBasePath] = useState('test-scripts');
+  // S3 폴더 컨텍스트 메뉴 상태
+  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, folder: null });
 
   // 파일 확장자에 따른 언어 감지
   const getFileLanguage = (filename) => {
@@ -54,11 +65,41 @@ const TestScriptsManager = () => {
     return '📄';
   };
 
+  // 초기 설정 로드 (서버에서 사용자별 S3 프리픽스)
+  useEffect(() => {
+    const fetchUserS3Prefix = async () => {
+      try {
+        const res = await axios.get(`${config.apiUrl}/api/test-scripts/s3/settings/prefix`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        const prefix = res.data?.s3_base_prefix || 'test-scripts/';
+        setS3BasePrefix(prefix);
+        setS3PathHistory([prefix]);
+      } catch (e) {
+        console.error('사용자 S3 프리픽스 조회 오류:', e);
+        setS3BasePrefix('test-scripts/');
+        setS3PathHistory(['test-scripts/']);
+      }
+    };
+    fetchUserS3Prefix();
+    // 로컬 기본 경로는 기존 기본값 유지 (요구사항 3-A로 S3만 적용)
+    setPathHistory([localBasePath]);
+    setCurrentPath(localBasePath);
+    // 전역 클릭 시 컨텍스트 메뉴 닫기
+    const handleGlobalClick = () => setContextMenu({ visible: false, x: 0, y: 0, folder: null });
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, [token]);
+
   // S3 파일 목록 로드
   const loadS3Files = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${config.apiUrl}/api/test-scripts/s3/list`, {
+      const prefix = s3PathHistory.length > 0 ? s3PathHistory[s3PathHistory.length - 1] : s3BasePrefix;
+      const response = await axios.get(`${config.apiUrl}/api/test-scripts/s3/list?prefix=${encodeURIComponent(prefix)}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -72,20 +113,38 @@ const TestScriptsManager = () => {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, s3BasePrefix, s3PathHistory]);
+
+  // S3 폴더 목록 로드
+  const loadS3Folders = useCallback(async () => {
+    try {
+      const response = await axios.get(`${config.apiUrl}/api/test-scripts/s3/folders?prefix=${encodeURIComponent(s3BasePrefix)}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.data.success) {
+        setS3Folders(response.data.folders || []);
+      } else {
+        console.error('S3 폴더 목록 조회 실패:', response.data.error);
+        setS3Folders([]);
+      }
+    } catch (err) {
+      console.error('S3 폴더 목록 조회 오류:', err);
+      setS3Folders([]);
+    }
+  }, [token, s3BasePrefix]);
 
   // 로컬 파일 목록 로드
-  const loadLocalFiles = useCallback(async (path = 'test-scripts') => {
+  const loadLocalFiles = useCallback(async (path = localBasePath) => {
     try {
       setLoading(true);
-      console.log('로컬 파일 목록 로드 시작...', path);
-      console.log('API URL:', `${config.apiUrl}/api/test-scripts/explore?path=${encodeURIComponent(path)}`);
-      
-      const response = await axios.get(`${config.apiUrl}/api/test-scripts/explore?path=${encodeURIComponent(path)}`);
-      console.log('로컬 파일 응답:', response.data);
-      
+      const targetPath = path || localBasePath || 'test-scripts';
+      const response = await axios.get(`${config.apiUrl}/api/test-scripts/explore?path=${encodeURIComponent(targetPath)}`);
       setLocalFiles(response.data.children || []);
-      setCurrentPath(path);
+      setCurrentPath(targetPath);
     } catch (err) {
       console.error('로컬 파일 목록 로드 오류:', err);
       console.error('오류 상세:', err.response?.data);
@@ -93,7 +152,7 @@ const TestScriptsManager = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [localBasePath]);
 
   // 하위 폴더 탐색
   const exploreDirectory = (directory) => {
@@ -122,7 +181,7 @@ const TestScriptsManager = () => {
       
       if (response.data.success) {
         setS3Files(response.data.files);
-        setS3PathHistory(prev => [...prev, directory.key]);
+        setS3PathHistory(prev => [...prev, prefix]);
       }
     } catch (error) {
       console.error('S3 폴더 탐색 오류:', error);
@@ -224,10 +283,12 @@ const TestScriptsManager = () => {
       setLoading(true);
       
       if (activeTab === 's3') {
-        // S3에 저장
+        // S3 파일 수정 (덮어쓰기)
         await axios.post(`${config.apiUrl}/api/test-scripts/s3/upload-content`, {
           content: fileContent,
-          filename: selectedFile.key.split('/').pop()
+          filename: selectedFile.key.split('/').pop(),
+          is_new_file: false,
+          existing_s3_key: selectedFile.key
         }, {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -236,17 +297,70 @@ const TestScriptsManager = () => {
         });
         alert('파일이 성공적으로 저장되었습니다.');
         loadS3Files(); // 목록 새로고침
+        setIsEditing(false);
       } else {
-        // 로컬 파일 편집 (실제로는 S3에 새로 저장)
-        await axios.post(`${config.apiUrl}/api/test-scripts/s3/upload-content`, {
-          content: fileContent,
-          filename: selectedFile.name || selectedFile.path.split('/').pop()
-        });
-        alert('파일이 S3에 저장되었습니다.');
-        loadS3Files(); // S3 목록 새로고침
+        // 로컬 파일 편집 - 폴더 선택 모달 표시
+        await loadS3Folders();
+        
+        // 기본 파일명 설정
+        const defaultFileName = selectedFile.name || selectedFile.path.split('/').pop();
+        setTempFileName(defaultFileName);
+        setSelectedFolder(s3BasePrefix || 'test-scripts/');
+        setIsLocalFileSave(true);
+        setShowFolderSelectModal(true);
       }
+    } catch (err) {
+      console.error('파일 저장 오류:', err);
+      alert('파일 저장 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 다른 이름으로 저장 (폴더 선택 모달 표시)
+  const saveAsFile = async () => {
+    if (!selectedFile) return;
+    
+    // 폴더 목록 로드
+    await loadS3Folders();
+    
+    // 기본 파일명 설정
+    const defaultFileName = selectedFile.key?.split('/').pop() || selectedFile.name;
+    setTempFileName(defaultFileName);
+    setSelectedFolder(s3BasePrefix || 'test-scripts/');
+    setIsLocalFileSave(false);
+    setShowFolderSelectModal(true);
+  };
+
+  // 폴더 선택 후 실제 저장
+  const confirmSaveAs = async () => {
+    if (!tempFileName) {
+      alert('파일명을 입력해주세요.');
+      return;
+    }
+    
+    try {
+      setLoading(true);
       
+      // 선택된 폴더에 새 파일명으로 저장 (항상 새 파일 생성)
+      const fullPath = selectedFolder.endsWith('/') ? selectedFolder + tempFileName : selectedFolder + '/' + tempFileName;
+      
+      await axios.post(`${config.apiUrl}/api/test-scripts/s3/upload-content`, {
+        content: fileContent,
+        filename: fullPath,
+        is_new_file: true
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      alert(`파일이 "${fullPath}"에 저장되었습니다.`);
+      loadS3Files(); // 목록 새로고침
       setIsEditing(false);
+      setShowFolderSelectModal(false);
+      setIsLocalFileSave(false);
     } catch (err) {
       console.error('파일 저장 오류:', err);
       alert('파일 저장 중 오류가 발생했습니다.');
@@ -264,9 +378,10 @@ const TestScriptsManager = () => {
     
     try {
       setLoading(true);
-      await axios.post(`${config.apiUrl}/test-scripts/s3/upload-content`, {
+      await axios.post(`${config.apiUrl}/api/test-scripts/s3/upload-content`, {
         content: newFileContent,
-        filename: newFileName
+        filename: newFileName,
+        is_new_file: true
       }, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -407,13 +522,54 @@ const TestScriptsManager = () => {
     }
   };
 
+  // S3 폴더 컨텍스트 메뉴에서 "여기에 저장"
+  const saveHereToS3 = async () => {
+    if (!contextMenu.folder) return;
+    try {
+      const folderKey = contextMenu.folder.key.endsWith('/') ? contextMenu.folder.key : `${contextMenu.folder.key}/`;
+      const defaultName = (selectedFile?.name) || (selectedFile?.key ? selectedFile.key.split('/').pop() : 'new-script.js');
+      const name = window.prompt('저장할 파일명을 입력하세요', defaultName);
+      if (!name) return;
+      const fullPath = folderKey + name;
+      await axios.post(`${config.apiUrl}/api/test-scripts/s3/upload-content`, {
+        content: fileContent,
+        filename: fullPath,
+        is_new_file: true
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      alert(`파일이 "${fullPath}"에 저장되었습니다.`);
+      // 현재 폴더가 컨텍스트 폴더와 같으면 목록 새로고침
+      const currentPrefix = (s3PathHistory[s3PathHistory.length - 1] || s3BasePrefix);
+      if (currentPrefix === folderKey) {
+        await loadS3Files();
+      }
+    } catch (e) {
+      console.error('여기에 저장 오류:', e);
+      alert('저장 중 오류가 발생했습니다.');
+    } finally {
+      setContextMenu({ visible: false, x: 0, y: 0, folder: null });
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 's3') {
+      // 기본 프리픽스로 경로 초기화
+      if (!s3PathHistory || s3PathHistory.length === 0) {
+        setS3PathHistory([s3BasePrefix]);
+      }
       loadS3Files();
     } else {
-      loadLocalFiles();
+      // 기본 로컬 경로로 초기화
+      if (!pathHistory || pathHistory.length === 0) {
+        setPathHistory([localBasePath]);
+      }
+      loadLocalFiles(localBasePath);
     }
-  }, [activeTab, loadS3Files, loadLocalFiles]);
+  }, [activeTab, loadS3Files, loadLocalFiles, s3BasePrefix, localBasePath]);
 
   const currentFiles = activeTab === 's3' ? s3Files : localFiles;
 
@@ -447,6 +603,17 @@ const TestScriptsManager = () => {
               💻 로컬 파일
             </button>
           </div>
+          {/* 신규: 폴더 설정 버튼 */}
+          <button 
+            className="create-button"
+            onClick={() => {
+              setShowFolderSettingsModal(true);
+              loadS3Folders();
+            }}
+            title="기본 폴더 설정"
+          >
+            🛠️ 폴더 설정
+          </button>
           
           {activeTab === 's3' && (
             <div className="action-buttons">
@@ -476,7 +643,7 @@ const TestScriptsManager = () => {
                 disabled={uploadingFolder}
               >
                 {uploadingFolder ? '⏳ 업로드 중...' : '📁 전체 폴더 S3 업로드'}
-          </button>
+              </button>
             </div>
           )}
         </div>
@@ -500,25 +667,25 @@ const TestScriptsManager = () => {
             <h3>{activeTab === 's3' ? 'S3 파일 목록' : '로컬 파일 목록'}</h3>
             <div className="header-actions">
               {((activeTab === 'local' && pathHistory.length > 1) || (activeTab === 's3' && s3PathHistory.length > 1)) && (
-        <button 
+                <button 
                   className="back-button"
                   onClick={goBack}
                   title="뒤로가기"
-        >
+                >
                   ⬅️ 뒤로
-        </button>
+                </button>
               )}
-        <button 
+              <button 
                 className="refresh-button"
                 onClick={() => activeTab === 's3' ? loadS3Files() : loadLocalFiles(currentPath)}
               >
                 🔄 새로고침
-        </button>
-      </div>
+              </button>
+            </div>
           </div>
           
           <div className="current-path">
-            📍 현재 경로: {activeTab === 's3' ? (s3PathHistory.length > 0 ? s3PathHistory[s3PathHistory.length - 1] : 'test-scripts/') : currentPath}
+            📍 현재 경로: {activeTab === 's3' ? (s3PathHistory.length > 0 ? s3PathHistory[s3PathHistory.length - 1] : s3BasePrefix) : currentPath}
           </div>
           
           <div className="file-list">
@@ -538,11 +705,16 @@ const TestScriptsManager = () => {
                   onClick={() => {
                     if (file.type === 'directory' || file.type === 'folder') {
                       // 디렉토리인 경우 하위 폴더 탐색
-                      console.log('디렉토리 클릭:', file);
                       exploreDirectory(file);
                     } else {
                       // 파일인 경우 내용 로드
                       loadFileContent(file);
+                    }
+                  }}
+                  onContextMenu={(e) => {
+                    if (activeTab === 's3' && (file.type === 'directory' || file.type === 'folder')) {
+                      e.preventDefault();
+                      setContextMenu({ visible: true, x: e.clientX, y: e.clientY, folder: file });
                     }
                   }}
                 >
@@ -608,6 +780,14 @@ const TestScriptsManager = () => {
                         disabled={loading}
                       >
                         💾 저장
+                      </button>
+                      <button 
+                        className="save-as-button"
+                        onClick={saveAsFile}
+                        disabled={loading}
+                        style={{ backgroundColor: '#28a745', color: 'white' }}
+                      >
+                        📄 다른 이름으로 저장
                       </button>
                       <button 
                         className="cancel-button"
@@ -718,6 +898,170 @@ const TestScriptsManager = () => {
                 disabled={!newFileName || !newFileContent || loading}
               >
                 생성
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 폴더 선택 모달 (다른 이름으로 저장) */}
+      {showFolderSelectModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>{isLocalFileSave ? '로컬 파일을 S3에 저장' : '다른 이름으로 저장'}</h3>
+              <button 
+                className="close-button"
+                onClick={() => {
+                  setShowFolderSelectModal(false);
+                  setIsLocalFileSave(false);
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>파일명:</label>
+                <input
+                  type="text"
+                  value={tempFileName}
+                  onChange={(e) => setTempFileName(e.target.value)}
+                  placeholder="예: new-script.js"
+                />
+              </div>
+              <div className="form-group">
+                <label>저장할 폴더:</label>
+                <select
+                  value={selectedFolder}
+                  onChange={(e) => setSelectedFolder(e.target.value)}
+                  className="folder-select"
+                >
+                  <option value={s3BasePrefix}>{s3BasePrefix} (루트)</option>
+                  {s3Folders.map((folder, index) => (
+                    <option key={index} value={folder.key}>
+                      {'  '.repeat(folder.level || 0)}📁 {folder.display_name || folder.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>저장 경로 미리보기:</label>
+                <div className="path-preview">
+                  {selectedFolder.endsWith('/') ? selectedFolder + tempFileName : selectedFolder + '/' + tempFileName}
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="cancel-button"
+                onClick={() => {
+                  setShowFolderSelectModal(false);
+                  setIsLocalFileSave(false);
+                }}
+              >
+                취소
+              </button>
+              <button 
+                className="save-as-button"
+                onClick={confirmSaveAs}
+                disabled={!tempFileName || loading}
+                style={{ backgroundColor: '#ff9800', color: 'white' }}
+              >
+                {isLocalFileSave ? '📤 S3에 저장' : '📄 저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* S3 폴더 컨텍스트 메뉴 */}
+      {contextMenu.visible && (
+        <div 
+          className="context-menu"
+          style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x, background: '#fff', border: '1px solid #ddd', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.12)', zIndex: 1000 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button 
+            className="context-menu-item"
+            style={{ display: 'block', padding: '8px 12px', width: '180px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer' }}
+            onClick={saveHereToS3}
+          >
+            📥 여기에 저장
+          </button>
+        </div>
+      )}
+
+      {/* 기본 폴더 설정 모달 */}
+      {showFolderSettingsModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>기본 폴더 설정</h3>
+              <button 
+                className="close-button"
+                onClick={() => setShowFolderSettingsModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>S3 기본 프리픽스:</label>
+                <select
+                  value={s3BasePrefix}
+                  onChange={(e) => setS3BasePrefix(e.target.value)}
+                  className="folder-select"
+                >
+                  <option value={s3BasePrefix}>{s3BasePrefix}</option>
+                  {s3Folders.map((folder, index) => (
+                    <option key={index} value={folder.key + '/'}>
+                      {'  '.repeat(folder.level || 0)}📁 {folder.display_name || folder.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>로컬 기본 경로:</label>
+                <input
+                  type="text"
+                  value={localBasePath}
+                  onChange={(e) => setLocalBasePath(e.target.value)}
+                  placeholder="예: test-scripts 또는 src/tests 등"
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="cancel-button"
+                onClick={() => setShowFolderSettingsModal(false)}
+              >
+                취소
+              </button>
+              <button 
+                className="save-button"
+                onClick={async () => {
+                  try {
+                    const res = await axios.post(`${config.apiUrl}/api/test-scripts/s3/settings/prefix`, {
+                      s3_base_prefix: s3BasePrefix
+                    }, {
+                      headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                      }
+                    });
+                    const newPrefix = res.data?.s3_base_prefix || s3BasePrefix;
+                    setS3BasePrefix(newPrefix);
+                    setS3PathHistory([newPrefix]);
+                    await loadS3Files();
+                    setShowFolderSettingsModal(false);
+                  } catch (e) {
+                    console.error('S3 프리픽스 저장 오류:', e);
+                    alert('S3 기본 프리픽스를 저장하지 못했습니다.');
+                  }
+                }}
+              >
+                저장
               </button>
             </div>
           </div>
