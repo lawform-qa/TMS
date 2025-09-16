@@ -353,7 +353,7 @@
   flex-wrap: wrap;
 }
 
-.edit-button, .save-button, .cancel-button {
+.edit-button, .save-button, .save-as-button, .cancel-button {
   padding: 6px 12px;
   border: none;
   border-radius: 4px;
@@ -382,6 +382,20 @@
 }
 
 .save-button:disabled {
+  background: #bdc1c6;
+  cursor: not-allowed;
+}
+
+.save-as-button {
+  background: #ff9800;
+  color: white;
+}
+
+.save-as-button:hover {
+  background: #f57c00;
+}
+
+.save-as-button:disabled {
   background: #bdc1c6;
   cursor: not-allowed;
 }
@@ -595,7 +609,7 @@
     width: 100% !important;
   }
   
-  .edit-button, .save-button, .cancel-button {
+  .edit-button, .save-button, .save-as-button, .cancel-button {
     flex: 1 !important;
     min-width: 80px !important;
     font-size: 14px !important;
@@ -613,7 +627,7 @@
     gap: 6px;
   }
   
-  .edit-button, .save-button, .cancel-button {
+  .edit-button, .save-button, .save-as-button, .cancel-button {
     font-size: 12px;
     padding: 6px 8px;
     min-width: 70px;
@@ -623,6 +637,43 @@
     font-size: 10px;
     padding: 1px 6px;
   }
+}
+
+/* 폴더 선택 모달 스타일 */
+.folder-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background: white;
+  cursor: pointer;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.folder-select:focus {
+  outline: none;
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+}
+
+.folder-select option {
+  padding: 4px 8px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  white-space: pre;
+}
+
+.path-preview {
+  background: #f8f9fa;
+  border: 1px solid #e1e5e9;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  color: #5f6368;
+  word-break: break-all;
 }
 
 /* 다크 모드 지원 */

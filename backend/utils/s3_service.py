@@ -308,6 +308,44 @@ class S3Service:
         except Exception as e:
             raise Exception(f"URL 생성 중 오류 발생: {e}")
 
+    def list_all_folders(self, prefix='test-scripts/'):
+        """S3에서 모든 폴더를 재귀적으로 조회"""
+        if not self.s3_client:
+            print("S3 클라이언트가 초기화되지 않았습니다. 작업을 건너뜁니다.")
+            return []
+        
+        try:
+            all_folders = []
+            
+            def get_folders_recursive(current_prefix):
+                response = self.s3_client.list_objects_v2(
+                    Bucket=self.bucket_name,
+                    Prefix=current_prefix,
+                    Delimiter='/'
+                )
+                
+                if 'CommonPrefixes' in response:
+                    for folder in response['CommonPrefixes']:
+                        folder_key = folder['Prefix'].rstrip('/')
+                        folder_name = folder_key.split('/')[-1]
+                        
+                        all_folders.append({
+                            'key': folder_key,
+                            'name': folder_name,
+                            'display_name': folder_key.replace(prefix, '').rstrip('/') or folder_name,
+                            'level': folder_key.count('/') - prefix.count('/')
+                        })
+                        
+                        # 재귀적으로 하위 폴더 조회
+                        get_folders_recursive(folder['Prefix'])
+            
+            get_folders_recursive(prefix)
+            return all_folders
+            
+        except Exception as e:
+            print(f"S3 폴더 목록 조회 오류: {e}")
+            return []
+
 # 전역 S3 서비스 인스턴스 (지연 초기화)
 s3_service = None
 
