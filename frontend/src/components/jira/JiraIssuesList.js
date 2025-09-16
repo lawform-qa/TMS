@@ -543,7 +543,7 @@ const JiraIssuesList = () => {
                     onClick={() => showIssueDetail(issue)}
                     title="상세보기"
                   >
-                    👁️ 상세보기
+                    상세보기
                   </button>
                   
                   <select

@@ -21,6 +21,67 @@ import { useTestCasePagination } from '../../hooks/useTestCasePagination';
 // 스타일 임포트
 import './TestCaseAPP.css';
 
+// 헬퍼 함수들
+const findFolderInTree = (nodes, folderId) => {
+  for (const node of nodes) {
+    if (node.id === folderId) {
+      return node;
+    }
+    if (node.children) {
+      const found = findFolderInTree(node.children, folderId);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+const getFolderType = (folderId, folderTree) => {
+  const folder = findFolderInTree(folderTree, folderId);
+  if (!folder) return 'unknown';
+  return folder.type || 'unknown';
+};
+
+const getEnvironmentFolderIds = (nodes, environmentFolderId) => {
+  const environmentNode = findFolderInTree(nodes, environmentFolderId);
+  if (!environmentNode || environmentNode.type !== 'environment') {
+    return [];
+  }
+  
+  const folderIds = [];
+  if (environmentNode.children) {
+    for (const child of environmentNode.children) {
+      if (child.type === 'deployment_date') {
+        folderIds.push(child.id);
+        if (child.children) {
+          for (const grandChild of child.children) {
+            if (grandChild.type === 'feature') {
+              folderIds.push(grandChild.id);
+            }
+          }
+        }
+      }
+    }
+  }
+  return folderIds;
+};
+
+const getDeploymentFolderIds = (nodes, deploymentFolderId) => {
+  const deploymentNode = findFolderInTree(nodes, deploymentFolderId);
+  if (!deploymentNode || deploymentNode.type !== 'deployment_date') {
+    return [];
+  }
+  
+  const folderIds = [deploymentNode.id];
+  if (deploymentNode.children) {
+    for (const child of deploymentNode.children) {
+      if (child.type === 'feature') {
+        folderIds.push(child.id);
+      }
+    }
+  }
+  return folderIds;
+};
+
 // axios 인터셉터 설정
 axios.interceptors.request.use(
   (config) => {
@@ -135,7 +196,7 @@ const TestCaseAPP = ({ setActiveTab }) => {
           const tcFolderId = Number(tc.folder_id);
           const selectedFolderId = Number(selectedFolder);
           
-          const selectedFolderType = getFolderType(selectedFolderId);
+          const selectedFolderType = getFolderType(selectedFolderId, folderTree);
           
           if (selectedFolderType === 'environment') {
             const environmentFolderIds = getEnvironmentFolderIds(folderTree, selectedFolderId);
@@ -236,8 +297,7 @@ const TestCaseAPP = ({ setActiveTab }) => {
   }, [
     testCases, selectedFolder, folderTree, searchTerm, statusFilter,
     environmentFilter, categoryFilter, creatorFilter, assigneeFilter,
-    sortBy, sortOrder, findFolderInTree, getDeploymentFolderIds,
-    getEnvironmentFolderIds, getFolderType
+    sortBy, sortOrder
   ]);
 
   // 페이지네이션 훅
@@ -251,66 +311,6 @@ const TestCaseAPP = ({ setActiveTab }) => {
     handleItemsPerPageChange
   } = useTestCasePagination(filteredTestCases);
 
-  // 헬퍼 함수들
-  const findFolderInTree = (nodes, folderId) => {
-    for (const node of nodes) {
-      if (node.id === folderId) {
-        return node;
-      }
-      if (node.children) {
-        const found = findFolderInTree(node.children, folderId);
-        if (found) return found;
-      }
-    }
-    return null;
-  };
-
-  const getFolderType = (folderId) => {
-    const folder = findFolderInTree(folderTree, folderId);
-    if (!folder) return 'unknown';
-    return folder.type || 'unknown';
-  };
-
-  const getEnvironmentFolderIds = (nodes, environmentFolderId) => {
-    const environmentNode = findFolderInTree(nodes, environmentFolderId);
-    if (!environmentNode || environmentNode.type !== 'environment') {
-      return [];
-    }
-    
-    const folderIds = [];
-    if (environmentNode.children) {
-      for (const child of environmentNode.children) {
-        if (child.type === 'deployment_date') {
-          folderIds.push(child.id);
-          if (child.children) {
-            for (const featureChild of child.children) {
-              if (featureChild.type === 'feature') {
-                folderIds.push(featureChild.id);
-              }
-            }
-          }
-        }
-      }
-    }
-    return folderIds;
-  };
-
-  const getDeploymentFolderIds = (nodes, deploymentFolderId) => {
-    const deploymentNode = findFolderInTree(nodes, deploymentFolderId);
-    if (!deploymentNode || deploymentNode.type !== 'deployment_date') {
-      return [];
-    }
-    
-    const folderIds = [deploymentNode.id];
-    if (deploymentNode.children) {
-      for (const child of deploymentNode.children) {
-        if (child.type === 'feature') {
-          folderIds.push(child.id);
-        }
-      }
-    }
-    return folderIds;
-  };
 
   // 이벤트 핸들러들
   const handleFolderSelect = (folderId) => {
@@ -535,16 +535,16 @@ const TestCaseAPP = ({ setActiveTab }) => {
               </span>
             )}
             <span className="folder-icon">
-              {getFolderType(node.id) === 'environment' ? '🌍' : 
-               getFolderType(node.id) === 'deployment_date' ? '📅' : 
-               getFolderType(node.id) === 'feature' ? '🔧' : '📄'}
+              {getFolderType(node.id, folderTree) === 'environment' ? '🌍' : 
+               getFolderType(node.id, folderTree) === 'deployment_date' ? '📅' : 
+               getFolderType(node.id, folderTree) === 'feature' ? '🔧' : '📄'}
             </span>
             <span className="folder-name">{node.name}</span>
             {isFolder && (
               <span className="folder-type-badge">
-                {getFolderType(node.id) === 'environment' ? '환경' : 
-                 getFolderType(node.id) === 'deployment_date' ? '배포일자' : 
-                 getFolderType(node.id) === 'feature' ? '기능명' : ''}
+                {getFolderType(node.id, folderTree) === 'environment' ? '환경' : 
+                 getFolderType(node.id, folderTree) === 'deployment_date' ? '배포일자' : 
+                 getFolderType(node.id, folderTree) === 'feature' ? '기능명' : ''}
               </span>
             )}
           </div>

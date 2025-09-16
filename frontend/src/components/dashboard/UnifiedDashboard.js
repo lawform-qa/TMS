@@ -261,7 +261,7 @@ const UnifiedDashboard = ({ setActiveTab }) => {
       environmentAlpha: 'ALPHA 환경 테스트 케이스',
       environmentProduction: 'PRODUCTION 환경 테스트 케이스',
       jiraSummary: '이슈 요약',
-      jiraRecentIssues: 'JIRA 최근 이슈',
+      jiraRecentIssues: '최근 이슈',
       testCases: '테스트 케이스',
       performanceTests: '성능 테스트',
       testExecutions: '테스트 실행 결과',
@@ -270,7 +270,7 @@ const UnifiedDashboard = ({ setActiveTab }) => {
     return names[cardKey] || cardKey;
   };
 
-  // JIRA 최근 이슈 가져오기
+  // 최근 이슈 가져오기
   const fetchJiraRecentIssues = async (page = 1) => {
     try {
       const response = await axios.get(`/api/jira/issues?page=${page}&per_page=${itemsPerPage}`);
@@ -278,11 +278,11 @@ const UnifiedDashboard = ({ setActiveTab }) => {
         setJiraRecentIssuesPagination(response.data.data.pagination);
         return response.data.data.issues || [];
       } else {
-        console.error('JIRA 최근 이슈 조회 실패:', response.data.error);
+        console.error('최근 이슈 조회 실패:', response.data.error);
         return [];
       }
     } catch (error) {
-      console.error('JIRA 최근 이슈 조회 오류:', error);
+      console.error('최근 이슈 조회 오류:', error);
       return [];
     }
   };
@@ -420,12 +420,12 @@ const UnifiedDashboard = ({ setActiveTab }) => {
         console.log('❌ JIRA 통계 응답 실패:', jiraStatsRes.data);
       }
       
-      // JIRA 최근 이슈 처리
+      // 최근 이슈 처리
       if (jiraRecentIssuesRes.data && jiraRecentIssuesRes.data.success) {
         setJiraRecentIssues(jiraRecentIssuesRes.data.data.issues || []);
         setJiraRecentIssuesPagination(jiraRecentIssuesRes.data.data.pagination);
       } else {
-        console.error('JIRA 최근 이슈 조회 실패:', jiraRecentIssuesRes.data?.error);
+        console.error('최근 이슈 조회 실패:', jiraRecentIssuesRes.data?.error);
         setJiraRecentIssues([]);
         setJiraRecentIssuesPagination(null);
       }
@@ -918,7 +918,7 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                 onDragEnd={handleDragEnd}
               >
                 <div className="card-header">
-                  <h3>JIRA 최근 이슈</h3>
+                  <h3>최근 이슈</h3>
                   <button 
                     className="btn-move-to-tab"
                     onClick={() => setActiveTab('jira')}
@@ -934,7 +934,7 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                         jiraRecentIssues.map(issue => (
                           <div key={issue.id} className="recent-issue-item">
                             <div className="issue-info">
-                              <span className="issue-key">{issue.jira_issue_key}</span>
+                              <span className="issue-key">{issue.issue_key}</span>
                               <span className="issue-summary">{issue.summary}</span>
                             </div>
                             <div className="issue-meta">
