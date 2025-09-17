@@ -3,7 +3,11 @@ import axios from 'axios';
 import config from '../../config';
 import './JiraIssuesList.css';
 
-const JiraIssuesList = () => {
+const JiraIssuesList = ({ modalMode = true }) => {
+  console.log('[JiraIssuesList] render, modalMode =', modalMode);
+  // 안전 가드: 명시적으로 false가 아닌 한 모달 사용
+  const useModal = modalMode !== false;
+  console.log('[JiraIssuesList] useModal =', useModal);
   const [jiraIssues, setJiraIssues] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -216,6 +220,7 @@ const JiraIssuesList = () => {
 
   // 이슈 상세보기
   const showIssueDetail = (issue) => {
+    console.log('[JiraIssuesList] showIssueDetail clicked. useModal =', useModal, 'issue =', issue?.issue_key);
     setSelectedIssue(issue);
     setShowDetailModal(true);
     fetchComments(issue.issue_key);
@@ -645,20 +650,21 @@ const JiraIssuesList = () => {
         </div>
       )}
 
-      {/* 이슈 상세보기 모달 */}
+      {/* 이슈 상세보기 */}
       {showDetailModal && selectedIssue && (
-        <div className="jira-modal-overlay" onClick={() => setShowDetailModal(false)}>
-          <div className="jira-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="jira-modal-header">
-              <div className="jira-modal-title">
-                <span className="jira-modal-icon">🔍</span>
-                <h3>이슈 상세보기</h3>
+        useModal ? (
+          <div className="jira-modal-overlay" onClick={() => setShowDetailModal(false)}>
+            <div className="jira-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="jira-modal-header">
+                <div className="jira-modal-title">
+                  <span className="jira-modal-icon">🔍</span>
+                  <h3>이슈 상세보기</h3>
+                </div>
+                <button className="jira-modal-close" onClick={() => setShowDetailModal(false)}>×</button>
               </div>
-              <button className="jira-modal-close" onClick={() => setShowDetailModal(false)}>×</button>
-            </div>
-            
-            <div className="jira-modal-body">
-              <div className="issue-detail-content">
+              
+              <div className="jira-modal-body">
+                <div className="issue-detail-content">
                 <div className="detail-section">
                   <h4>기본 정보</h4>
                   <div className="detail-grid">
@@ -792,18 +798,115 @@ const JiraIssuesList = () => {
                   )}
                 </div>
               </div>
-            </div>
-            
-            <div className="jira-modal-actions">
-              <button className="btn btn-secondary" onClick={() => setShowDetailModal(false)}>
-                닫기
-              </button>
-              <button className="btn btn-primary" onClick={() => openEditModal(selectedIssue)}>
-                ✏️ 수정
-              </button>
+                </div>
+              
+              <div className="jira-modal-actions">
+                <button className="btn btn-secondary" onClick={() => setShowDetailModal(false)}>
+                  닫기
+                </button>
+                <button className="btn btn-primary" onClick={() => openEditModal(selectedIssue)}>
+                  ✏️ 수정
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="jira-inline-detail">
+            <div className="jira-inline-detail-header">
+              <h3>이슈 상세보기</h3>
+              <div>
+                <button className="btn btn-secondary btn-sm" onClick={() => setShowDetailModal(false)} style={{ marginRight: 8 }}>닫기</button>
+                <button className="btn btn-primary btn-sm" onClick={() => openEditModal(selectedIssue)}>✏️ 수정</button>
+              </div>
+            </div>
+            <div className="jira-inline-detail-body">
+              <div className="issue-detail-content">
+                {/* 기존 상세 본문과 동일 */}
+                <div className="detail-section">
+                  <h4>기본 정보</h4>
+                  <div className="detail-grid">
+                    <div className="detail-item">
+                      <label>이슈 키:</label>
+                      <span className="issue-key">{selectedIssue.issue_key}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>상태:</label>
+                      <span className={`issue-status status-${selectedIssue.status.toLowerCase().replace(' ', '-')}`}>
+                        {selectedIssue.status}
+                      </span>
+                    </div>
+                    <div className="detail-item">
+                      <label>타입:</label>
+                      <span className={`issue-type type-${selectedIssue.issue_type.toLowerCase()}`}>
+                        {selectedIssue.issue_type}
+                      </span>
+                    </div>
+                    <div className="detail-item">
+                      <label>우선순위:</label>
+                      <span className={`issue-priority priority-${selectedIssue.priority.toLowerCase()}`}>
+                        {selectedIssue.priority}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="detail-section">
+                  <h4>제목</h4>
+                  <p className="issue-summary">{selectedIssue.summary}</p>
+                </div>
+                <div className="detail-section">
+                  <h4>설명</h4>
+                  <div className="issue-description-full">
+                    {selectedIssue.description || '설명이 없습니다.'}
+                  </div>
+                </div>
+                {selectedIssue.labels && (
+                  <div className="detail-section">
+                    <h4>레이블</h4>
+                    <div className="issue-labels">
+                      {JSON.parse(selectedIssue.labels).map((label, index) => (
+                        <span key={index} className="label-tag">
+                          {label}
+                          <button 
+                            className="label-remove-btn"
+                            onClick={() => removeLabel(selectedIssue.issue_key, label)}
+                            title="레이블 삭제"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {selectedIssue.assignee_email && (
+                  <div className="detail-section">
+                    <h4>담당자</h4>
+                    <div className="assignee-detail">
+                      <span className="assignee-name">{selectedIssue.assignee_email}</span>
+                    </div>
+                  </div>
+                )}
+                <div className="detail-section">
+                  <h4>생성 정보</h4>
+                  <div className="detail-grid">
+                    <div className="detail-item">
+                      <label>생성일:</label>
+                      <span>{new Date(selectedIssue.created_at).toLocaleString()}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>수정일:</label>
+                      <span>{selectedIssue.updated_at ? new Date(selectedIssue.updated_at).toLocaleString() : '없음'}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>마지막 동기화:</label>
+                      <span>{selectedIssue.last_sync_at ? new Date(selectedIssue.last_sync_at).toLocaleString() : '없음'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
       )}
 
       {/* 담당자 할당 모달 */}
