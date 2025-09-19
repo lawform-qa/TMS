@@ -3,8 +3,8 @@ import axios from 'axios';
 import config from '../../config';
 import './JiraIssuesList.css';
 
-const JiraIssuesList = ({ modalMode = true }) => {
-  console.log('[JiraIssuesList] render, modalMode =', modalMode);
+const JiraIssuesList = ({ modalMode = true, testCaseId = null }) => {
+  console.log('[JiraIssuesList] render, modalMode =', modalMode, 'testCaseId =', testCaseId);
   // 안전 가드: 명시적으로 false가 아닌 한 모달 사용
   const useModal = modalMode !== false;
   console.log('[JiraIssuesList] useModal =', useModal);
@@ -51,7 +51,14 @@ const JiraIssuesList = ({ modalMode = true }) => {
       setLoading(true);
       setError(null);
       
-      const response = await axios.get(`${config.apiUrl}/api/jira/issues`);
+      // testCaseId가 있으면 해당 테스트 케이스와 연결된 이슈만 조회
+      const url = testCaseId 
+        ? `${config.apiUrl}/api/jira/issues/testcase/${testCaseId}`
+        : `${config.apiUrl}/api/jira/issues`;
+      
+      console.log('[JiraIssuesList] Fetching issues from:', url);
+      
+      const response = await axios.get(url);
       
       if (response.data.success) {
         setJiraIssues(response.data.data.issues);
@@ -198,7 +205,14 @@ const JiraIssuesList = ({ modalMode = true }) => {
   // 이슈 생성
   const createIssue = async (issueData) => {
     try {
-      const response = await axios.post(`${config.apiUrl}/api/jira/issues`, issueData);
+      // testCaseId가 있으면 이슈 생성 시 연결
+      const dataToSend = testCaseId 
+        ? { ...issueData, test_case_id: testCaseId }
+        : issueData;
+      
+      console.log('[JiraIssuesList] Creating issue with data:', dataToSend);
+      
+      const response = await axios.post(`${config.apiUrl}/api/jira/issues`, dataToSend);
       
       if (response.data.success) {
         fetchJiraIssues();
@@ -301,7 +315,7 @@ const JiraIssuesList = ({ modalMode = true }) => {
 
   useEffect(() => {
     fetchJiraIssues();
-  }, []);
+  }, [testCaseId]);
 
   if (loading) {
     return (
@@ -352,13 +366,24 @@ const JiraIssuesList = ({ modalMode = true }) => {
       {/* 검색 및 필터 */}
       <div className="jira-issues-filters">
         <div className="search-container">
-          <input
-            type="text"
-            placeholder="🔍 이슈 검색 (제목, 키, 설명)"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
-          />
+          <div className="search-input-wrapper">
+            <input
+              type="text"
+              placeholder="🔍 이슈 검색 (제목, 키, 설명)"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-input"
+            />
+            {searchTerm && (
+              <button 
+                className="btn-clear-search"
+                onClick={() => setSearchTerm('')}
+                title="검색어 지우기"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
         
         <div className="filter-container">

@@ -458,8 +458,8 @@ const PerformanceTestManager = () => {
         <div className="performance-search-container">
           {/* 기본 검색 */}
           <div className="performance-search-input-wrapper">
-                            <input 
-                type="text" 
+            <input 
+              type="text" 
               placeholder="🔍 성능 테스트 검색... (테스트명, 설명, 스크립트 경로, 작성자, 담당자)"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -467,14 +467,14 @@ const PerformanceTestManager = () => {
             />
             {searchTerm && (
               <button 
-                className="performance-btn performance-btn-clear-search"
+                className="performance-btn-clear-search"
                 onClick={() => setSearchTerm('')}
                 title="검색어 지우기"
               >
                 ✕
               </button>
             )}
-                        </div>
+          </div>
 
           {/* 고급 필터 */}
           <div className="performance-advanced-filters">
