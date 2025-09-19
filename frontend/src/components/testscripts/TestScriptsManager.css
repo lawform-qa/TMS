@@ -458,8 +458,8 @@
   to { transform: rotate(360deg); }
 }
 
-/* 모달 스타일 */
-.modal-overlay {
+/* 모달 스타일 (컴포넌트 범위 스코프) */
+.test-scripts-manager .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -472,7 +472,7 @@
   z-index: 1000;
 }
 
-.modal-content {
+.test-scripts-manager .modal-content {
   background: white;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.15);
@@ -483,7 +483,7 @@
   flex-direction: column;
 }
 
-.modal-header {
+.test-scripts-manager .modal-header {
   padding: 20px;
   border-bottom: 1px solid #e1e5e9;
   display: flex;
@@ -491,14 +491,14 @@
   align-items: center;
 }
 
-.modal-header h3 {
+.test-scripts-manager .modal-header h3 {
   margin: 0;
   color: #2c3e50;
   font-size: 18px;
   font-weight: 600;
 }
 
-.close-button {
+.test-scripts-manager .close-button {
   width: 32px;
   height: 32px;
   border: none;
@@ -513,11 +513,11 @@
   transition: all 0.2s ease;
 }
 
-.close-button:hover {
+.test-scripts-manager .close-button:hover {
   background: #e8eaed;
 }
 
-.modal-body {
+.test-scripts-manager .modal-body {
   padding: 20px;
   flex: 1;
   overflow-y: auto;
@@ -549,7 +549,7 @@
   box-shadow: 0 0 0 2px rgba(26,115,232,0.2);
 }
 
-.modal-footer {
+.test-scripts-manager .modal-footer {
   padding: 20px;
   border-top: 1px solid #e1e5e9;
   display: flex;

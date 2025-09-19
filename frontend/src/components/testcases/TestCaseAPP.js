@@ -833,8 +833,8 @@ const TestCaseAPP = ({ setActiveTab }) => {
           {/* 이슈 관리: 목록 컴포넌트로 교체 */}
               <div className="testcase-jira-integration" style={{ marginTop: '24px' }}>
                 <h5>🔗 이슈 관리</h5>
-            {console.log('[TestCaseAPP] Render JiraIssuesList inside TestCase detail with modalMode=false')}
-            <JiraIssuesList modalMode={false} />
+            {console.log('[TestCaseAPP] Render JiraIssuesList inside TestCase detail with modalMode=false, testCaseId=', selectedTestCase?.id)}
+            <JiraIssuesList modalMode={false} testCaseId={selectedTestCase?.id} />
               </div>
         </TestCaseModal>
       )}

@@ -339,7 +339,8 @@ const JiraIssuesList = ({ modalMode = true, testCaseId = null }) => {
   }
 
   const filteredIssues = getFilteredIssues();
-  const paginatedIssues = getPaginatedIssues();
+  // testCaseId가 있으면 페이지네이션 없이 모든 이슈 표시, 없으면 페이지네이션 적용
+  const paginatedIssues = testCaseId ? filteredIssues : getPaginatedIssues();
 
   return (
     <div className="jira-issues-list-container">
@@ -363,94 +364,98 @@ const JiraIssuesList = ({ modalMode = true, testCaseId = null }) => {
         </div>
       </div>
 
-      {/* 검색 및 필터 */}
-      <div className="jira-issues-filters">
-        <div className="search-container">
-          <div className="search-input-wrapper">
-            <input
-              type="text"
-              placeholder="🔍 이슈 검색 (제목, 키, 설명)"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
-            />
-            {searchTerm && (
-              <button 
-                className="btn-clear-search"
-                onClick={() => setSearchTerm('')}
-                title="검색어 지우기"
-              >
-                ✕
-              </button>
-            )}
+      {/* 검색 및 필터 - testCaseId가 없을 때만 표시 */}
+      {!testCaseId && (
+        <div className="jira-issues-filters">
+          <div className="search-container">
+            <div className="search-input-wrapper">
+              <input
+                type="text"
+                placeholder="🔍 이슈 검색 (제목, 키, 설명)"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="search-input"
+              />
+              {searchTerm && (
+                <button 
+                  className="btn-clear-search"
+                  onClick={() => setSearchTerm('')}
+                  title="검색어 지우기"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+          
+          <div className="filter-container">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="filter-select"
+            >
+              <option value="all">모든 상태</option>
+              <option value="To Do">To Do</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Done">Done</option>
+            </select>
+            
+            <select
+              value={priorityFilter}
+              onChange={(e) => setPriorityFilter(e.target.value)}
+              className="filter-select"
+            >
+              <option value="all">모든 우선순위</option>
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+              <option value="Critical">Critical</option>
+            </select>
+            
+            <select
+              value={issueTypeFilter}
+              onChange={(e) => setIssueTypeFilter(e.target.value)}
+              className="filter-select"
+            >
+              <option value="all">모든 타입</option>
+              <option value="Bug">Bug</option>
+              <option value="Task">Task</option>
+              <option value="Story">Story</option>
+              <option value="Epic">Epic</option>
+            </select>
           </div>
         </div>
-        
-        <div className="filter-container">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="filter-select"
-          >
-            <option value="all">모든 상태</option>
-            <option value="To Do">To Do</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Done">Done</option>
-          </select>
-          
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            className="filter-select"
-          >
-            <option value="all">모든 우선순위</option>
-            <option value="Low">Low</option>
-            <option value="Medium">Medium</option>
-            <option value="High">High</option>
-            <option value="Critical">Critical</option>
-          </select>
-          
-          <select
-            value={issueTypeFilter}
-            onChange={(e) => setIssueTypeFilter(e.target.value)}
-            className="filter-select"
-          >
-            <option value="all">모든 타입</option>
-            <option value="Bug">Bug</option>
-            <option value="Task">Task</option>
-            <option value="Story">Story</option>
-            <option value="Epic">Epic</option>
-          </select>
-        </div>
-      </div>
+      )}
 
-      {/* 페이지 크기 선택 */}
-      <div className="pagination-controls-top">
-        <div className="items-per-page-selector">
-          <label>페이지당 항목:</label>
-          <select
-            value={itemsPerPage}
-            onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
-            className="items-per-page-select"
-          >
-            <option value={10}>10개</option>
-            <option value={20}>20개</option>
-            <option value={50}>50개</option>
-            <option value={100}>100개</option>
-          </select>
+      {/* 페이지 크기 선택 - testCaseId가 없을 때만 표시 */}
+      {!testCaseId && (
+        <div className="pagination-controls-top">
+          <div className="items-per-page-selector">
+            <label>페이지당 항목:</label>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+              className="items-per-page-select"
+            >
+              <option value={10}>10개</option>
+              <option value={20}>20개</option>
+              <option value={50}>50개</option>
+              <option value={100}>100개</option>
+            </select>
+          </div>
+          <div className="pagination-info-top">
+            총 {filteredIssues.length}개 이슈 중 {Math.min((currentPage - 1) * itemsPerPage + 1, filteredIssues.length)}-{Math.min(currentPage * itemsPerPage, filteredIssues.length)}개 표시
+          </div>
         </div>
-        <div className="pagination-info-top">
-          총 {filteredIssues.length}개 이슈 중 {Math.min((currentPage - 1) * itemsPerPage + 1, filteredIssues.length)}-{Math.min(currentPage * itemsPerPage, filteredIssues.length)}개 표시
-        </div>
-      </div>
+      )}
 
       {/* 이슈 목록 */}
       <div className="jira-issues-list">
         {paginatedIssues.length === 0 ? (
           <div className="no-issues">
             <div className="no-issues-icon">📝</div>
-            <p>표시할 이슈가 없습니다.</p>
-            <p>필터 조건을 조정해보세요.</p>
+            <p>{testCaseId ? '이 테스트 케이스와 연결된 이슈가 없습니다.' : '표시할 이슈가 없습니다.'}</p>
+            {!testCaseId && <p>필터 조건을 조정해보세요.</p>}
           </div>
         ) : (
           paginatedIssues.map(issue => (
@@ -628,8 +633,8 @@ const JiraIssuesList = ({ modalMode = true, testCaseId = null }) => {
         )}
       </div>
 
-      {/* 페이지네이션 */}
-      {totalPages > 1 && (
+      {/* 페이지네이션 - testCaseId가 없을 때만 표시 */}
+      {!testCaseId && totalPages > 1 && (
         <div className="pagination-controls">
           <div className="pagination-buttons">
             <button
