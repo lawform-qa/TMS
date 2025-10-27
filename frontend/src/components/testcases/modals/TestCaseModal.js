@@ -1,5 +1,6 @@
 import React from 'react';
 import './TestCaseModal.css';
+import '../../common/Modal.css';
 
 const TestCaseModal = ({ 
   isOpen, 

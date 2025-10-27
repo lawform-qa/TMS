@@ -50,15 +50,40 @@ export const AuthProvider = ({ children }) => {
   // 토큰 만료 체크 함수
   const isTokenExpired = (token) => {
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (!token || typeof token !== 'string') {
+        return true;
+      }
+      
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        return true;
+      }
+      
+      const payload = JSON.parse(atob(parts[1]));
       const currentTime = Math.floor(Date.now() / 1000);
       const expirationTime = payload.exp;
       
-      return currentTime >= expirationTime;
+      // 만료 시간이 없거나 현재 시간보다 작으면 만료된 것으로 간주
+      if (!expirationTime || currentTime >= expirationTime) {
+        return true;
+      }
+      
+      return false;
     } catch (error) {
+      console.warn('토큰 파싱 오류:', error);
       return true; // 파싱 오류 시 만료된 것으로 간주
     }
   };
+
+  // 페이지 로드 시 토큰 검증
+  useEffect(() => {
+    const savedToken = localStorage.getItem('token');
+    if (savedToken && isTokenExpired(savedToken)) {
+      console.log('⏰ 페이지 로드 시 저장된 토큰이 만료됨, 제거');
+      localStorage.removeItem('token');
+      setToken(null);
+    }
+  }, []);
 
   // 토큰이 있으면 사용자 정보 가져오기
   useEffect(() => {
@@ -84,7 +109,7 @@ export const AuthProvider = ({ children }) => {
       console.log('🚫 토큰 없음, 로딩 종료');
       setLoading(false);
     }
-  }, [token, user]);
+  }, [token]);
 
   // 주기적 토큰 만료 체크 (5분마다)
   useEffect(() => {
@@ -126,13 +151,19 @@ export const AuthProvider = ({ children }) => {
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
-      } else {
-        // 토큰이 유효하지 않으면 제거
+      } else if (response.status === 401) {
+        // 401 오류만 로그아웃 처리 (토큰이 유효하지 않음)
+        console.log('🔐 프로필 API 401 오류 - 토큰 무효, 로그아웃');
         logout();
+      } else {
+        // 다른 오류는 로그아웃하지 않고 기본 사용자 정보로 처리
+        console.warn('⚠️ 프로필 API 오류 (401 아님):', response.status);
+        setUser({ username: 'Unknown User', email: 'unknown@example.com' });
       }
     } catch (error) {
-      handleAuthError(error, '프로필 가져오기');
-      logout();
+      console.warn('⚠️ 프로필 API 네트워크 오류:', error);
+      // 네트워크 오류는 로그아웃하지 않고 기본 사용자 정보로 처리
+      setUser({ username: 'Unknown User', email: 'unknown@example.com' });
     } finally {
       setLoading(false);
     }
