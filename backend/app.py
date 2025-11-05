@@ -17,7 +17,6 @@ from routes.folders import folders_bp
 from routes.users import users_bp
 from routes.auth import auth_bp
 from routes.test_scripts import test_scripts_bp
-from routes.file_upload import file_upload_bp
 # from routes.jira_integration import jira_bp  # deprecated
 from routes.jira_issues import jira_issues_bp
 from utils.cors import setup_cors
@@ -72,9 +71,9 @@ if is_vercel:
     else:
         logger.info(f"Vercel 환경에서 데이터베이스 URL 사용: {database_url[:20]}...")
 else:
-    # 로컬 개발 환경에서는 AWS RDS test_management_alpha 강제 사용
-    database_url = 'mysql+pymysql://admin:Si1vesterl!#@test-management-db2.c3ago8cqsq3j.ap-southeast-2.rds.amazonaws.com:3306/test_management_alpha'
-    logger.info("로컬 환경에서 AWS RDS test_management_alpha 사용")
+    # 로컬 개발 환경에서는 로컬 MySQL 사용
+    database_url = 'mysql+pymysql://root:1q2w#E$R@localhost:3306/test_management'
+    logger.info("로컬 환경에서 로컬 MySQL 사용")
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -161,7 +160,6 @@ app.register_blueprint(folders_bp)
 app.register_blueprint(users_bp)
 app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(test_scripts_bp, url_prefix='/api/test-scripts')
-app.register_blueprint(file_upload_bp, url_prefix='/api/files')
 # app.register_blueprint(jira_bp)  # deprecated
 app.register_blueprint(jira_issues_bp)
 
