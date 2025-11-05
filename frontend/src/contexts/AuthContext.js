@@ -17,9 +17,11 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   const handleAuthSuccess = (access_token, userData, source = 'login') => {
+    console.log('🎉 인증 성공 처리 시작:', { source, userData });
     setToken(access_token);
     setUser(userData);
     localStorage.setItem('token', access_token);
+    console.log('🎉 인증 성공 처리 완료 - 토큰과 사용자 정보 설정됨');
   };
 
   const handleAuthError = (error, source = '요청') => {
@@ -60,29 +62,29 @@ export const AuthProvider = ({ children }) => {
 
   // 토큰이 있으면 사용자 정보 가져오기
   useEffect(() => {
-    const now = new Date().toLocaleString('ko-KR', {
-      timeZone: 'Asia/Seoul',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true
-    });
+    console.log('🔄 useEffect 토큰 변경 감지:', { token: !!token, user: !!user });
     
     if (token) {
       // 토큰 만료 시간 체크
       if (isTokenExpired(token)) {
+        console.log('⏰ 토큰 만료됨, 로그아웃');
         logout();
         return;
       }
       
-      fetchUserProfile();
+      // 이미 사용자 정보가 있으면 fetchUserProfile 호출하지 않음
+      if (!user) {
+        console.log('👤 사용자 정보 없음, 프로필 가져오기');
+        fetchUserProfile();
+      } else {
+        console.log('👤 사용자 정보 이미 있음, 프로필 가져오기 건너뛰기');
+        setLoading(false);
+      }
     } else {
+      console.log('🚫 토큰 없음, 로딩 종료');
       setLoading(false);
     }
-  }, [token]);
+  }, [token, user]);
 
   // 주기적 토큰 만료 체크 (5분마다)
   useEffect(() => {
@@ -138,6 +140,8 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
+      console.log('🔐 로그인 시도:', { username, apiUrl: config.apiUrl });
+      
       const response = await fetch(`${config.apiUrl}/auth/login`, {
         method: 'POST',
         headers: {
@@ -146,17 +150,34 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ username, password })
       });
 
+      console.log('📡 로그인 응답 상태:', response.status);
+      console.log('📡 로그인 응답 헤더:', Object.fromEntries(response.headers.entries()));
+
       if (response.ok) {
         const data = await response.json();
-        const { access_token, user: userData } = data;
+        console.log('✅ 로그인 성공 데이터:', data);
+        const { access_token, user: userData } = data.data || data;
+        
+        console.log('🔍 추출된 데이터:', { access_token: !!access_token, userData });
         
         handleAuthSuccess(access_token, userData, '로그인');
+        
+        // 상태 업데이트 후 확인
+        setTimeout(() => {
+          console.log('🔄 로그인 후 상태 확인:', { 
+            token: !!localStorage.getItem('token'), 
+            user: userData 
+          });
+        }, 100);
+        
         return { success: true };
       } else {
         const errorData = await response.json();
+        console.log('❌ 로그인 실패:', errorData);
         return { success: false, error: errorData.error || '로그인에 실패했습니다.' };
       }
     } catch (error) {
+      console.log('💥 로그인 네트워크 오류:', error);
       handleAuthError(error, '로그인');
       return { success: false, error: '네트워크 오류가 발생했습니다.' };
     }

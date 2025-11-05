@@ -13,6 +13,9 @@
 - **📊 Dashboard**: 테스트 결과 통계 및 분석
 - **👥 User Management**: 사용자 및 프로젝트 관리
 - **🌍 KST 시간대**: 한국 표준시 기반 일관된 시간 처리
+- **☁️ S3 Integration**: AWS S3를 통한 테스트 스크립트 클라우드 저장
+- **💻 Code Editor**: Monaco Editor 기반 고급 코드 에디터
+- **📝 Script Management**: 테스트 스크립트 생성, 편집, 관리
 
 ## 🏗️ 기술 스택
 
@@ -23,11 +26,13 @@
 - **MySQL 8.0+**
 - **Docker**
 - **pytz**: KST 시간대 처리
+- **boto3**: AWS S3 연동
 
 ### Frontend
 - **React 18+**
 - **Axios**
 - **Chart.js**
+- **Monaco Editor**: 고급 코드 에디터
 
 ### Testing Tools
 - **K6** (성능 테스트)
@@ -84,8 +89,8 @@ integrated-test-platform/
 │   │   └── config.js       # API 설정
 │   └── package.json
 ├── docs/                    # 문서 및 설정 파일
-│   ├── postman_collection_v2.json
-│   ├── postman_environment_v2.json
+│   ├── postman_collection_v2.3.0.json
+│   ├── postman_environment_v2.3.0.json
 │   ├── PERMISSION_GUIDE.md # 권한별 기능 가이드
 │   ├── API_TESTING_GUIDE.md # API 테스트 가이드
 │   ├── TESTING_GUIDE.md    # 테스트 가이드
@@ -138,7 +143,7 @@ FLASK_ENV=production
 ### API 테스트
 ```bash
 # Postman Collection 사용
-docs/postman_collection_v2.json
+docs/postman_collection_v2.3.0.json
 ```
 
 ### 성능 테스트
@@ -162,6 +167,34 @@ npx playwright test
 5. Open a Pull Request
 
 
+## 🆕 최신 기능 (v2.3.0)
+
+### 🧹 프로젝트 정리 및 최적화
+- **불필요한 파일 정리**: 로그, 캐시, 임시 파일 자동 정리
+- **코드 리팩토링**: 중복 코드 제거 및 구조 개선
+- **문서 최신화**: API 문서 및 프로젝트 가이드 업데이트
+- **성능 최적화**: 데이터베이스 쿼리 및 응답 시간 개선
+
+### ☁️ S3 통합 테스트 스크립트 관리
+- **클라우드 저장**: AWS S3를 통한 테스트 스크립트 클라우드 저장
+- **운영 환경 호환**: 로컬 파일 의존성 제거로 운영 환경에서 완전 동작
+- **실시간 편집**: Monaco Editor를 통한 고급 코드 편집 기능
+- **파일 관리**: 업로드, 다운로드, 삭제, 편집 등 완전한 파일 관리
+- **다중 언어 지원**: JavaScript, Python, JSON, Markdown 등 다양한 언어 지원
+
+### 💻 고급 코드 에디터
+- **Monaco Editor**: VS Code와 동일한 편집 경험
+- **구문 강조**: 프로그래밍 언어별 자동 구문 강조
+- **자동 완성**: 스마트 자동 완성 및 IntelliSense
+- **폴딩**: 코드 블록 접기/펼치기
+- **다크 모드**: 눈에 편한 다크 테마 지원
+
+### 📁 통합 파일 관리
+- **탭 기반 UI**: 테스트 케이스와 테스트 스크립트를 탭으로 분리
+- **S3/로컬 전환**: 클라우드와 로컬 파일 시스템 간 쉬운 전환
+- **드래그 앤 드롭**: 직관적인 파일 업로드
+- **실시간 미리보기**: 파일 내용을 즉시 확인하고 편집
+
 ## 📞 연락처
 
 - 프로젝트 링크: [https://github.com/username/integrated-test-platform](https://github.com/username/integrated-test-platform)
@@ -170,7 +203,7 @@ npx playwright test
 
 ---
 
-**마지막 업데이트**: 2025년 8월 27일  
-**버전**: 2.1.0  
+**마지막 업데이트**: 2025년 1월 9일  
+**버전**: 2.3.0  
 **상태**: 프로덕션 배포 완료 ✅  
-**주요 업데이트**: KST 시간대 처리, 파일 정리, 문서 최신화
+**주요 업데이트**: 프로젝트 정리, 코드 리팩토링, 문서 최신화, 성능 최적화

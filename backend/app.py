@@ -17,7 +17,8 @@ from routes.folders import folders_bp
 from routes.users import users_bp
 from routes.auth import auth_bp
 from routes.test_scripts import test_scripts_bp
-from routes.file_upload import file_upload_bp
+# from routes.jira_integration import jira_bp  # deprecated
+from routes.jira_issues import jira_issues_bp
 from utils.cors import setup_cors
 from flask_jwt_extended import JWTManager
 from datetime import timedelta
@@ -70,46 +71,33 @@ if is_vercel:
     else:
         logger.info(f"Vercel 환경에서 데이터베이스 URL 사용: {database_url[:20]}...")
 else:
-    # 로컬 개발 환경에서는 환경변수 우선, 없으면 기본 MySQL 사용
-    mysql_database_url = os.environ.get('MYSQL_DATABASE_URL')
-    if mysql_database_url:
-        database_url = mysql_database_url
-        logger.info("로컬 환경에서 Docker Alpha MySQL 사용")
-    else:
-        database_url = 'mysql+pymysql://root:1q2w#E$R@127.0.0.1:3306/test_management'
-        logger.info("로컬 환경에서 기본 MySQL 사용")
+    # 로컬 개발 환경에서는 로컬 MySQL 사용
+    database_url = 'mysql+pymysql://root:1q2w#E$R@localhost:3306/test_management'
+    logger.info("로컬 환경에서 로컬 MySQL 사용")
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # 환경별 데이터베이스 엔진 옵션 설정
-if is_vercel and 'mysql' in database_url:
-    # Vercel MySQL 환경
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'pool_pre_ping': True,
-        'pool_recycle': 300,
-        'connect_args': {
-            'connect_timeout': 10,
-            'read_timeout': 30,
-            'write_timeout': 30,
-            'ssl': {'ssl': True}  # 기본 SSL 설정
+def get_database_engine_options():
+    """데이터베이스 엔진 옵션 설정"""
+    if is_vercel and 'sqlite' in database_url:
+        logger.info("Vercel 환경에서 SQLite 사용")
+        return {}
+    else:
+        # MySQL 환경 (Vercel 또는 로컬)
+        return {
+            'pool_pre_ping': True,
+            'pool_recycle': 300,
+            'connect_args': {
+                'connect_timeout': 10,
+                'read_timeout': 30,
+                'write_timeout': 30,
+                'ssl': {'ssl': True}
+            }
         }
-    }
-elif is_vercel and 'sqlite' in database_url:
-    # Vercel SQLite 환경
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {}
-    logger.info("Vercel 환경에서 SQLite 사용")
-else:
-    # 로컬 MySQL 환경
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'pool_pre_ping': True,
-        'pool_recycle': 300,
-        'connect_args': {
-            'connect_timeout': 10,
-            'read_timeout': 30,
-            'write_timeout': 30
-        }
-    }
+
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = get_database_engine_options()
 
 # 환경 변수 로깅 (디버깅용)
 logger.debug(f"Database URL: {app.config['SQLALCHEMY_DATABASE_URI']}")
@@ -172,19 +160,17 @@ app.register_blueprint(folders_bp)
 app.register_blueprint(users_bp)
 app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(test_scripts_bp, url_prefix='/api/test-scripts')
-app.register_blueprint(file_upload_bp, url_prefix='/api/files')
+# app.register_blueprint(jira_bp)  # deprecated
+app.register_blueprint(jira_issues_bp)
 
 # 헬퍼 함수들
 def create_cors_response(data=None, status_code=200):
-    """CORS 헤더가 포함된 응답 생성"""
+    """CORS 헤더가 포함된 응답 생성 (utils.cors.add_cors_headers 사용)"""
     if data is None:
         data = {'status': 'preflight_ok'}
     response = jsonify(data)
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers'
-    response.headers['Access-Control-Max-Age'] = '86400'
-    return response, status_code
+    from utils.cors import add_cors_headers
+    return add_cors_headers(response), status_code
 
 def handle_options_request():
     """OPTIONS 요청 처리"""
@@ -438,11 +424,19 @@ def init_database():
             else:
                 logger.info("testuser가 이미 존재합니다")
             
-            # 준비된 사용자들을 한 번에 추가하고 커밋
+            # 준비된 사용자들을 개별적으로 추가하고 커밋
             if users_to_create:
                 for user in users_to_create:
-                    db.session.add(user)
-                db.session.commit()
+                    try:
+                        db.session.add(user)
+                        db.session.commit()
+                        logger.info(f"사용자 {user.username} 생성 완료")
+                    except Exception as user_error:
+                        db.session.rollback()
+                        logger.error(f"사용자 {user.username} 생성 실패: {user_error}")
+                        # 중복 오류인 경우 무시
+                        if 'duplicate' not in str(user_error).lower() and 'unique' not in str(user_error).lower():
+                            raise user_error
                 logger.info(f"{len(users_to_create)}명의 사용자 생성 완료")
             else:
                 logger.info("생성할 사용자가 없습니다")

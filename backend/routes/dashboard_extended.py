@@ -12,7 +12,8 @@ dashboard_extended_bp = Blueprint('dashboard_extended', __name__)
 @dashboard_extended_bp.route('/dashboard-summaries', methods=['GET', 'OPTIONS'])
 def get_dashboard_summaries():
     if request.method == 'OPTIONS':
-        return jsonify({'status': 'preflight_ok'}), 200
+        from app import handle_options_request
+        return handle_options_request()
     
     try:
         # DashboardSummary 테이블이 있으면 사용, 없으면 실시간 계산

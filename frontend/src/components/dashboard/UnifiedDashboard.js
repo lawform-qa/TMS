@@ -55,39 +55,324 @@ const UnifiedDashboard = ({ setActiveTab }) => {
   const [testExecutions, setTestExecutions] = useState([]);
   const [dashboardSummaries, setDashboardSummaries] = useState([]);
   const [testcaseSummaries, setTestcaseSummaries] = useState([]);
+  const [jiraStats, setJiraStats] = useState({
+    totalIssues: 0,
+    issuesByStatus: {},
+    issuesByPriority: {},
+    issuesByType: {},
+    recentIssues: []
+  });
+  const [jiraRecentIssues, setJiraRecentIssues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [dbInitializing, setDbInitializing] = useState(false);
+  
+  // 대시보드 카드 설정 상태
+  const [showCardSettings, setShowCardSettings] = useState(false);
+  const [cardSettings, setCardSettings] = useState(() => {
+    // localStorage에서 설정을 불러오되, 새로운 환경별 카드 설정으로 초기화
+    const savedSettings = localStorage.getItem('dashboardCardSettings');
+    if (savedSettings) {
+      try {
+        const parsed = JSON.parse(savedSettings);
+        // 기존 environmentSummary와 jiraStats가 있으면 제거하고 새로운 카드들로 교체
+        const { environmentSummary, jiraStats, ...otherSettings } = parsed;
+        return {
+          environmentDev: { enabled: true, order: 1, size: 'medium' },
+          environmentAlpha: { enabled: true, order: 2, size: 'medium' },
+          environmentProduction: { enabled: true, order: 3, size: 'medium' },
+          jiraSummary: { enabled: true, order: 4, size: 'medium' },
+          jiraRecentIssues: { enabled: true, order: 5, size: 'medium' },
+          ...otherSettings
+        };
+      } catch (e) {
+        console.error('설정 파싱 오류:', e);
+      }
+    }
+    return {
+      environmentDev: { enabled: true, order: 1, size: 'medium' },
+      environmentAlpha: { enabled: true, order: 2, size: 'medium' },
+      environmentProduction: { enabled: true, order: 3, size: 'medium' },
+      jiraSummary: { enabled: true, order: 4, size: 'medium' },
+      jiraRecentIssues: { enabled: true, order: 5, size: 'medium' },
+      testCases: { enabled: true, order: 6, size: 'medium' },
+      performanceTests: { enabled: true, order: 7, size: 'medium' },
+      testExecutions: { enabled: true, order: 8, size: 'medium' },
+      screenshots: { enabled: true, order: 9, size: 'small' }
+    };
+  });
+  
+  // 드래그 앤 드롭 상태
+  const [draggedCard, setDraggedCard] = useState(null);
+  const [dragOverCard, setDragOverCard] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
   
   // 페이징 상태 추가
   const [testCasesPage, setTestCasesPage] = useState(1);
   const [performanceTestsPage, setPerformanceTestsPage] = useState(1);
   const [testExecutionsPage, setTestExecutionsPage] = useState(1);
+  const [jiraRecentIssuesPage, setJiraRecentIssuesPage] = useState(1);
   const [testCasesPagination, setTestCasesPagination] = useState(null);
   const [performanceTestsPagination, setPerformanceTestsPagination] = useState(null);
   const [testExecutionsPagination, setTestExecutionsPagination] = useState(null);
+  const [jiraRecentIssuesPagination, setJiraRecentIssuesPagination] = useState(null);
   const itemsPerPage = 5;
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
-  const initializeDatabase = async () => {
-    try {
-      setDbInitializing(true);
-      
-      const response = await axios.post('/init-db');
-      
-      // 초기화 후 데이터 다시 로드 (skipInit=true로 호출하여 무한 루프 방지)
-      await fetchDashboardData(true);
-      
-      return true;
-    } catch (err) {
-      return false;
-    } finally {
-      setDbInitializing(false);
+  // 카드 설정이 변경될 때 localStorage에 저장
+  useEffect(() => {
+    localStorage.setItem('dashboardCardSettings', JSON.stringify(cardSettings));
+  }, [cardSettings]);
+
+  // 카드 설정 저장
+  const saveCardSettings = (newSettings) => {
+    setCardSettings(newSettings);
+    localStorage.setItem('dashboardCardSettings', JSON.stringify(newSettings));
+  };
+
+  // 카드 활성화/비활성화 토글
+  const toggleCard = (cardKey) => {
+    const newSettings = {
+      ...cardSettings,
+      [cardKey]: {
+        ...cardSettings[cardKey],
+        enabled: !cardSettings[cardKey].enabled
+      }
+    };
+    saveCardSettings(newSettings);
+  };
+
+  // 카드 순서 변경
+  const moveCard = (cardKey, direction) => {
+    const newSettings = { ...cardSettings };
+    const currentOrder = newSettings[cardKey].order;
+    const newOrder = direction === 'up' ? currentOrder - 1 : currentOrder + 1;
+    
+    // 다른 카드와 순서 교환
+    const otherCard = Object.keys(newSettings).find(key => 
+      newSettings[key].order === newOrder
+    );
+    
+    if (otherCard) {
+      newSettings[cardKey].order = newOrder;
+      newSettings[otherCard].order = currentOrder;
+      saveCardSettings(newSettings);
     }
   };
+
+  // 카드 크기 변경
+  const changeCardSize = (cardKey, size) => {
+    const newSettings = {
+      ...cardSettings,
+      [cardKey]: {
+        ...cardSettings[cardKey],
+        size: size
+      }
+    };
+    saveCardSettings(newSettings);
+  };
+
+  // 드래그 시작
+  const handleDragStart = (e, cardKey) => {
+    setDraggedCard(cardKey);
+    setIsDragging(true);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', cardKey);
+    
+    // body에 드래그 클래스 추가
+    document.body.classList.add('dragging');
+    
+    // 드래그 이미지 설정
+    const dragImage = e.target.cloneNode(true);
+    dragImage.style.opacity = '0.5';
+    dragImage.style.transform = 'rotate(5deg)';
+    dragImage.style.width = '300px'; // 고정 너비 설정
+    dragImage.style.height = '200px'; // 고정 높이 설정
+    dragImage.style.overflow = 'hidden';
+    document.body.appendChild(dragImage);
+    e.dataTransfer.setDragImage(dragImage, 150, 100); // 중앙에서 드래그
+    
+    // 드래그 이미지 제거
+    setTimeout(() => {
+      if (document.body.contains(dragImage)) {
+        document.body.removeChild(dragImage);
+      }
+    }, 0);
+  };
+
+  // 드래그 오버
+  const handleDragOver = (e, cardKey) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverCard(cardKey);
+  };
+
+  // 드래그 리브
+  const handleDragLeave = (e) => {
+    // 자식 요소로 이동하는 경우는 무시
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setDragOverCard(null);
+    }
+  };
+
+  // 드롭
+  const handleDrop = (e, targetCardKey) => {
+    e.preventDefault();
+    
+    if (draggedCard && draggedCard !== targetCardKey) {
+      const newSettings = { ...cardSettings };
+      const draggedOrder = newSettings[draggedCard].order;
+      const targetOrder = newSettings[targetCardKey].order;
+      
+      // 순서 교환
+      newSettings[draggedCard].order = targetOrder;
+      newSettings[targetCardKey].order = draggedOrder;
+      
+      saveCardSettings(newSettings);
+    }
+    
+    setDraggedCard(null);
+    setDragOverCard(null);
+    setIsDragging(false);
+    document.body.classList.remove('dragging');
+  };
+
+  // 드래그 종료
+  const handleDragEnd = () => {
+    setDraggedCard(null);
+    setDragOverCard(null);
+    setIsDragging(false);
+    document.body.classList.remove('dragging');
+  };
+
+  // 활성화된 카드들을 순서대로 정렬
+  const getEnabledCards = () => {
+    return Object.entries(cardSettings)
+      .filter(([key, config]) => config.enabled)
+      .sort((a, b) => a[1].order - b[1].order);
+  };
+
+  // 카드 표시 이름 반환
+  const getCardDisplayName = (cardKey) => {
+    const names = {
+      environmentDev: 'DEV 환경 테스트 케이스',
+      environmentAlpha: 'ALPHA 환경 테스트 케이스',
+      environmentProduction: 'PRODUCTION 환경 테스트 케이스',
+      jiraSummary: '이슈 요약',
+      jiraRecentIssues: '최근 이슈',
+      testCases: '테스트 케이스',
+      performanceTests: '성능 테스트',
+      testExecutions: '테스트 실행 결과',
+      screenshots: '스크린샷'
+    };
+    return names[cardKey] || cardKey;
+  };
+
+  // 최근 이슈 가져오기
+  const fetchJiraRecentIssues = async (page = 1) => {
+    try {
+      const response = await axios.get(`/api/jira/issues?page=${page}&per_page=${itemsPerPage}`);
+      if (response.data.success) {
+        setJiraRecentIssuesPagination(response.data.data.pagination);
+        return response.data.data.issues || [];
+      } else {
+        console.error('최근 이슈 조회 실패:', response.data.error);
+        return [];
+      }
+    } catch (error) {
+      console.error('최근 이슈 조회 오류:', error);
+      return [];
+    }
+  };
+
+  // 환경별 카드 렌더링 함수
+  const renderEnvironmentCard = (env) => {
+    try {
+      const summary = getTestcaseEnvironmentSummary(env);
+      const total = summary.total_testcases;
+      const passed = summary.passed;
+      const failed = summary.failed;
+      const nt = summary.nt;
+      const na = summary.na;
+      const blocked = summary.blocked;
+      
+      // 성공률: Pass / 전체 테스트 케이스 * 100
+      const successRate = total > 0 ? (passed / total * 100) : 0;
+      
+      // 수행률: (전체 테스트 케이스 - N/T) / 전체 테스트 케이스 * 100
+      const executionRate = total > 0 ? ((total - nt) / total * 100) : 0;
+      
+      return (
+        <>
+          <div className="card-header">
+            <h3>{env.toUpperCase()} 환경 테스트 케이스</h3>
+            <button 
+              className="btn-move-to-tab"
+              onClick={() => setActiveTab('testcases')}
+              title="테스트 케이스 상세 보기"
+            >
+              이동 &gt;
+            </button>
+          </div>
+          <div className="card-content">
+            <div className="environment-card">
+              <div className="chart-container">
+                <div className="chart-wrapper">
+                  <Doughnut 
+                    data={createTestcaseChartData(env)} 
+                    options={chartOptions}
+                    height={150}
+                  />
+                </div>
+                <div className="summary-table-container">
+                  <table className="summary-table">
+                    <thead>
+                      <tr>
+                        <th>Total</th>
+                        <th>Pass</th>
+                        <th>Fail</th>
+                        <th>N/T</th>
+                        <th>N/A</th>
+                        <th>Block</th>
+                        <th>성공률</th>
+                        <th>수행률</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>{total}</td>
+                        <td className="status-pass">{passed}</td>
+                        <td className="status-fail">{failed}</td>
+                        <td className="status-nt">{nt}</td>
+                        <td className="status-na">{na}</td>
+                        <td className="status-block">{blocked}</td>
+                        <td className="success-rate">{successRate.toFixed(1)}%</td>
+                        <td className="execution-rate">{executionRate.toFixed(1)}%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      );
+    } catch (error) {
+      console.error(`환경별 카드 렌더링 오류 (${env}):`, error);
+      return (
+        <div className="card-header">
+          <h3>{env.toUpperCase()} 환경 테스트 케이스</h3>
+          <div className="card-content">
+            <p>데이터를 불러오는 중 오류가 발생했습니다.</p>
+          </div>
+        </div>
+      );
+    }
+  };
+
+
 
   const fetchDashboardData = async (skipInit = false) => {
     try {
@@ -98,23 +383,18 @@ const UnifiedDashboard = ({ setActiveTab }) => {
       try {
         const healthRes = await axios.get('/health');
         
-        // 데이터베이스 상태 확인 (skipInit이 false일 때만)
-        if (!skipInit && healthRes.data.database && !healthRes.data.database.tables_exist) {
-          const initSuccess = await initializeDatabase();
-          if (!initSuccess) {
-            throw new Error('데이터베이스 초기화에 실패했습니다.');
-          }
-        }
       } catch (healthErr) {
         // 헬스체크 오류는 조용히 처리
       }
       
-      const [testCasesRes, performanceTestsRes, testExecutionsRes, summariesRes, testcaseSummariesRes] = await Promise.all([
+      const [testCasesRes, performanceTestsRes, testExecutionsRes, summariesRes, testcaseSummariesRes, jiraStatsRes, jiraRecentIssuesRes] = await Promise.all([
         axios.get(`/testcases?page=1&per_page=${itemsPerPage}`),
         axios.get(`/performance-tests?page=1&per_page=${itemsPerPage}`),
         axios.get(`/test-executions?page=1&per_page=${itemsPerPage}`),
         axios.get('/dashboard-summaries'),
-        axios.get('/testcases/summary/all')
+        axios.get('/testcases/summary/all'),
+        axios.get('/api/jira/stats'),
+        axios.get(`/api/jira/issues?page=1&per_page=${itemsPerPage}`)
       ]);
 
       setTestCases(testCasesRes.data.items || testCasesRes.data);
@@ -122,6 +402,33 @@ const UnifiedDashboard = ({ setActiveTab }) => {
       setTestExecutions(testExecutionsRes.data.items || testExecutionsRes.data);
       setDashboardSummaries(summariesRes.data);
       setTestcaseSummaries(testcaseSummariesRes.data);
+      
+      // JIRA 통계 처리
+      console.log('📊 JIRA 통계 응답:', jiraStatsRes.data);
+      if (jiraStatsRes.data && jiraStatsRes.data.success) {
+        const stats = jiraStatsRes.data.data;
+        console.log('📊 JIRA 통계 데이터:', stats);
+        setJiraStats({
+          totalIssues: stats.total_issues || 0,
+          issuesByStatus: stats.issues_by_status || {},
+          issuesByPriority: stats.issues_by_priority || {},
+          issuesByType: stats.issues_by_type || {},
+          recentIssues: stats.recent_issues || []
+        });
+        console.log('📊 JIRA 통계 상태 설정 완료');
+      } else {
+        console.log('❌ JIRA 통계 응답 실패:', jiraStatsRes.data);
+      }
+      
+      // 최근 이슈 처리
+      if (jiraRecentIssuesRes.data && jiraRecentIssuesRes.data.success) {
+        setJiraRecentIssues(jiraRecentIssuesRes.data.data.issues || []);
+        setJiraRecentIssuesPagination(jiraRecentIssuesRes.data.data.pagination);
+      } else {
+        console.error('최근 이슈 조회 실패:', jiraRecentIssuesRes.data?.error);
+        setJiraRecentIssues([]);
+        setJiraRecentIssuesPagination(null);
+      }
       
       // 페이징 정보 설정
       if (testCasesRes.data.pagination) {
@@ -140,16 +447,6 @@ const UnifiedDashboard = ({ setActiveTab }) => {
         console.error('Dashboard 데이터 로드 오류:', err);
       }
       
-      // 데이터베이스 오류인 경우 초기화 시도 (skipInit이 false일 때만)
-      if (!skipInit && err.response?.status === 500 && err.response?.data?.error?.includes('no such table')) {
-        setError('데이터베이스 테이블이 없습니다. 초기화를 시도합니다...');
-        
-        const initSuccess = await initializeDatabase();
-        if (initSuccess) {
-          setError(null);
-          return; // 성공하면 함수 종료
-        }
-      }
       
       setError('데이터를 불러오는 중 오류가 발생했습니다.');
     } finally {
@@ -336,7 +633,7 @@ const UnifiedDashboard = ({ setActiveTab }) => {
   if (loading) {
     return (
       <div className="dashboard-loading">
-        <div className="loading-spinner">
+        <div className="dashboard-loading-spinner">
           <div className="spinner"></div>
         </div>
         <p>대시보드 데이터를 불러오는 중...</p>
@@ -358,13 +655,6 @@ const UnifiedDashboard = ({ setActiveTab }) => {
           >
             다시 시도
           </button>
-          <button 
-            className="btn-init-db"
-            onClick={initializeDatabase}
-            disabled={dbInitializing}
-          >
-            {dbInitializing ? '초기화 중...' : '데이터베이스 초기화'}
-          </button>
         </div>
       </div>
     );
@@ -372,99 +662,351 @@ const UnifiedDashboard = ({ setActiveTab }) => {
 
   return (
     <div className="unified-dashboard">
+      <div className="dashboard-header">
+        <div className="dashboard-title-section">
       <h1>통합 테스트 플랫폼 대시보드</h1>
       
-      {/* 데이터베이스 초기화 버튼 */}
-      <div className="db-init-section">
+        </div>
         <button 
-          className={`db-init-button ${dbInitializing ? 'initializing' : ''}`}
-          onClick={initializeDatabase}
-          disabled={dbInitializing}
+          className="btn-card-settings"
+          onClick={() => setShowCardSettings(!showCardSettings)}
+          title="카드 설정"
         >
-          {dbInitializing ? '데이터베이스 초기화 중...' : '데이터베이스 초기화'}
+          ⚙️  
         </button>
-        {error && (
-          <div className="error-message">
-            {error}
-            <button 
-              className="retry-button"
-              onClick={initializeDatabase}
-              disabled={dbInitializing}
-            >
-              다시 시도
-            </button>
-          </div>
-        )}
       </div>
-      
-      {/* 환경별 테스트 케이스 상태 요약 */}
-      <div className="environment-summary-section">
-        <h2>환경별 테스트 케이스 상태 요약</h2>
-        <div className="environment-cards">
-          {['dev', 'alpha', 'production'].map(env => {
-            const summary = getTestcaseEnvironmentSummary(env);
-            const total = summary.total_testcases;
-            const passed = summary.passed;
-            const failed = summary.failed;
-            const nt = summary.nt;
-            const na = summary.na;
-            const blocked = summary.blocked;
-            
-            // 성공률: Pass / 전체 테스트 케이스 * 100
-            const successRate = total > 0 ? (passed / total * 100) : 0;
-            
-            // 수행률: (전체 테스트 케이스 - N/T) / 전체 테스트 케이스 * 100
-            const executionRate = total > 0 ? ((total - nt) / total * 100) : 0;
-            
-            return (
-              <div key={env} className="environment-card">
-                <h3>{env.toUpperCase()} 환경</h3>
-                <div className="chart-container">
-                  <div className="chart-wrapper">
-                    <Doughnut 
-                      data={createTestcaseChartData(env)} 
-                      options={chartOptions}
-                      height={200}
-                    />
+
+      {/* 카드 설정 모달 */}
+      {showCardSettings && (
+        <div className="card-settings-modal">
+          <div className="card-settings-content">
+            <div className="card-settings-header">
+              <h3>대시보드 카드 설정</h3>
+              <button 
+                className="btn-close"
+                onClick={() => setShowCardSettings(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="card-settings-body">
+              {Object.entries(cardSettings).map(([cardKey, config]) => (
+                <div key={cardKey} className="card-setting-item">
+                  <div className="card-setting-info">
+                    <div className="card-setting-header">
+                      <label className="card-toggle">
+                        <input
+                          type="checkbox"
+                          checked={config.enabled}
+                          onChange={() => toggleCard(cardKey)}
+                        />
+                        <span className="card-name">
+                          {getCardDisplayName(cardKey)}
+                        </span>
+                      </label>
+                    </div>
+                    {config.enabled && (
+                        <div className="card-setting-controls">
+                          <div className="card-order-controls">
+                            <button
+                              className="btn-move"
+                              onClick={() => moveCard(cardKey, 'up')}
+                              disabled={config.order === 1}
+                              title="위로 이동"
+                            >
+                              ↑
+                            </button>
+                            <span className="order-number">{config.order}</span>
+                            <button
+                              className="btn-move"
+                              onClick={() => moveCard(cardKey, 'down')}
+                              disabled={config.order === Object.keys(cardSettings).length}
+                              title="아래로 이동"
+                            >
+                              ↓
+                            </button>
+                          </div>
+                          <div className="card-size-controls">
+                            <label>크기:</label>
+                            <select
+                              value={config.size}
+                              onChange={(e) => changeCardSize(cardKey, e.target.value)}
+                            >
+                              <option value="small">작게 (3열 그리드)</option>
+                              <option value="medium">보통 (3열 그리드)</option>
+                              <option value="large">크게 (전체 너비)</option>
+                            </select>
+                          </div>
+                        </div>
+                    )}
                   </div>
-                  <div className="summary-table-container">
-                    <table className="summary-table">
-                      <thead>
-                        <tr>
-                          <th>Total</th>
-                          <th>Pass</th>
-                          <th>Fail</th>
-                          <th>N/T</th>
-                          <th>N/A</th>
-                          <th>Block</th>
-                          <th>성공률</th>
-                          <th>수행률</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td>{total}</td>
-                          <td className="status-pass">{passed}</td>
-                          <td className="status-fail">{failed}</td>
-                          <td className="status-nt">{nt}</td>
-                          <td className="status-na">{na}</td>
-                          <td className="status-block">{blocked}</td>
-                          <td className="success-rate">{successRate.toFixed(1)}%</td>
-                          <td className="execution-rate">{executionRate.toFixed(1)}%</td>
-                        </tr>
-                      </tbody>
-                    </table>
+                </div>
+              ))}
+            </div>
+            <div className="card-settings-footer">
+              <button 
+                className="btn-reset"
+                onClick={() => {
+                  const defaultSettings = {
+                    environmentDev: { enabled: true, order: 1, size: 'medium' },
+                    environmentAlpha: { enabled: true, order: 2, size: 'medium' },
+                    environmentProduction: { enabled: true, order: 3, size: 'medium' },
+                    jiraSummary: { enabled: true, order: 4, size: 'medium' },
+                    jiraRecentIssues: { enabled: true, order: 5, size: 'medium' },
+                    testCases: { enabled: true, order: 6, size: 'medium' },
+                    performanceTests: { enabled: true, order: 7, size: 'medium' },
+                    testExecutions: { enabled: true, order: 8, size: 'medium' },
+                    screenshots: { enabled: true, order: 9, size: 'small' }
+                  };
+                  saveCardSettings(defaultSettings);
+                }}
+              >
+                기본값으로 재설정
+              </button>
+              <button 
+                className="btn-close-modal"
+                onClick={() => setShowCardSettings(false)}
+              >
+                완료
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 동적으로 렌더링되는 카드들 */}
+      <div className="dynamic-cards-container">
+        {getEnabledCards().map(([cardKey, config]) => {
+        const isDragging = draggedCard === cardKey;
+        const isDragOver = dragOverCard === cardKey;
+        
+        return (
+          <div key={cardKey}>
+            {cardKey === 'environmentDev' && (
+              <div 
+                className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
+              >
+                
+                <div className="card-content">
+                  {renderEnvironmentCard('dev')}
+                </div>
+              </div>
+            )}
+            
+            {cardKey === 'environmentAlpha' && (
+              <div 
+                className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
+              >
+                
+                <div className="card-content">
+                  {renderEnvironmentCard('alpha')}
+                </div>
+              </div>
+            )}
+            
+            {cardKey === 'environmentProduction' && (
+              <div 
+                className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="card-content">
+                  
+                  {renderEnvironmentCard('production')}
+                </div>
+              </div>
+            )}
+            
+            {cardKey === 'jiraSummary' && (
+              <div 
+                className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="card-header">
+                  <h3>이슈 요약</h3>
+                  <button 
+                    className="btn-move-to-tab"
+                    onClick={() => setActiveTab('jira')}
+                    title="이슈 상세 보기"
+                  >
+                    이동 &gt;
+                  </button>
+                </div>
+                <div className="card-content">
+                  <div className="jira-stats-grid">
+                    {/* 전체 통계 카드 */}
+                    <div className="jira-stats-card total-issues">
+                      <div className="stats-icon">📊</div>
+                      <div className="stats-content">
+                        <h3>전체 이슈</h3>
+                        <div className="stats-number">{jiraStats.totalIssues}</div>
+                      </div>
+                    </div>
+
+                    {/* 상태별 통계 */}
+                    <div className="jira-stats-card status-breakdown">
+                      <h3>상태별 분포</h3>
+                      <div className="status-list">
+                        {Object.entries(jiraStats.issuesByStatus).map(([status, count]) => (
+                          <div key={status} className="status-item">
+                            <span className="status-label">{status}</span>
+                            <span className="status-count">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 우선순위별 통계 */}
+                    <div className="jira-stats-card priority-breakdown">
+                      <h3>우선순위별 분포</h3>
+                      <div className="priority-list">
+                        {Object.entries(jiraStats.issuesByPriority).map(([priority, count]) => (
+                          <div key={priority} className="priority-item">
+                            <span className="priority-label">{priority}</span>
+                            <span className="priority-count">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 타입별 통계 */}
+                    <div className="jira-stats-card type-breakdown">
+                      <h3>타입별 분포</h3>
+                      <div className="type-list">
+                        {Object.entries(jiraStats.issuesByType).map(([type, count]) => (
+                          <div key={type} className="type-item">
+                            <span className="type-label">{type}</span>
+                            <span className="type-count">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      </div>
+            )}
 
-      {/* 기존 대시보드 내용 */}
-      <div className="dashboard-grid">
-        <div className="dashboard-card">
+            {cardKey === 'jiraRecentIssues' && (
+              <div 
+                className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="card-header">
+                  <h3>최근 이슈</h3>
+                  <button 
+                    className="btn-move-to-tab"
+                    onClick={() => setActiveTab('jira')}
+                    title="이슈 상세 보기"
+                  >
+                    이동 &gt;
+                  </button>
+                </div>
+                <div className="card-content">
+                  <div className="recent-issues-section">
+                    <div className="recent-issues-list">
+                      {jiraRecentIssues.length > 0 ? (
+                        jiraRecentIssues.map(issue => (
+                          <div key={issue.id} className="recent-issue-item">
+                            <div className="issue-info">
+                              <span className="issue-key">{issue.issue_key}</span>
+                              <span className="issue-summary">{issue.summary}</span>
+                            </div>
+                            <div className="issue-meta">
+                              <span className={`issue-status status-${issue.status.toLowerCase().replace(' ', '-')}`}>
+                                {issue.status}
+                              </span>
+                              <span className={`issue-priority priority-${issue.priority.toLowerCase()}`}>
+                                {issue.priority}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="no-recent-issues">최근 이슈가 없습니다.</p>
+                      )}
+                    </div>
+                    
+                    {/* 페이지네이션 */}
+                    {jiraRecentIssuesPagination && jiraRecentIssuesPagination.total_pages > 1 && (
+                      <div className="pagination-controls">
+                        <button
+                          className="pagination-btn"
+                          onClick={() => {
+                            const newPage = jiraRecentIssuesPage - 1;
+                            if (newPage >= 1) {
+                              setJiraRecentIssuesPage(newPage);
+                              fetchJiraRecentIssues(newPage).then(issues => {
+                                setJiraRecentIssues(issues);
+                              });
+                            }
+                          }}
+                          disabled={jiraRecentIssuesPage <= 1}
+                        >
+                          &lt;
+                        </button>
+                        
+                        <span className="pagination-info">
+                          {jiraRecentIssuesPage} / {jiraRecentIssuesPagination.total_pages}
+                        </span>
+                        
+                        <button
+                          className="pagination-btn"
+                          onClick={() => {
+                            const newPage = jiraRecentIssuesPage + 1;
+                            if (newPage <= jiraRecentIssuesPagination.total_pages) {
+                              setJiraRecentIssuesPage(newPage);
+                              fetchJiraRecentIssues(newPage).then(issues => {
+                                setJiraRecentIssues(issues);
+                              });
+                            }
+                          }}
+                          disabled={jiraRecentIssuesPage >= jiraRecentIssuesPagination.total_pages}
+                        >
+                          &gt;
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {cardKey === 'testCases' && (
+              <div 
+                className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
+              >
           <div className="card-header">
             <h3>테스트 케이스 ({testCases.length})</h3>
             <button 
@@ -504,14 +1046,24 @@ const UnifiedDashboard = ({ setActiveTab }) => {
               <div className="pagination-info">
                 <div className="pagination-stats">
                   <span>총 {testCasesPagination.total}개</span>
-                  <span>페이지 {testCasesPagination.page}/{testCasesPagination.pages}</span>
+                  <span>페이지 {testCasesPagination.page}/{testCasesPagination.pages || 1}</span>
                 </div>
               </div>
             )}
           </div>
         </div>
-
-        <div className="dashboard-card">
+            )}
+            
+            {cardKey === 'performanceTests' && (
+              <div 
+                className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
+              >
           <div className="card-header">
             <h3>성능 테스트 ({performanceTests.length})</h3>
             <button 
@@ -545,10 +1097,28 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                 처음부터 보기
               </div>
             )}
+            {performanceTestsPagination && (
+              <div className="pagination-info">
+                <div className="pagination-stats">
+                  <span>총 {performanceTestsPagination.total_items}개</span>
+                  <span>페이지 {performanceTestsPagination.page}/{performanceTestsPagination.total_pages || 1}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-
-        <div className="dashboard-card">
+            )}
+            
+            {cardKey === 'testExecutions' && (
+              <div 
+                className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
+              >
           <div className="card-header">
             <h3>최근 테스트 실행 ({testExecutions.length})</h3>
             <button 
@@ -588,13 +1158,52 @@ const UnifiedDashboard = ({ setActiveTab }) => {
               <div className="pagination-info">
                 <div className="pagination-stats">
                   <span>총 {testExecutionsPagination.total}개</span>
-                  <span>페이지 {testExecutionsPagination.page}/{testExecutionsPagination.pages}</span>
+                  <span>페이지 {testExecutionsPagination.page}/{testExecutionsPagination.pages || 1}</span>
                 </div>
               </div>
             )}
           </div>
         </div>
+            )}
+            
+            {cardKey === 'screenshots' && (
+              <div 
+                className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="card-header">
+                  <h3>스크린샷</h3>
+                  <button 
+                    className="btn-move-to-tab"
+                    onClick={() => setActiveTab('testcases')}
+                    title="스크린샷 상세 보기"
+                  >
+                    이동 &gt;
+                  </button>
+                </div>
+                <div className="card-content">
+                  <div className="screenshots-grid">
+                    <div className="screenshot-item">
+                      <div className="screenshot-placeholder">
+                        <span>📸</span>
+                        <p>스크린샷이 없습니다</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
       </div>
+        );
+      })}
+      </div>
+
+      {/* 기존 대시보드 내용은 동적 렌더링으로 이동됨 */}
     </div>
   );
 };

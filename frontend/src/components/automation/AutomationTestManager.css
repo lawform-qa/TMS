@@ -1,6 +1,8 @@
-/* 자동화 테스트 관리자 스타일 */
-.automation-test-manager {
+/* 자동화 테스트 관리자 스타일 - 다른 탭들과 일관된 스타일 적용 */
+.automation-container {
   padding: 20px;
+  background: #f8f9fa;
+  min-height: 100vh;
 }
 
 .automation-header {
@@ -8,24 +10,28 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 30px;
-  padding-bottom: 20px;
-  border-bottom: 2px solid #e9ecef;
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.automation-header h2 {
+.automation-header h1 {
   color: #333;
   margin: 0;
   font-size: 1.8em;
+  font-weight: 600;
 }
 
 .header-actions {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
 }
 
-.btn {
-  padding: 8px 12px;
+/* 통일된 버튼 스타일 */
+.automation-btn {
+  padding: 8px 16px;
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -42,25 +48,85 @@
   height: 40px;
 }
 
-.btn-add {
-  background: #007bff;
-  color: white;
-}
-
-.btn:hover {
+.automation-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
 
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
+.automation-btn-add {
+  background: #28a745;
+  color: white;
 }
 
-/* 아이콘 버튼 최적화 */
-.btn-icon {
+.automation-btn-add:hover {
+  background: #218838;
+}
+
+
+.automation-btn-cancel {
+  background: #6c757d;
+  color: white;
+}
+
+.automation-btn-cancel:hover {
+  background: #5a6268;
+}
+
+.automation-btn-save {
+  background: #007bff;
+  color: white;
+}
+
+.automation-btn-save:hover {
+  background: #0056b3;
+}
+
+.automation-btn-edit {
+  background: #ffc107;
+  color: #333;
+}
+
+.automation-btn-edit:hover {
+  background: #e0a800;
+}
+
+.automation-btn-delete {
+  background: #dc3545;
+  color: white;
+}
+
+.automation-btn-delete:hover {
+  background: #c82333;
+}
+
+.automation-btn-execute {
+  background: #28a745;
+  color: white;
+}
+
+.automation-btn-execute:hover {
+  background: #218838;
+}
+
+.automation-btn-primary {
+  background: #007bff;
+  color: white;
+}
+
+.automation-btn-primary:hover {
+  background: #0056b3;
+}
+
+.automation-btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.automation-btn-secondary:hover {
+  background: #5a6268;
+}
+
+.automation-btn-icon {
   min-width: 40px;
   width: 40px;
   height: 40px;
@@ -68,66 +134,406 @@
   font-size: 16px;
 }
 
-.btn-add:hover {
+.automation-btn-upload {
+  background: #28a745;
+  color: white;
+}
+
+.automation-btn-download {
+  background: #007bff;
+  color: white;
+}
+
+.automation-btn-execute {
+  background: #ffc107;
+  color: #333;
+}
+
+.automation-btn-execute:hover:not(:disabled) {
+  background: #e0a800;
+}
+
+
+.automation-btn-delete {
+  background: #dc3545;
+  color: white;
+}
+
+.automation-btn-delete:hover:not(:disabled) {
+  background: #c82333;
+}
+
+.automation-btn-primary {
+  background: #007bff;
+  color: white;
+}
+
+.automation-btn-primary:hover {
   background: #0056b3;
 }
 
-.btn-automation {
+.automation-btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+/* 아이콘 버튼 최적화 */
+.automation-btn-icon {
+  min-width: 40px;
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  font-size: 16px;
+}
+
+
+.automation-btn-automation {
   background: #ffc107;
   color: #333;
   margin-right: 8px;
 }
 
-.btn-automation:hover {
+.automation-btn-automation:hover {
   background: #e0a800;
 }
 
-.btn-details {
+.automation-btn-details {
   background: #17a2b8;
   color: white;
   margin-right: 8px;
 }
 
-.btn-details:hover {
+.automation-btn-details:hover {
   background: #138496;
 }
 
-.btn-edit-icon {
+.automation-btn-edit-icon {
   background: #17a2b8;
   color: white;
   margin-right: 8px;
 }
 
-.btn-edit-icon:hover {
+.automation-btn-edit-icon:hover {
   background: #138496;
 }
 
-.btn-delete-icon {
+.automation-btn-delete-icon {
   background: #dc3545;
   color: white;
 }
 
-.btn-delete-icon:hover {
+.automation-btn-delete-icon:hover {
   background: #c82333;
 }
 
-/* 게스트용 기본 버튼 스타일 */
-.btn-details {
-  background: #f8f9fa;
-  color: #666;
-  border: 1px solid #e9ecef;
-}
 
-.btn-primary {
+.automation-btn-primary {
   background: #007bff;
   color: white;
 }
 
-.btn-primary:hover {
+.automation-btn-primary:hover {
   background: #0056b3;
 }
 
-/* 테스트 목록 */
+/* 검색 섹션 - 테스트 케이스 탭과 동일한 스타일 */
+.automation-search-section {
+  margin: 0;
+  padding: 20px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.automation-search-container {
+  max-width: auto;
+  margin: 0 auto;
+}
+
+.automation-search-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.automation-search-input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid #e9ecef;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.automation-search-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.automation-search-input::placeholder {
+  color: #999;
+  font-style: italic;
+}
+
+.automation-btn-clear-search {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.automation-btn-clear-search:hover {
+  background: #5a6268;
+  transform: translateY(-1px);
+}
+
+.automation-search-info {
+  font-size: 0.9em;
+  color: #007bff;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* 고급 필터 */
+.automation-advanced-filters {
+  margin: 15px 0;
+  padding: 15px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.automation-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  align-items: center;
+  justify-content: center;
+}
+
+.automation-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 120px;
+}
+
+.automation-filter-group label {
+  font-size: 0.8em;
+  font-weight: 600;
+  color: #495057;
+  text-align: center;
+}
+
+.automation-filter-select {
+  padding: 8px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 13px;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.automation-filter-select:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
+
+/* 검색 결과 요약 */
+.automation-search-summary {
+  background-color: #ffffff;
+  font-size: medium;
+  margin-top: 15px;
+  padding: 10px 0;
+  font-size: 0.9em;
+  color: #000000;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.automation-search-summary span {
+  margin: 0 5px;
+}
+
+/* 테이블 컨테이너 */
+.automation-table-container {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  margin-bottom: 30px;
+}
+
+.automation-table {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.automation-table-content {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.automation-table-content thead {
+  background: #f8f9fa;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.automation-table-content th {
+  padding: 12px 16px;
+  text-align: center;
+  font-weight: 600;
+  color: #495057;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  white-space: nowrap;
+}
+
+.automation-table-content th.automation-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s ease;
+  position: relative;
+  text-align: center;
+}
+
+.automation-table-content th.automation-sortable:hover {
+  background-color: #e9ecef;
+}
+
+.automation-table-content tbody tr {
+  border-bottom: 1px solid #e9ecef;
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+}
+
+.automation-table-content tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+.automation-table-content tbody tr.selected {
+  background-color: #e3f2fd;
+  border-left: 4px solid #007bff;
+}
+
+.automation-table-content td {
+  padding: 12px 16px;
+  vertical-align: top;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.automation-test-name-cell {
+  min-width: 200px;
+}
+
+.automation-test-name-content strong {
+  display: block;
+  color: #333;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.automation-test-description {
+  color: #666;
+  font-size: 13px;
+  line-height: 1.4;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.automation-test-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #e3f2fd;
+  color: #1976d2;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.automation-environment-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #f3e5f5;
+  color: #7b1fa2;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* 작성자/담당자 스타일 - 다른 탭들과 일관 */
+.assignee-section {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.assignee-select {
+  font-size: 12px;
+  padding: 2px 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  min-width: 120px;
+}
+
+.assignee-badge {
+  font-size: 12px;
+  padding: 2px 6px;
+  background: #e3f2fd;
+  color: #1976d2;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.creator-badge {
+  font-size: 12px;
+  padding: 2px 6px;
+  background: #f3e5f5;
+  color: #7b1fa2;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.automation-action-cell {
+  width: 120px;
+  text-align: center;
+}
+
+.automation-action-buttons {
+  display: flex;
+  gap: 5px;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 상세 정보 섹션 */
+.automation-detail-section {
+  margin-top: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+/* 테스트 목록 (기존 스타일 유지) */
 .automation-list {
   display: flex;
   flex-direction: column;
@@ -258,7 +664,7 @@
 }
 
 /* 빈 상태 스타일 */
-.empty-state {
+.automation-empty-state {
   text-align: center;
   padding: 60px 20px;
   background: white;
@@ -266,7 +672,7 @@
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.empty-state p {
+.automation-empty-state p {
   color: #666;
   font-size: 16px;
   margin-bottom: 20px;
@@ -388,21 +794,21 @@ textarea.form-control {
   background: #f8f9fa;
 }
 
-.btn-cancel {
+.automation-btn-cancel {
   background: #6c757d;
   color: white;
 }
 
-.btn-cancel:hover {
+.automation-btn-cancel:hover {
   background: #545b62;
 }
 
-.btn-save {
+.automation-btn-save {
   background: #007bff;
   color: white;
 }
 
-.btn-save:hover {
+.automation-btn-save:hover {
   background: #0056b3;
 }
 

@@ -1,7 +1,7 @@
 // src/App.js
 import React, { useState } from 'react';
 import './App.css';
-import TestCaseApp from './components/testcases';
+import {TestCaseApp} from './components/testcases';
 import PerformanceTestManager from './components/performance';
 import AutomationTestManager from './components/automation';
 import TestScriptsManager from './components/testscripts/TestScriptsManager';
@@ -9,6 +9,7 @@ import UnifiedDashboard from './components/dashboard';
 import FolderManager from './components/dashboard/FolderManager';
 import Settings from './components/settings/Settings';
 import UserProfile from './components/auth/UserProfile';
+import JiraIssuesList from './components/jira/JiraIssuesList';
 import { ErrorBoundary } from './components/utils';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -28,7 +29,14 @@ function AppContent() {
       case 'testcases':
         return (
           <ErrorBoundary>
-            <TestCaseApp />
+            <TestCaseApp setActiveTab={setActiveTab} />
+          </ErrorBoundary>
+        );
+      case 'jira':
+        return (
+          <ErrorBoundary>
+            {console.log('[App] Render Jira tab with modalMode=true')}
+            <JiraIssuesList modalMode={true} />
           </ErrorBoundary>
         );
       case 'automation':
@@ -101,6 +109,11 @@ function AppContent() {
     return user;
   };
 
+  const canAccessJira = () => {
+    // 게스트도 JIRA 이슈 조회 가능
+    return user;
+  };
+
   return (
     <ErrorBoundary>
       <div className="App">
@@ -129,6 +142,14 @@ function AppContent() {
             >
               🧪 테스트 케이스
             </button>
+            {canAccessJira() && (
+              <button 
+                className={`nav-link ${activeTab === 'jira' ? 'active' : ''}`}
+                onClick={() => setActiveTab('jira')}
+              >
+                🔗 이슈
+              </button>
+            )}
             {canAccessAutomation() && (
               <button 
                 className={`nav-link ${activeTab === 'automation' ? 'active' : ''}`}

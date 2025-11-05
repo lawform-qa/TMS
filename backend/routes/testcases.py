@@ -17,10 +17,7 @@ logger = get_logger(__name__)
 # Blueprint 생성
 testcases_bp = Blueprint('testcases', __name__)
 
-def handle_options_request():
-    """OPTIONS 요청 처리"""
-    response = jsonify({'message': 'OK'})
-    return add_cors_headers(response), 200
+# OPTIONS 핸들러는 app.py의 공통 함수 사용
 
 # 기존 TCM API 엔드포인트들
 @testcases_bp.route('/projects', methods=['GET'])
@@ -50,6 +47,7 @@ def create_project():
 @testcases_bp.route('/testcases', methods=['GET', 'OPTIONS'])
 def get_testcases():
     if request.method == 'OPTIONS':
+        from app import handle_options_request
         return handle_options_request()
     
     try:
@@ -220,43 +218,32 @@ def get_test_case_history_api(id):
 @testcases_bp.route('/testcases', methods=['POST'])
 @user_required
 def create_testcase():
+    from utils.common_helpers import get_or_create_default_project, get_or_create_default_folder, validate_required_fields, create_error_response
+    from utils.logger import get_logger
+    logger = get_logger(__name__)
+    
     data = request.get_json()
-    print("Received data:", data)
-    print("자동화 코드 경로:", data.get('automation_code_path'))
-    print("자동화 코드 타입:", data.get('automation_code_type'))
+    logger.debug(f"테스트 케이스 생성 요청 데이터: {data}")
+    logger.debug(f"자동화 코드 경로: {data.get('automation_code_path')}")
+    logger.debug(f"자동화 코드 타입: {data.get('automation_code_type')}")
     
     # name 필드 검증
-    if not data.get('name'):
-        response = jsonify({'error': '테스트 케이스 이름은 필수입니다.'})
-        return add_cors_headers(response), 400
+    validation_error = validate_required_fields(data, ['name'])
+    if validation_error:
+        return validation_error
     
     # project_id가 없으면 기본 프로젝트 사용 또는 생성
     project_id = data.get('project_id')
     if not project_id:
-        default_project = Project.query.filter_by(name='Test Management System').first()
-        if not default_project:
-            # 기본 프로젝트가 없으면 생성
-            default_project = Project(
-                name='Test Management System',
-                description='기본 테스트 관리 시스템 프로젝트'
-            )
-            db.session.add(default_project)
-            db.session.flush()  # ID 생성을 위해 flush
-            print(f"✅ 기본 프로젝트 생성됨: {default_project.name} (ID: {default_project.id})")
+        default_project = get_or_create_default_project()
         project_id = default_project.id
     
     # folder_id가 없으면 기본 폴더 사용
     folder_id = data.get('folder_id')
     if not folder_id:
-        # DEV 환경의 첫 번째 배포일자 폴더를 기본으로 사용
-        dev_folder = Folder.query.filter_by(folder_type='environment', environment='dev').first()
-        if dev_folder:
-            default_deployment_folder = Folder.query.filter_by(
-                folder_type='deployment_date', 
-                parent_folder_id=dev_folder.id
-            ).first()
-            if default_deployment_folder:
-                folder_id = default_deployment_folder.id
+        default_folder = get_or_create_default_folder()
+        if default_folder:
+            folder_id = default_folder.id
     
     # 폴더의 환경 정보를 자동으로 가져오기
     folder_environment = 'dev'  # 기본값
@@ -264,7 +251,7 @@ def create_testcase():
         folder = Folder.query.get(folder_id)
         if folder:
             folder_environment = folder.environment
-            print(f"📁 폴더 '{folder.folder_name}'의 환경: {folder_environment}")
+            logger.debug(f"폴더 '{folder.folder_name}'의 환경: {folder_environment}")
     
     tc = TestCase(
         name=data.get('name'),

@@ -21,8 +21,35 @@ performance_bp = Blueprint('performance', __name__)
 def get_performance_tests():
     try:
         # 페이징 파라미터 처리
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 10, type=int)
+        page = request.args.get('page', None, type=int)
+        per_page = request.args.get('per_page', None, type=int)
+        
+        # 검색 및 필터링 파라미터
+        search = request.args.get('search', '')
+        environment_filter = request.args.get('environment', 'all')
+        status_filter = request.args.get('status', 'all')
+        creator_filter = request.args.get('creator', 'all')
+        
+        # 페이징 파라미터가 없으면 전체 데이터 반환
+        if page is None or per_page is None:
+            tests = PerformanceTest.query.all()
+            data = [{
+                'id': pt.id,
+                'name': pt.name,
+                'description': pt.description,
+                'script_path': pt.script_path,
+                'environment': pt.environment,
+                'parameters': json.loads(pt.parameters) if pt.parameters else {},
+                'created_at': pt.created_at.isoformat() if pt.created_at else None,
+                'updated_at': pt.updated_at.isoformat() if pt.updated_at else None,
+                'creator_id': pt.creator_id,
+                'creator_name': pt.creator.username if pt.creator else None,
+                'assignee_id': pt.assignee_id,
+                'assignee_name': pt.assignee.username if pt.assignee else None
+            } for pt in tests]
+            
+            response = jsonify(data)
+            return add_cors_headers(response), 200
         
         # 페이지 번호와 per_page 유효성 검사
         if page < 1:
@@ -30,12 +57,29 @@ def get_performance_tests():
         if per_page < 1 or per_page > 100:
             per_page = 10
         
+        # 필터링 적용
+        query = PerformanceTest.query
+        
+        # 검색어 필터링
+        if search:
+            query = query.filter(
+                db.or_(
+                    PerformanceTest.name.contains(search),
+                    PerformanceTest.description.contains(search),
+                    PerformanceTest.script_path.contains(search)
+                )
+            )
+        
+        # 환경 필터링
+        if environment_filter != 'all':
+            query = query.filter(PerformanceTest.environment == environment_filter)
+        
         # 전체 성능 테스트 수 조회
-        total_count = PerformanceTest.query.count()
+        total_count = query.count()
         
         # 페이징된 성능 테스트 조회
         offset = (page - 1) * per_page
-        tests = PerformanceTest.query.offset(offset).limit(per_page).all()
+        tests = query.offset(offset).limit(per_page).all()
         
         # 총 페이지 수 계산
         total_pages = (total_count + per_page - 1) // per_page
@@ -50,9 +94,13 @@ def get_performance_tests():
             'description': pt.description,
             'script_path': pt.script_path,
             'environment': pt.environment,
-            'parameters': pt.parameters,
-            'created_at': pt.created_at,
-            'updated_at': pt.updated_at
+            'parameters': json.loads(pt.parameters) if pt.parameters else {},
+            'created_at': pt.created_at.isoformat() if pt.created_at else None,
+            'updated_at': pt.updated_at.isoformat() if pt.updated_at else None,
+            'creator_id': pt.creator_id,
+            'creator_name': pt.creator.username if pt.creator else None,
+            'assignee_id': pt.assignee_id,
+            'assignee_name': pt.assignee.username if pt.assignee else None
         } for pt in tests]
         
         # 페이징 정보 포함 응답
@@ -87,7 +135,9 @@ def create_performance_test():
         description=data.get('description'),
         script_path=data.get('script_path'),
         environment=data.get('environment', 'prod'),
-        parameters=json.dumps(data.get('parameters', {}))
+        parameters=json.dumps(data.get('parameters', {})),
+        creator_id=request.user.id,
+        assignee_id=data.get('assignee_id', request.user.id)
     )
     
     try:
@@ -142,6 +192,100 @@ def delete_performance_test(id):
     response = jsonify({'message': '성능 테스트 삭제 완료'})
     return add_cors_headers(response), 200
 
+@performance_bp.route('/performance-tests/bulk-delete', methods=['POST'])
+@admin_required
+def bulk_delete_performance_tests():
+    """다중 성능 테스트 삭제"""
+    try:
+        data = request.get_json()
+        test_ids = data.get('test_ids', [])
+        
+        if not test_ids:
+            response = jsonify({'error': '삭제할 성능 테스트 ID 목록이 필요합니다'})
+            return add_cors_headers(response), 400
+        
+        if not isinstance(test_ids, list):
+            response = jsonify({'error': 'test_ids는 배열이어야 합니다'})
+            return add_cors_headers(response), 400
+        
+        print(f"🗑️ 다중 성능 테스트 삭제 시도: {len(test_ids)}개")
+        
+        deleted_count = 0
+        failed_deletions = []
+        
+        for test_id in test_ids:
+            try:
+                pt = PerformanceTest.query.get(test_id)
+                if pt:
+                    test_name = pt.name
+                    print(f"🗑️ 성능 테스트 삭제: {test_name}")
+                    db.session.delete(pt)
+                    deleted_count += 1
+                else:
+                    print(f"⚠️ 성능 테스트 ID {test_id}를 찾을 수 없습니다")
+                    failed_deletions.append({
+                        'id': test_id,
+                        'error': '성능 테스트를 찾을 수 없습니다'
+                    })
+            except Exception as e:
+                print(f"❌ 성능 테스트 ID {test_id} 삭제 실패: {str(e)}")
+                failed_deletions.append({
+                    'id': test_id,
+                    'error': str(e)
+                })
+        
+        # 모든 삭제 작업을 한 번에 커밋
+        db.session.commit()
+        
+        response_data = {
+            'message': f'{deleted_count}개의 성능 테스트가 성공적으로 삭제되었습니다',
+            'deleted_count': deleted_count,
+            'total_requested': len(test_ids),
+            'failed_deletions': failed_deletions
+        }
+        
+        if failed_deletions:
+            response_data['warning'] = f'{len(failed_deletions)}개의 성능 테스트 삭제에 실패했습니다'
+        
+        response = jsonify(response_data)
+        return add_cors_headers(response), 200
+        
+    except Exception as e:
+        print(f"❌ 다중 성능 테스트 삭제 실패: {str(e)}")
+        db.session.rollback()
+        response = jsonify({'error': f'다중 삭제 중 오류가 발생했습니다: {str(e)}'})
+        return add_cors_headers(response), 500
+
+@performance_bp.route('/performance-tests/<int:id>/assignee', methods=['PUT'])
+@user_required
+def update_performance_test_assignee(id):
+    """성능 테스트 담당자 변경"""
+    try:
+        pt = PerformanceTest.query.get_or_404(id)
+        data = request.get_json()
+        
+        old_assignee_id = pt.assignee_id
+        new_assignee_id = data.get('assignee_id')
+        
+        print(f"🔄 성능 테스트 담당자 변경: {pt.name} ({old_assignee_id} → {new_assignee_id})")
+        
+        # 담당자 업데이트
+        pt.assignee_id = new_assignee_id
+        db.session.commit()
+        
+        response = jsonify({
+            'message': '성능 테스트 담당자 업데이트 완료',
+            'old_assignee_id': old_assignee_id,
+            'new_assignee_id': new_assignee_id
+        })
+        return add_cors_headers(response), 200
+        
+    except Exception as e:
+        print(f"❌ 성능 테스트 담당자 변경 실패: {str(e)}")
+        db.session.rollback()
+        response = jsonify({'error': f'담당자 변경 중 오류가 발생했습니다: {str(e)}'})
+        return add_cors_headers(response), 500
+
 @performance_bp.route('/performance-tests/<int:id>/execute', methods=['POST'])
 @user_required
 def execute_performance_test(id):
@@ -190,18 +334,8 @@ def execute_performance_test(id):
         result_summary=json.dumps(result)
     )
     
-    if result.get('status') == 'Pass':
-        # 성능 테스트 결과 저장 - TestResult 모델의 실제 필드 사용
-        perf_result = TestResult(
-            performance_test_id=pt.id,
-            result=result.get('status'),
-            execution_time=result.get('execution_time', 0.0),
-            environment=pt.environment,
-            executed_by='system',
-            executed_at=get_kst_now(),
-            notes=json.dumps(result)  # 성능 테스트 결과를 notes에 JSON으로 저장
-        )
-        db.session.add(perf_result)
+    # 성능 테스트 결과는 TestExecution에만 저장
+    # TestResult 테이블에는 performance_test_id 컬럼이 없으므로 제거
     
     db.session.add(execution)
     db.session.commit()
@@ -215,17 +349,17 @@ def execute_performance_test(id):
 
 @performance_bp.route('/performance-tests/<int:id>/results', methods=['GET'])
 def get_performance_test_results(id):
-    results = TestResult.query.filter_by(performance_test_id=id).all()
+    # TestExecution 테이블에서 성능 테스트 결과 조회
+    executions = TestExecution.query.filter_by(performance_test_id=id).all()
     data = [{
-        'id': r.id,
-        'performance_test_id': r.performance_test_id,
-        'result': r.result,
-        'execution_time': r.execution_time,
-        'environment': r.environment,
-        'executed_by': r.executed_by,
-                    'executed_at': r.executed_at.isoformat() if r.executed_at else None,
-        'notes': r.notes
-    } for r in results]
+        'id': e.id,
+        'performance_test_id': e.performance_test_id,
+        'test_type': e.test_type,
+        'status': e.status,
+        'started_at': e.started_at.isoformat() if e.started_at else None,
+        'completed_at': e.completed_at.isoformat() if e.completed_at else None,
+        'result_summary': json.loads(e.result_summary) if e.result_summary else None
+    } for e in executions]
     response = jsonify(data)
     return add_cors_headers(response), 200
 

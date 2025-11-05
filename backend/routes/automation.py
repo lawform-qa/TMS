@@ -23,19 +23,41 @@ SCREENSHOT_BASE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirn
 def get_automation_tests():
     """모든 자동화 테스트 조회"""
     try:
+        from models import User
+        
         tests = AutomationTest.query.all()
         
-        response_data = [{
-            'id': test.id,
-            'name': test.name,
-            'description': test.description,
-            'test_type': test.test_type,
-            'script_path': test.script_path,
-            'environment': test.environment,
-            'parameters': test.parameters,
-            'created_at': test.created_at.isoformat() if test.created_at else None,
-            'updated_at': test.updated_at.isoformat() if test.updated_at else None
-        } for test in tests]
+        response_data = []
+        for test in tests:
+            # 작성자 정보 조회
+            creator_name = None
+            if test.creator_id:
+                creator = User.query.get(test.creator_id)
+                if creator:
+                    creator_name = creator.username or creator.first_name or creator.email
+            
+            # 담당자 정보 조회
+            assignee_name = None
+            if test.assignee_id:
+                assignee = User.query.get(test.assignee_id)
+                if assignee:
+                    assignee_name = assignee.username or assignee.first_name or assignee.email
+            
+            response_data.append({
+                'id': test.id,
+                'name': test.name,
+                'description': test.description,
+                'test_type': test.test_type,
+                'script_path': test.script_path,
+                'environment': test.environment,
+                'parameters': test.parameters,
+                'creator_id': test.creator_id,
+                'creator_name': creator_name,
+                'assignee_id': test.assignee_id,
+                'assignee_name': assignee_name,
+                'created_at': test.created_at.isoformat() if test.created_at else None,
+                'updated_at': test.updated_at.isoformat() if test.updated_at else None
+            })
         
         response = jsonify(response_data)
         return add_cors_headers(response), 200
@@ -48,7 +70,10 @@ def get_automation_tests():
 def create_automation_test():
     """자동화 테스트 생성"""
     try:
+        from flask_jwt_extended import get_jwt_identity
+        
         data = request.get_json()
+        current_user_id = get_jwt_identity()
         
         new_test = AutomationTest(
             name=data['name'],
@@ -56,7 +81,9 @@ def create_automation_test():
             test_type=data['test_type'],
             script_path=data['script_path'],
             environment=data.get('environment', 'dev'),
-            parameters=data.get('parameters', '')
+            parameters=data.get('parameters', ''),
+            creator_id=current_user_id,
+            assignee_id=data.get('assignee_id')
         )
         
         db.session.add(new_test)
@@ -109,6 +136,7 @@ def update_automation_test(id):
         test.script_path = data['script_path']
         test.environment = data.get('environment', 'dev')
         test.parameters = data.get('parameters', '')
+        test.assignee_id = data.get('assignee_id')
         test.updated_at = get_kst_now()
         
         db.session.commit()

@@ -1,10 +1,14 @@
 import os
+import sys
 import json
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 import mimetypes
 from datetime import datetime
 import stat
+
+# 상위 디렉토리를 sys.path에 추가
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Blueprint 생성
 test_scripts_bp = Blueprint('test_scripts', __name__)
@@ -366,3 +370,4 @@ def get_test_scripts_stats():
     except Exception as e:
         current_app.logger.error(f"테스트 스크립트 통계 오류: {e}")
         return jsonify({'error': '통계 정보를 가져올 수 없습니다.'}), 500
+
