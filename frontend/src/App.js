@@ -35,7 +35,8 @@ function AppContent() {
       case 'jira':
         return (
           <ErrorBoundary>
-            <JiraIssuesList />
+            {console.log('[App] Render Jira tab with modalMode=true')}
+            <JiraIssuesList modalMode={true} />
           </ErrorBoundary>
         );
       case 'automation':

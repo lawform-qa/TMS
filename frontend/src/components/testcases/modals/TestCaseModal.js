@@ -15,7 +15,7 @@ const TestCaseModal = ({
     small: 'modal-small',
     medium: 'modal-medium',
     large: 'modal-large',
-    fullscreen: 'modal-fullscreen'
+    fullscreen: 'fullscreen-modal-content'
   };
 
   return (

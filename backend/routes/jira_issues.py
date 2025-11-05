@@ -140,6 +140,67 @@ def get_issues():
             'error': str(e)
         }), 500
 
+@jira_issues_bp.route('/issues/testcase/<int:test_case_id>', methods=['GET'])
+def get_issues_by_testcase(test_case_id):
+    """특정 테스트 케이스와 연결된 이슈 목록 조회"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        
+        # 검색 및 필터링
+        search = request.args.get('search', '')
+        status_filter = request.args.get('status', '')
+        priority_filter = request.args.get('priority', '')
+        
+        # 테스트 케이스와 연결된 이슈만 조회
+        query = JiraIssue.query.filter(JiraIssue.test_case_id == test_case_id)
+        
+        # 검색 조건
+        if search:
+            query = query.filter(
+                JiraIssue.summary.contains(search) |
+                JiraIssue.issue_key.contains(search) |
+                JiraIssue.description.contains(search)
+            )
+        
+        if status_filter:
+            query = query.filter(JiraIssue.status == status_filter)
+            
+        if priority_filter:
+            query = query.filter(JiraIssue.priority == priority_filter)
+        
+        # 페이지네이션
+        pagination = query.paginate(
+            page=page, 
+            per_page=per_page, 
+            error_out=False
+        )
+        
+        issues = []
+        for issue in pagination.items:
+            issues.append(issue.to_dict())
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'issues': issues,
+                'pagination': {
+                    'page': pagination.page,
+                    'per_page': pagination.per_page,
+                    'total': pagination.total,
+                    'pages': pagination.pages,
+                    'has_next': pagination.has_next,
+                    'has_prev': pagination.has_prev
+                }
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @jira_issues_bp.route('/issues', methods=['POST'])
 def create_issue():
     """새 이슈 생성"""

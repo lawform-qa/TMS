@@ -167,34 +167,34 @@
   font-size: 16px;
 }
 
-/* 검색 섹션 */
+/* 검색 섹션 - 자동화 테스트 탭과 동일한 스타일 */
 .performance-search-section {
-  background: white;
-  border-radius: 12px;
+  margin: 0;
   padding: 20px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
 }
 
 .performance-search-container {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  max-width: auto;
+  margin: 0 auto;
 }
 
 .performance-search-input-wrapper {
-  position: relative;
   display: flex;
   align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .performance-search-input {
-  width: 100%;
+  flex: 1;
   padding: 12px 16px;
   border: 2px solid #e9ecef;
-  border-radius: 8px;
-  font-size: 16px;
-  transition: border-color 0.3s ease;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  background: white;
 }
 
 .performance-search-input:focus {
@@ -203,51 +203,74 @@
   box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
 }
 
+.performance-search-input::placeholder {
+  color: #999;
+  font-style: italic;
+}
+
 .performance-btn-clear-search {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.performance-btn-clear-search:hover {
+  background: #5a6268;
+  transform: translateY(-1px);
+}
+
+.performance-search-info {
+  font-size: 0.9em;
+  color: #007bff;
+  font-weight: 500;
+  text-align: center;
 }
 
 /* 고급 필터 */
 .performance-advanced-filters {
-  background: #f8f9fa;
-  padding: 16px;
-  border-radius: 8px;
+  margin: 15px 0;
+  padding: 15px;
+  background: white;
+  border-radius: 6px;
   border: 1px solid #e9ecef;
 }
 
 .performance-filter-row {
   display: flex;
-  gap: 16px;
-  align-items: center;
   flex-wrap: wrap;
+  gap: 15px;
+  align-items: center;
   justify-content: center;
 }
 
 .performance-filter-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 150px;
+  gap: 5px;
+  min-width: 120px;
 }
 
 .performance-filter-group label {
-  font-size: 12px;
+  font-size: 0.8em;
   font-weight: 600;
   color: #495057;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  text-align: center;
 }
 
 .performance-filter-select {
   padding: 8px 12px;
   border: 1px solid #ced4da;
-  border-radius: 6px;
-  font-size: 14px;
+  border-radius: 4px;
+  font-size: 13px;
   background: white;
-  transition: border-color 0.3s ease;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
 }
 
 .performance-filter-select:focus {

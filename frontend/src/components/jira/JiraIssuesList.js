@@ -3,7 +3,11 @@ import axios from 'axios';
 import config from '../../config';
 import './JiraIssuesList.css';
 
-const JiraIssuesList = () => {
+const JiraIssuesList = ({ modalMode = true, testCaseId = null }) => {
+  console.log('[JiraIssuesList] render, modalMode =', modalMode, 'testCaseId =', testCaseId);
+  // 안전 가드: 명시적으로 false가 아닌 한 모달 사용
+  const useModal = modalMode !== false;
+  console.log('[JiraIssuesList] useModal =', useModal);
   const [jiraIssues, setJiraIssues] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -47,7 +51,14 @@ const JiraIssuesList = () => {
       setLoading(true);
       setError(null);
       
-      const response = await axios.get(`${config.apiUrl}/api/jira/issues`);
+      // testCaseId가 있으면 해당 테스트 케이스와 연결된 이슈만 조회
+      const url = testCaseId 
+        ? `${config.apiUrl}/api/jira/issues/testcase/${testCaseId}`
+        : `${config.apiUrl}/api/jira/issues`;
+      
+      console.log('[JiraIssuesList] Fetching issues from:', url);
+      
+      const response = await axios.get(url);
       
       if (response.data.success) {
         setJiraIssues(response.data.data.issues);
@@ -194,7 +205,14 @@ const JiraIssuesList = () => {
   // 이슈 생성
   const createIssue = async (issueData) => {
     try {
-      const response = await axios.post(`${config.apiUrl}/api/jira/issues`, issueData);
+      // testCaseId가 있으면 이슈 생성 시 연결
+      const dataToSend = testCaseId 
+        ? { ...issueData, test_case_id: testCaseId }
+        : issueData;
+      
+      console.log('[JiraIssuesList] Creating issue with data:', dataToSend);
+      
+      const response = await axios.post(`${config.apiUrl}/api/jira/issues`, dataToSend);
       
       if (response.data.success) {
         fetchJiraIssues();
@@ -216,6 +234,7 @@ const JiraIssuesList = () => {
 
   // 이슈 상세보기
   const showIssueDetail = (issue) => {
+    console.log('[JiraIssuesList] showIssueDetail clicked. useModal =', useModal, 'issue =', issue?.issue_key);
     setSelectedIssue(issue);
     setShowDetailModal(true);
     fetchComments(issue.issue_key);
@@ -296,7 +315,7 @@ const JiraIssuesList = () => {
 
   useEffect(() => {
     fetchJiraIssues();
-  }, []);
+  }, [testCaseId]);
 
   if (loading) {
     return (
@@ -320,7 +339,8 @@ const JiraIssuesList = () => {
   }
 
   const filteredIssues = getFilteredIssues();
-  const paginatedIssues = getPaginatedIssues();
+  // testCaseId가 있으면 페이지네이션 없이 모든 이슈 표시, 없으면 페이지네이션 적용
+  const paginatedIssues = testCaseId ? filteredIssues : getPaginatedIssues();
 
   return (
     <div className="jira-issues-list-container">
@@ -344,83 +364,98 @@ const JiraIssuesList = () => {
         </div>
       </div>
 
-      {/* 검색 및 필터 */}
-      <div className="jira-issues-filters">
-        <div className="search-container">
-          <input
-            type="text"
-            placeholder="🔍 이슈 검색 (제목, 키, 설명)"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
-          />
-        </div>
-        
-        <div className="filter-container">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="filter-select"
-          >
-            <option value="all">모든 상태</option>
-            <option value="To Do">To Do</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Done">Done</option>
-          </select>
+      {/* 검색 및 필터 - testCaseId가 없을 때만 표시 */}
+      {!testCaseId && (
+        <div className="jira-issues-filters">
+          <div className="search-container">
+            <div className="search-input-wrapper">
+              <input
+                type="text"
+                placeholder="🔍 이슈 검색 (제목, 키, 설명)"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="search-input"
+              />
+              {searchTerm && (
+                <button 
+                  className="btn-clear-search"
+                  onClick={() => setSearchTerm('')}
+                  title="검색어 지우기"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
           
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            className="filter-select"
-          >
-            <option value="all">모든 우선순위</option>
-            <option value="Low">Low</option>
-            <option value="Medium">Medium</option>
-            <option value="High">High</option>
-            <option value="Critical">Critical</option>
-          </select>
-          
-          <select
-            value={issueTypeFilter}
-            onChange={(e) => setIssueTypeFilter(e.target.value)}
-            className="filter-select"
-          >
-            <option value="all">모든 타입</option>
-            <option value="Bug">Bug</option>
-            <option value="Task">Task</option>
-            <option value="Story">Story</option>
-            <option value="Epic">Epic</option>
-          </select>
+          <div className="filter-container">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="filter-select"
+            >
+              <option value="all">모든 상태</option>
+              <option value="To Do">To Do</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Done">Done</option>
+            </select>
+            
+            <select
+              value={priorityFilter}
+              onChange={(e) => setPriorityFilter(e.target.value)}
+              className="filter-select"
+            >
+              <option value="all">모든 우선순위</option>
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+              <option value="Critical">Critical</option>
+            </select>
+            
+            <select
+              value={issueTypeFilter}
+              onChange={(e) => setIssueTypeFilter(e.target.value)}
+              className="filter-select"
+            >
+              <option value="all">모든 타입</option>
+              <option value="Bug">Bug</option>
+              <option value="Task">Task</option>
+              <option value="Story">Story</option>
+              <option value="Epic">Epic</option>
+            </select>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* 페이지 크기 선택 */}
-      <div className="pagination-controls-top">
-        <div className="items-per-page-selector">
-          <label>페이지당 항목:</label>
-          <select
-            value={itemsPerPage}
-            onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
-            className="items-per-page-select"
-          >
-            <option value={10}>10개</option>
-            <option value={20}>20개</option>
-            <option value={50}>50개</option>
-            <option value={100}>100개</option>
-          </select>
+      {/* 페이지 크기 선택 - testCaseId가 없을 때만 표시 */}
+      {!testCaseId && (
+        <div className="pagination-controls-top">
+          <div className="items-per-page-selector">
+            <label>페이지당 항목:</label>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+              className="items-per-page-select"
+            >
+              <option value={10}>10개</option>
+              <option value={20}>20개</option>
+              <option value={50}>50개</option>
+              <option value={100}>100개</option>
+            </select>
+          </div>
+          <div className="pagination-info-top">
+            총 {filteredIssues.length}개 이슈 중 {Math.min((currentPage - 1) * itemsPerPage + 1, filteredIssues.length)}-{Math.min(currentPage * itemsPerPage, filteredIssues.length)}개 표시
+          </div>
         </div>
-        <div className="pagination-info-top">
-          총 {filteredIssues.length}개 이슈 중 {Math.min((currentPage - 1) * itemsPerPage + 1, filteredIssues.length)}-{Math.min(currentPage * itemsPerPage, filteredIssues.length)}개 표시
-        </div>
-      </div>
+      )}
 
       {/* 이슈 목록 */}
       <div className="jira-issues-list">
         {paginatedIssues.length === 0 ? (
           <div className="no-issues">
             <div className="no-issues-icon">📝</div>
-            <p>표시할 이슈가 없습니다.</p>
-            <p>필터 조건을 조정해보세요.</p>
+            <p>{testCaseId ? '이 테스트 케이스와 연결된 이슈가 없습니다.' : '표시할 이슈가 없습니다.'}</p>
+            {!testCaseId && <p>필터 조건을 조정해보세요.</p>}
           </div>
         ) : (
           paginatedIssues.map(issue => (
@@ -598,8 +633,8 @@ const JiraIssuesList = () => {
         )}
       </div>
 
-      {/* 페이지네이션 */}
-      {totalPages > 1 && (
+      {/* 페이지네이션 - testCaseId가 없을 때만 표시 */}
+      {!testCaseId && totalPages > 1 && (
         <div className="pagination-controls">
           <div className="pagination-buttons">
             <button
@@ -645,20 +680,21 @@ const JiraIssuesList = () => {
         </div>
       )}
 
-      {/* 이슈 상세보기 모달 */}
+      {/* 이슈 상세보기 */}
       {showDetailModal && selectedIssue && (
-        <div className="jira-modal-overlay" onClick={() => setShowDetailModal(false)}>
-          <div className="jira-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="jira-modal-header">
-              <div className="jira-modal-title">
-                <span className="jira-modal-icon">🔍</span>
-                <h3>이슈 상세보기</h3>
+        useModal ? (
+          <div className="jira-modal-overlay" onClick={() => setShowDetailModal(false)}>
+            <div className="jira-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="jira-modal-header">
+                <div className="jira-modal-title">
+                  <span className="jira-modal-icon">🔍</span>
+                  <h3>이슈 상세보기</h3>
+                </div>
+                <button className="jira-modal-close" onClick={() => setShowDetailModal(false)}>×</button>
               </div>
-              <button className="jira-modal-close" onClick={() => setShowDetailModal(false)}>×</button>
-            </div>
-            
-            <div className="jira-modal-body">
-              <div className="issue-detail-content">
+              
+              <div className="jira-modal-body">
+                <div className="issue-detail-content">
                 <div className="detail-section">
                   <h4>기본 정보</h4>
                   <div className="detail-grid">
@@ -792,18 +828,115 @@ const JiraIssuesList = () => {
                   )}
                 </div>
               </div>
-            </div>
-            
-            <div className="jira-modal-actions">
-              <button className="btn btn-secondary" onClick={() => setShowDetailModal(false)}>
-                닫기
-              </button>
-              <button className="btn btn-primary" onClick={() => openEditModal(selectedIssue)}>
-                ✏️ 수정
-              </button>
+                </div>
+              
+              <div className="jira-modal-actions">
+                <button className="btn btn-secondary" onClick={() => setShowDetailModal(false)}>
+                  닫기
+                </button>
+                <button className="btn btn-primary" onClick={() => openEditModal(selectedIssue)}>
+                  ✏️ 수정
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="jira-inline-detail">
+            <div className="jira-inline-detail-header">
+              <h3>이슈 상세보기</h3>
+              <div>
+                <button className="btn btn-secondary btn-sm" onClick={() => setShowDetailModal(false)} style={{ marginRight: 8 }}>닫기</button>
+                <button className="btn btn-primary btn-sm" onClick={() => openEditModal(selectedIssue)}>✏️ 수정</button>
+              </div>
+            </div>
+            <div className="jira-inline-detail-body">
+              <div className="issue-detail-content">
+                {/* 기존 상세 본문과 동일 */}
+                <div className="detail-section">
+                  <h4>기본 정보</h4>
+                  <div className="detail-grid">
+                    <div className="detail-item">
+                      <label>이슈 키:</label>
+                      <span className="issue-key">{selectedIssue.issue_key}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>상태:</label>
+                      <span className={`issue-status status-${selectedIssue.status.toLowerCase().replace(' ', '-')}`}>
+                        {selectedIssue.status}
+                      </span>
+                    </div>
+                    <div className="detail-item">
+                      <label>타입:</label>
+                      <span className={`issue-type type-${selectedIssue.issue_type.toLowerCase()}`}>
+                        {selectedIssue.issue_type}
+                      </span>
+                    </div>
+                    <div className="detail-item">
+                      <label>우선순위:</label>
+                      <span className={`issue-priority priority-${selectedIssue.priority.toLowerCase()}`}>
+                        {selectedIssue.priority}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="detail-section">
+                  <h4>제목</h4>
+                  <p className="issue-summary">{selectedIssue.summary}</p>
+                </div>
+                <div className="detail-section">
+                  <h4>설명</h4>
+                  <div className="issue-description-full">
+                    {selectedIssue.description || '설명이 없습니다.'}
+                  </div>
+                </div>
+                {selectedIssue.labels && (
+                  <div className="detail-section">
+                    <h4>레이블</h4>
+                    <div className="issue-labels">
+                      {JSON.parse(selectedIssue.labels).map((label, index) => (
+                        <span key={index} className="label-tag">
+                          {label}
+                          <button 
+                            className="label-remove-btn"
+                            onClick={() => removeLabel(selectedIssue.issue_key, label)}
+                            title="레이블 삭제"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {selectedIssue.assignee_email && (
+                  <div className="detail-section">
+                    <h4>담당자</h4>
+                    <div className="assignee-detail">
+                      <span className="assignee-name">{selectedIssue.assignee_email}</span>
+                    </div>
+                  </div>
+                )}
+                <div className="detail-section">
+                  <h4>생성 정보</h4>
+                  <div className="detail-grid">
+                    <div className="detail-item">
+                      <label>생성일:</label>
+                      <span>{new Date(selectedIssue.created_at).toLocaleString()}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>수정일:</label>
+                      <span>{selectedIssue.updated_at ? new Date(selectedIssue.updated_at).toLocaleString() : '없음'}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>마지막 동기화:</label>
+                      <span>{selectedIssue.last_sync_at ? new Date(selectedIssue.last_sync_at).toLocaleString() : '없음'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
       )}
 
       {/* 담당자 할당 모달 */}
