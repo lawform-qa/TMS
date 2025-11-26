@@ -8,7 +8,7 @@ const getSlackMessage = ({
     skipped,
     duration,
     result,
-}) => {
+}) => {1
     //slack block kit
     return {
         blocks: [
