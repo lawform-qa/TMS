@@ -388,6 +388,8 @@
   background: white;
   border-radius: 6px;
   border: 1px solid #e9ecef;
+  align-items: center;
+  justify-content: center;
 }
 
 .testcase-filter-row {

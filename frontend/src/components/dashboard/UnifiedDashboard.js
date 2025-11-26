@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import config from '../../config';
 import './UnifiedDashboard.css';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import { Doughnut } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
+import { Doughnut, Bar } from 'react-chartjs-2';
 
 // Chart.js 등록
-ChartJS.register(ArcElement, Tooltip, Legend);
+ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
 
 // GitHub Secrets 설정 완료 후 배포 테스트
 
@@ -60,8 +60,10 @@ const UnifiedDashboard = ({ setActiveTab }) => {
     issuesByStatus: {},
     issuesByPriority: {},
     issuesByType: {},
+    issuesByLabels: {},
     recentIssues: []
   });
+  const [jiraEnvironmentStats, setJiraEnvironmentStats] = useState({});
   const [jiraRecentIssues, setJiraRecentIssues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -75,13 +77,17 @@ const UnifiedDashboard = ({ setActiveTab }) => {
       try {
         const parsed = JSON.parse(savedSettings);
         // 기존 environmentSummary와 jiraStats가 있으면 제거하고 새로운 카드들로 교체
-        const { environmentSummary, jiraStats, ...otherSettings } = parsed;
+        const { environmentSummary, jiraStats, jiraSummary, ...otherSettings } = parsed;
         return {
           environmentDev: { enabled: true, order: 1, size: 'medium' },
           environmentAlpha: { enabled: true, order: 2, size: 'medium' },
           environmentProduction: { enabled: true, order: 3, size: 'medium' },
-          jiraSummary: { enabled: true, order: 4, size: 'medium' },
-          jiraRecentIssues: { enabled: true, order: 5, size: 'medium' },
+          jiraStatus: { enabled: true, order: 4, size: 'medium' },
+          jiraPriority: { enabled: true, order: 5, size: 'medium' },
+          jiraType: { enabled: true, order: 6, size: 'medium' },
+          jiraEnvironment: { enabled: true, order: 7, size: 'medium' },
+          jiraLabels: { enabled: true, order: 8, size: 'medium' },
+          jiraRecentIssues: { enabled: true, order: 9, size: 'medium' },
           ...otherSettings
         };
       } catch (e) {
@@ -92,12 +98,16 @@ const UnifiedDashboard = ({ setActiveTab }) => {
       environmentDev: { enabled: true, order: 1, size: 'medium' },
       environmentAlpha: { enabled: true, order: 2, size: 'medium' },
       environmentProduction: { enabled: true, order: 3, size: 'medium' },
-      jiraSummary: { enabled: true, order: 4, size: 'medium' },
-      jiraRecentIssues: { enabled: true, order: 5, size: 'medium' },
-      testCases: { enabled: true, order: 6, size: 'medium' },
-      performanceTests: { enabled: true, order: 7, size: 'medium' },
-      testExecutions: { enabled: true, order: 8, size: 'medium' },
-      screenshots: { enabled: true, order: 9, size: 'small' }
+      jiraStatus: { enabled: true, order: 4, size: 'medium' },
+      jiraPriority: { enabled: true, order: 5, size: 'medium' },
+      jiraType: { enabled: true, order: 6, size: 'medium' },
+      jiraEnvironment: { enabled: true, order: 7, size: 'medium' },
+      jiraLabels: { enabled: true, order: 8, size: 'medium' },
+      jiraRecentIssues: { enabled: true, order: 9, size: 'medium' },
+      testCases: { enabled: true, order: 10, size: 'medium' },
+      performanceTests: { enabled: true, order: 11, size: 'medium' },
+      testExecutions: { enabled: true, order: 12, size: 'medium' },
+      screenshots: { enabled: true, order: 13, size: 'small' }
     };
   });
   
@@ -260,7 +270,11 @@ const UnifiedDashboard = ({ setActiveTab }) => {
       environmentDev: 'DEV 환경 테스트 케이스',
       environmentAlpha: 'ALPHA 환경 테스트 케이스',
       environmentProduction: 'PRODUCTION 환경 테스트 케이스',
-      jiraSummary: '이슈 요약',
+      jiraStatus: '상태',
+      jiraPriority: '우선순위',
+      jiraType: '타입',
+      jiraEnvironment: '환경별 이슈',
+      jiraLabels: '🏷️ 이슈 레이블 통계',
       jiraRecentIssues: '최근 이슈',
       testCases: '테스트 케이스',
       performanceTests: '성능 테스트',
@@ -387,13 +401,14 @@ const UnifiedDashboard = ({ setActiveTab }) => {
         // 헬스체크 오류는 조용히 처리
       }
       
-      const [testCasesRes, performanceTestsRes, testExecutionsRes, summariesRes, testcaseSummariesRes, jiraStatsRes, jiraRecentIssuesRes] = await Promise.all([
+      const [testCasesRes, performanceTestsRes, testExecutionsRes, summariesRes, testcaseSummariesRes, jiraStatsRes, jiraEnvironmentStatsRes, jiraRecentIssuesRes] = await Promise.all([
         axios.get(`/testcases?page=1&per_page=${itemsPerPage}`),
         axios.get(`/performance-tests?page=1&per_page=${itemsPerPage}`),
         axios.get(`/test-executions?page=1&per_page=${itemsPerPage}`),
         axios.get('/dashboard-summaries'),
         axios.get('/testcases/summary/all'),
         axios.get('/api/jira/stats'),
+        axios.get('/api/jira/stats/environment'),
         axios.get(`/api/jira/issues?page=1&per_page=${itemsPerPage}`)
       ]);
 
@@ -413,11 +428,23 @@ const UnifiedDashboard = ({ setActiveTab }) => {
           issuesByStatus: stats.issues_by_status || {},
           issuesByPriority: stats.issues_by_priority || {},
           issuesByType: stats.issues_by_type || {},
+          issuesByLabels: stats.issues_by_labels || {},
           recentIssues: stats.recent_issues || []
         });
         console.log('📊 JIRA 통계 상태 설정 완료');
       } else {
         console.log('❌ JIRA 통계 응답 실패:', jiraStatsRes.data);
+      }
+      
+      // 환경별 JIRA 통계 처리
+      console.log('🌍 환경별 JIRA 통계 응답:', jiraEnvironmentStatsRes.data);
+      if (jiraEnvironmentStatsRes.data && jiraEnvironmentStatsRes.data.success) {
+        const envStats = jiraEnvironmentStatsRes.data.data;
+        console.log('🌍 환경별 JIRA 통계 데이터:', envStats);
+        setJiraEnvironmentStats(envStats.environment_stats || {});
+        console.log('🌍 환경별 JIRA 통계 상태 설정 완료');
+      } else {
+        console.log('❌ 환경별 JIRA 통계 응답 실패:', jiraEnvironmentStatsRes.data);
       }
       
       // 최근 이슈 처리
@@ -602,6 +629,91 @@ const UnifiedDashboard = ({ setActiveTab }) => {
     };
   };
 
+  const createLabelsChartData = () => {
+    const labels = Object.keys(jiraStats.issuesByLabels);
+    const counts = Object.values(jiraStats.issuesByLabels);
+    
+    // 레이블을 길이순으로 정렬 (긴 레이블이 많을 수 있으므로)
+    const sortedData = labels.map((label, index) => ({
+      label,
+      count: counts[index]
+    })).sort((a, b) => b.count - a.count);
+
+    const sortedLabels = sortedData.map(item => item.label);
+    const sortedCounts = sortedData.map(item => item.count);
+
+    // 색상 배열 생성 (다양한 색상)
+    const colors = [
+      '#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8',
+      '#6f42c1', '#e83e8c', '#fd7e14', '#20c997', '#6c757d',
+      '#343a40', '#f8f9fa', '#e9ecef', '#dee2e6', '#ced4da'
+    ];
+
+    return {
+      labels: sortedLabels,
+      datasets: [
+        {
+          label: '이슈 수',
+          data: sortedCounts,
+          backgroundColor: sortedLabels.map((_, index) => 
+            colors[index % colors.length]
+          ),
+          borderColor: sortedLabels.map((_, index) => 
+            colors[index % colors.length]
+          ),
+          borderWidth: 1,
+        },
+      ],
+    };
+  };
+
+  const createDoughnutFromObject = (obj, datasetLabel = '값') => {
+    const labels = Object.keys(obj || {});
+    const values = Object.values(obj || {});
+    const palette = [
+      '#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8',
+      '#6f42c1', '#e83e8c', '#fd7e14', '#20c997', '#6c757d',
+      '#343a40', '#4dabf7', '#69db7c', '#ffa8a8', '#ffd43b'
+    ];
+    return {
+      labels,
+      datasets: [
+        {
+          label: datasetLabel,
+          data: values,
+          backgroundColor: labels.map((_, i) => palette[i % palette.length]),
+          borderColor: '#ffffff',
+          borderWidth: 2,
+        }
+      ]
+    };
+  };
+
+  const createEnvironmentIssuesChartData = () => {
+    // 환경 순서 정의 (Dev, Alpha, Production 순)
+    const environmentOrder = ['dev', 'alpha', 'production'];
+    const environments = environmentOrder.filter(env => jiraEnvironmentStats.hasOwnProperty(env));
+    const totalIssues = environments.map(env => jiraEnvironmentStats[env]?.total_issues || 0);
+    
+    const palette = [
+      '#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8',
+      '#6f42c1', '#e83e8c', '#fd7e14', '#20c997', '#6c757d'
+    ];
+
+    return {
+      labels: environments.map(env => env.toUpperCase()),
+      datasets: [
+        {
+          label: '이슈 수',
+          data: totalIssues,
+          backgroundColor: environments.map((_, i) => palette[i % palette.length]),
+          borderColor: '#ffffff',
+          borderWidth: 2,
+        }
+      ]
+    };
+  };
+
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -625,6 +737,39 @@ const UnifiedDashboard = ({ setActiveTab }) => {
             const percentage = ((value / total) * 100).toFixed(1);
             return `${label}: ${value} (${percentage}%)`;
           }
+        }
+      }
+    }
+  };
+
+  const barChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            const label = context.label || '';
+            const value = context.parsed.y;
+            return `${label}: ${value}개 이슈`;
+          }
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          stepSize: 1
+        }
+      },
+      x: {
+        ticks: {
+          maxRotation: 45,
+          minRotation: 0
         }
       }
     }
@@ -751,12 +896,16 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                     environmentDev: { enabled: true, order: 1, size: 'medium' },
                     environmentAlpha: { enabled: true, order: 2, size: 'medium' },
                     environmentProduction: { enabled: true, order: 3, size: 'medium' },
-                    jiraSummary: { enabled: true, order: 4, size: 'medium' },
-                    jiraRecentIssues: { enabled: true, order: 5, size: 'medium' },
-                    testCases: { enabled: true, order: 6, size: 'medium' },
-                    performanceTests: { enabled: true, order: 7, size: 'medium' },
-                    testExecutions: { enabled: true, order: 8, size: 'medium' },
-                    screenshots: { enabled: true, order: 9, size: 'small' }
+                    jiraStatus: { enabled: true, order: 4, size: 'medium' },
+                    jiraPriority: { enabled: true, order: 5, size: 'medium' },
+                    jiraType: { enabled: true, order: 6, size: 'medium' },
+                    jiraEnvironment: { enabled: true, order: 7, size: 'medium' },
+                    jiraLabels: { enabled: true, order: 8, size: 'medium' },
+                    jiraRecentIssues: { enabled: true, order: 9, size: 'medium' },
+                    testCases: { enabled: true, order: 10, size: 'medium' },
+                    performanceTests: { enabled: true, order: 11, size: 'medium' },
+                    testExecutions: { enabled: true, order: 12, size: 'medium' },
+                    screenshots: { enabled: true, order: 13, size: 'small' }
                   };
                   saveCardSettings(defaultSettings);
                 }}
@@ -833,7 +982,7 @@ const UnifiedDashboard = ({ setActiveTab }) => {
               </div>
             )}
             
-            {cardKey === 'jiraSummary' && (
+            {cardKey === 'jiraStatus' && (
               <div 
                 className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
                 draggable={true}
@@ -844,7 +993,7 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                 onDragEnd={handleDragEnd}
               >
                 <div className="card-header">
-                  <h3>이슈 요약</h3>
+                  <h3>상태</h3>
                   <button 
                     className="btn-move-to-tab"
                     onClick={() => setActiveTab('jira')}
@@ -854,53 +1003,167 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                   </button>
                 </div>
                 <div className="card-content">
-                  <div className="jira-stats-grid">
-                    {/* 전체 통계 카드 */}
-                    <div className="jira-stats-card total-issues">
-                      <div className="stats-icon">📊</div>
-                      <div className="stats-content">
-                        <h3>전체 이슈</h3>
-                        <div className="stats-number">{jiraStats.totalIssues}</div>
+                  <div className="chart-wrapper">
+                    <Doughnut data={createDoughnutFromObject(jiraStats.issuesByStatus, '이슈 수')} options={chartOptions} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {cardKey === 'jiraPriority' && (
+              <div 
+                className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="card-header">
+                  <h3>우선순위</h3>
+                  <button 
+                    className="btn-move-to-tab"
+                    onClick={() => setActiveTab('jira')}
+                    title="이슈 상세 보기"
+                  >
+                    이동 &gt;
+                  </button>
+                </div>
+                <div className="card-content">
+                  <div className="chart-wrapper">
+                    <Doughnut data={createDoughnutFromObject(jiraStats.issuesByPriority, '이슈 수')} options={chartOptions} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {cardKey === 'jiraType' && (
+              <div 
+                className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="card-header">
+                  <h3>타입</h3>
+                  <button 
+                    className="btn-move-to-tab"
+                    onClick={() => setActiveTab('jira')}
+                    title="이슈 상세 보기"
+                  >
+                    이동 &gt;
+                  </button>
+                </div>
+                <div className="card-content">
+                  <div className="chart-wrapper">
+                    <Doughnut data={createDoughnutFromObject(jiraStats.issuesByType, '이슈 수')} options={chartOptions} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {cardKey === 'jiraEnvironment' && (
+              <div 
+                className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="card-header">
+                  <h3>환경별 이슈</h3>
+                  <button 
+                    className="btn-move-to-tab"
+                    onClick={() => setActiveTab('jira')}
+                    title="이슈 상세 보기"
+                  >
+                    이동 &gt;
+                  </button>
+                </div>
+                <div className="card-content">
+                  <div className="environment-issues-container">
+                    {/* 환경별 이슈 차트 */}
+                    {Object.keys(jiraEnvironmentStats).length > 0 && (
+                      <div className="chart-wrapper">
+                        <Bar data={createEnvironmentIssuesChartData()} options={barChartOptions} />
+                      </div>
+                    )}
+                    
+                    {/* 환경별 이슈 요약 */}
+                    <div className="environment-summary">
+                      {Object.keys(jiraEnvironmentStats).length > 0 ? (
+                        ['dev', 'alpha', 'production'].filter(env => jiraEnvironmentStats.hasOwnProperty(env)).map(env => {
+                          const data = jiraEnvironmentStats[env];
+                          return (
+                          <div key={env} className="environment-issue-item">
+                            <div className="environment-name">{env.toUpperCase()}</div>
+                            <div className="environment-stats">
+                              <div className="stat-item">
+                                <span className="stat-label">총 이슈:</span>
+                                <span className="stat-value">{data.total_issues}</span>
+                              </div>
+                              <div className="stat-item">
+                                <span className="stat-label">해결률:</span>
+                                <span className="stat-value resolution-rate">{data.resolution_rate}%</span>
+                              </div>
+                              <div className="stat-item">
+                                <span className="stat-label">완료:</span>
+                                <span className="stat-value done-count">{data.status_breakdown?.Done || 0}</span>
+                              </div>
+                            </div>
+                          </div>
+                          );
+                        })
+                      ) : (
+                        <p className="no-environment-data">환경별 이슈 데이터가 없습니다.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {cardKey === 'jiraLabels' && (
+              <div 
+                className={`dashboard-card card-size-${config.size} draggable-card ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, cardKey)}
+                onDragOver={(e) => handleDragOver(e, cardKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cardKey)}
+              >
+                <div className="card-header">
+                  <h3>🏷️ 이슈 레이블 통계</h3>
+                  <button 
+                    className="btn-move-to-tab"
+                    onClick={() => setActiveTab('jira')}
+                    title="이슈 상세 보기"
+                  >
+                    이동 &gt;
+                  </button>
+                </div>
+                <div className="card-content">
+                  <div className="chart-container">
+                    {/* 전체 레이블 통계 */}
+                    <div className="labels-summary">
+                      <div className="labels-total">
+                        <span className="labels-total-number">{Object.keys(jiraStats.issuesByLabels).length}</span>
+                        <span className="labels-total-label">개 레이블</span>
                       </div>
                     </div>
-
-                    {/* 상태별 통계 */}
-                    <div className="jira-stats-card status-breakdown">
-                      <h3>상태별 분포</h3>
-                      <div className="status-list">
-                        {Object.entries(jiraStats.issuesByStatus).map(([status, count]) => (
-                          <div key={status} className="status-item">
-                            <span className="status-label">{status}</span>
-                            <span className="status-count">{count}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 우선순위별 통계 */}
-                    <div className="jira-stats-card priority-breakdown">
-                      <h3>우선순위별 분포</h3>
-                      <div className="priority-list">
-                        {Object.entries(jiraStats.issuesByPriority).map(([priority, count]) => (
-                          <div key={priority} className="priority-item">
-                            <span className="priority-label">{priority}</span>
-                            <span className="priority-count">{count}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 타입별 통계 */}
-                    <div className="jira-stats-card type-breakdown">
-                      <h3>타입별 분포</h3>
-                      <div className="type-list">
-                        {Object.entries(jiraStats.issuesByType).map(([type, count]) => (
-                          <div key={type} className="type-item">
-                            <span className="type-label">{type}</span>
-                            <span className="type-count">{count}</span>
-                          </div>
-                        ))}
-                      </div>
+                    
+                    {/* 레이블별 막대 그래프 */}
+                    <div className="chart-wrapper">
+                      <Bar 
+                        data={createLabelsChartData()} 
+                        options={barChartOptions}
+                      />
                     </div>
                   </div>
                 </div>

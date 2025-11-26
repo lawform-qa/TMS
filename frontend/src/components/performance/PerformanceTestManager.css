@@ -1,4 +1,6 @@
 /* 성능 테스트 매니저 스타일 - 테스트 케이스 탭과 동일한 스타일 적용 */
+
+/* 모달 스타일은 공통 Modal.css에서 관리 */
 .performance-container {
   padding: 20px;
   background: #f8f9fa;
@@ -239,6 +241,8 @@
   background: white;
   border-radius: 6px;
   border: 1px solid #e9ecef;
+  align-items: center;
+  justify-content: center;
 }
 
 .performance-filter-row {

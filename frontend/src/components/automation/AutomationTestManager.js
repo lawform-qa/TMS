@@ -4,6 +4,7 @@ import config from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import AutomationTestDetail from './AutomationTestDetail';
 import './AutomationTestManager.css';
+import '../common/Modal.css';
 
 axios.defaults.baseURL = config.apiUrl;
 
@@ -505,7 +506,7 @@ const AutomationTestManager = () => {
                       <div className="automation-action-buttons">
                         {user && (user.role === 'admin' || user.role === 'user') && (
                           <button 
-                            className="automation-btn automation-btn-execute automation-btn-icon"
+                           className="automation-btn automation-btn-execute automation-btn-icon"
                             onClick={() => handleExecuteTest(test.id)}
                             title="자동화 실행"
                           >
@@ -547,28 +548,46 @@ const AutomationTestManager = () => {
         )}
       </div>
 
-      {/* 상세 정보 표시 */}
+      {/* 상세보기 모달 */}
       {selectedTest && (
-        <div className="automation-detail-section">
-          <AutomationTestDetail 
-            test={selectedTest}
-            onClose={closeDetail}
-            onRefresh={fetchAutomationTests}
-          />
+        <div className="modal-overlay fullscreen-modal">
+          <div className="modal fullscreen-modal-content">
+            <div className="modal-header">
+              <h3>📋 자동화 테스트 상세 정보</h3>
+              <button 
+                className="modal-close"
+                onClick={() => {
+                  setSelectedTest(null);
+                  setShowDetail(false);
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body" style={{ padding: '24px', overflowY: 'auto' }}>
+              <AutomationTestDetail 
+                test={selectedTest}
+                onClose={() => {
+                  setSelectedTest(null);
+                  setShowDetail(false);
+                }}
+                onRefresh={fetchAutomationTests}
+              />
+            </div>
+            <div className="modal-actions">
+              <button 
+                className="btn btn-secondary"
+                onClick={() => {
+                  setSelectedTest(null);
+                  setShowDetail(false);
+                }}
+              >
+                닫기
+              </button>
+            </div>
+          </div>
         </div>
       )}
-
-      {/* 하단 전체 화면 구조 제거 */}
-      {/* {showDetail && selectedTest && (
-        <div className="automation-detail-bottom">
-          <AutomationTestDetail 
-            test={selectedTest}
-            onClose={closeDetail}
-            onRefresh={fetchAutomationTests}
-          />
-        </div>
-      )} */}
-
       {/* 추가 모달 */}
       {showAddModal && (
         <div className="modal-overlay fullscreen-modal">
