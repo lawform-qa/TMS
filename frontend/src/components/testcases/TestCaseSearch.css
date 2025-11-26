@@ -55,6 +55,9 @@
 
 .testcase-advanced-filters {
   margin-bottom: 16px;
+  align-items: center;
+  justify-content: center;
+
 }
 
 .testcase-filter-row {
@@ -94,15 +97,14 @@
 }
 
 .testcase-btn-clear-filters {
-  background: #6c757d;
-  color: white;
+  background: white;
+  color: black;
   border: none;
   padding: 6px 12px;
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
   transition: background-color 0.2s;
-  margin-left: auto;
 }
 
 .testcase-btn-clear-filters:hover {

@@ -1,4 +1,6 @@
 /* 자동화 테스트 관리자 스타일 - 다른 탭들과 일관된 스타일 적용 */
+
+/* 모달 스타일은 공통 Modal.css에서 관리 */
 .automation-container {
   padding: 20px;
   background: #f8f9fa;
@@ -308,7 +310,9 @@
   background: white;
   border-radius: 6px;
   border: 1px solid #e9ecef;
-}
+  align-items: center;
+  justify-content: center;
+  }
 
 .automation-filter-row {
   display: flex;

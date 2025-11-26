@@ -403,6 +403,7 @@
   line-height: 1.5;
   margin: 0;
   display: -webkit-box;
+  line-clamp: 3;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -637,7 +638,8 @@
   font-weight: 500;
 }
 
-/* 상세보기 모달 스타일 */
+/* 모달 스타일은 공통 Modal.css에서 관리 */
+
 .issue-detail-content {
   max-height: 60vh;
   overflow-y: auto;

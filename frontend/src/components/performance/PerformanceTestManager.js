@@ -5,6 +5,7 @@ import config from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatUTCToKST } from '../../utils/dateUtils';
 import './PerformanceTestManager.css';
+import '../common/Modal.css';
 
 // axios 인터셉터 설정 - 인증 토큰 자동 추가
 axios.interceptors.request.use(
@@ -1093,7 +1094,7 @@ const PerformanceTestManager = () => {
             </div>
             <div className="modal-actions">
               <button 
-                className="performance-btn performance-btn-secondary"
+                className="btn btn-secondary"
                 onClick={() => {
                   setShowDetailModal(false);
                   setSelectedTest(null);
@@ -1101,10 +1102,10 @@ const PerformanceTestManager = () => {
               >
                 닫기
               </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            </div>
+          </div>
+        </div>
+      )}
         </div>
     );
 };
