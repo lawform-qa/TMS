@@ -155,13 +155,21 @@ def get_testcases():
 @testcases_bp.route('/testcases/<int:id>', methods=['GET'])
 @guest_allowed
 def get_testcase(id):
-    tc = TestCase.query.get_or_404(id)
+    from sqlalchemy.orm import joinedload
+    # N+1 쿼리 문제 해결: joinedload를 사용하여 관련 데이터를 한 번에 로드
+    tc = TestCase.query.options(
+        joinedload(TestCase.creator),
+        joinedload(TestCase.assignee)
+    ).get_or_404(id)
+    
     # alpha DB 스키마에 맞춤: Screenshot은 test_result_id를 통해 연결됨
+    # 최적화: test_result_id 목록을 한 번에 가져와서 IN 쿼리로 스크린샷 조회
     test_results = TestResult.query.filter_by(test_case_id=id).all()
-    screenshots = []
-    for result in test_results:
-        result_screenshots = Screenshot.query.filter_by(test_result_id=result.id).all()
-        screenshots.extend(result_screenshots)
+    if test_results:
+        result_ids = [result.id for result in test_results]
+        screenshots = Screenshot.query.filter(Screenshot.test_result_id.in_(result_ids)).all()
+    else:
+        screenshots = []
     
     screenshot_data = [{'id': ss.id, 'screenshot_path': ss.file_path, 'timestamp': ss.created_at} for ss in screenshots]
     data = {
@@ -275,6 +283,11 @@ def create_testcase():
         db.session.add(tc)
         db.session.commit()
         
+        # 캐시 무효화
+        from services.cache_service import cache_service
+        cache_service.invalidate_entity('testcase', tc.id)
+        cache_service.delete_pattern('testcases:list:*')
+        
         # 히스토리 추적
         try:
             track_test_case_creation(tc.id, data, 1)  # TODO: 실제 사용자 ID 사용
@@ -366,6 +379,17 @@ def update_testcase_status(id):
         # 상태 업데이트
         tc.result_status = new_status
         db.session.commit()
+        
+        # 알림 생성 (상태 변경 시)
+        try:
+            from services.notification_service import notification_service
+            if new_status == 'Fail':
+                # 실패 알림은 테스트 결과가 있을 때만 생성
+                latest_result = TestResult.query.filter_by(test_case_id=id).order_by(TestResult.executed_at.desc()).first()
+                if latest_result:
+                    notification_service.notify_test_failed(id, latest_result.id)
+        except Exception as notify_error:
+            logger.warning(f"알림 생성 실패: {str(notify_error)}")
         
         # 대시보드 요약 데이터 자동 업데이트
         if update_dashboard_summary_for_environment(tc.environment):
@@ -499,53 +523,42 @@ def bulk_delete_testcases():
         
         print(f"🗑️ 다중 테스트 케이스 삭제 시도: {len(testcase_ids)}개")
         
-        deleted_count = 0
-        failed_deletions = []
-        environments_to_update = set()
+        # 최적화: 한 번에 모든 테스트 케이스 조회
+        testcases_to_delete = TestCase.query.filter(TestCase.id.in_(testcase_ids)).all()
+        valid_ids = {tc.id for tc in testcases_to_delete}
+        invalid_ids = set(testcase_ids) - valid_ids
         
-        for testcase_id in testcase_ids:
-            try:
-                tc = TestCase.query.get(testcase_id)
-                if tc:
-                    environment = tc.environment
-                    testcase_name = tc.name
-                    
-                    print(f"🗑️ 테스트 케이스 삭제: {testcase_name} ({environment})")
-                    
-                    # 환경 정보 수집 (대시보드 업데이트용)
-                    environments_to_update.add(environment)
-                    
-                    # 연관된 데이터 먼저 삭제
-                    # 1. 테스트 결과 삭제
-                    test_results = TestResult.query.filter_by(test_case_id=testcase_id).all()
-                    for result in test_results:
-                        # 테스트 결과에 연결된 스크린샷 삭제
-                        screenshots = Screenshot.query.filter_by(test_result_id=result.id).all()
-                        for screenshot in screenshots:
-                            db.session.delete(screenshot)
-                        # 테스트 결과 삭제
-                        db.session.delete(result)
-                    
-                    # 2. 테스트 계획에서의 연결 삭제
-                    test_plan_testcases = TestPlanTestCase.query.filter_by(test_case_id=testcase_id).all()
-                    for ptc in test_plan_testcases:
-                        db.session.delete(ptc)
-                    
-                    # 3. 마지막으로 테스트 케이스 삭제
-                    db.session.delete(tc)
-                    deleted_count += 1
-                else:
-                    print(f"⚠️ 테스트 케이스 ID {testcase_id}를 찾을 수 없습니다")
-                    failed_deletions.append({
-                        'id': testcase_id,
-                        'error': '테스트 케이스를 찾을 수 없습니다'
-                    })
-            except Exception as e:
-                print(f"❌ 테스트 케이스 ID {testcase_id} 삭제 실패: {str(e)}")
-                failed_deletions.append({
-                    'id': testcase_id,
-                    'error': str(e)
-                })
+        # 환경 정보 수집 (대시보드 업데이트용)
+        environments_to_update = {tc.environment for tc in testcases_to_delete}
+        
+        if invalid_ids:
+            failed_deletions = [{
+                'id': testcase_id,
+                'error': '테스트 케이스를 찾을 수 없습니다'
+            } for testcase_id in invalid_ids]
+        else:
+            failed_deletions = []
+        
+        if testcases_to_delete:
+            # 연관된 데이터를 bulk delete로 최적화
+            testcase_ids_list = [tc.id for tc in testcases_to_delete]
+            
+            # 1. 스크린샷 삭제 (test_result_id를 통해)
+            test_result_ids = db.session.query(TestResult.id).filter(
+                TestResult.test_case_id.in_(testcase_ids_list)
+            ).subquery()
+            Screenshot.query.filter(Screenshot.test_result_id.in_(test_result_ids)).delete(synchronize_session=False)
+            
+            # 2. 테스트 결과 삭제
+            TestResult.query.filter(TestResult.test_case_id.in_(testcase_ids_list)).delete(synchronize_session=False)
+            
+            # 3. 테스트 계획에서의 연결 삭제
+            TestPlanTestCase.query.filter(TestPlanTestCase.test_case_id.in_(testcase_ids_list)).delete(synchronize_session=False)
+            
+            # 4. 테스트 케이스 삭제
+            deleted_count = TestCase.query.filter(TestCase.id.in_(testcase_ids_list)).delete(synchronize_session=False)
+        else:
+            deleted_count = 0
         
         # 모든 삭제 작업을 한 번에 커밋
         db.session.commit()
@@ -605,24 +618,23 @@ def get_test_results(test_case_id):
 
 @testcases_bp.route('/testcases/<int:id>/screenshots', methods=['GET'])
 def get_testcase_screenshots(id):
-    """테스트 케이스의 스크린샷 목록 조회"""
+    """테스트 케이스의 스크린샷 목록 조회 (최적화: N+1 쿼리 문제 해결)"""
     try:
         test_case = TestCase.query.get_or_404(id)
         # alpha DB 스키마에 맞춤: Screenshot은 test_result_id를 통해 연결됨
+        # 최적화: test_result_id 목록을 한 번에 가져와서 IN 쿼리로 스크린샷 조회
         test_results = TestResult.query.filter_by(test_case_id=id).all()
-        screenshots = []
-        for result in test_results:
-            result_screenshots = Screenshot.query.filter_by(test_result_id=result.id).all()
-            screenshots.extend(result_screenshots)
+        if test_results:
+            result_ids = [result.id for result in test_results]
+            screenshots = Screenshot.query.filter(Screenshot.test_result_id.in_(result_ids)).all()
+        else:
+            screenshots = []
         
-        screenshot_list = []
-        for screenshot in screenshots:
-            screenshot_data = {
-                'id': screenshot.id,
-                'screenshot_path': screenshot.file_path,  # alpha DB는 file_path 사용
-                'timestamp': screenshot.created_at.isoformat() if screenshot.created_at else None  # alpha DB는 created_at 사용
-            }
-            screenshot_list.append(screenshot_data)
+        screenshot_list = [{
+            'id': screenshot.id,
+            'screenshot_path': screenshot.file_path,  # alpha DB는 file_path 사용
+            'timestamp': screenshot.created_at.isoformat() if screenshot.created_at else None  # alpha DB는 created_at 사용
+        } for screenshot in screenshots]
         
         response = jsonify(screenshot_list)
         return add_cors_headers(response), 200

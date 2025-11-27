@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_migrate import Migrate
+from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
 import os
 import time
@@ -19,6 +20,15 @@ from routes.auth import auth_bp
 from routes.test_scripts import test_scripts_bp
 # from routes.jira_integration import jira_bp  # deprecated
 from routes.jira_issues import jira_issues_bp
+from routes.schedules import schedules_bp
+from routes.queue import queue_bp
+from routes.notifications import notifications_bp
+from routes.analytics import analytics_bp
+from routes.cicd import cicd_bp
+from routes.test_data import test_data_bp
+from routes.collaboration import collaboration_bp
+from routes.dependencies import dependencies_bp
+from routes.reports import reports_bp
 from utils.cors import setup_cors
 from flask_jwt_extended import JWTManager
 from datetime import timedelta
@@ -123,6 +133,15 @@ migrate = Migrate(app, db)
 # JWT 초기화
 jwt = JWTManager(app)
 
+# SocketIO 초기화 (CORS 설정 포함)
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    async_mode='eventlet',
+    logger=True,
+    engineio_logger=True
+)
+
 @jwt.expired_token_loader
 def expired_token_callback(jwt_header, jwt_payload):
     logger.warning(f"토큰 만료: header={jwt_header}, payload={jwt_payload}")
@@ -162,6 +181,15 @@ app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(test_scripts_bp, url_prefix='/api/test-scripts')
 # app.register_blueprint(jira_bp)  # deprecated
 app.register_blueprint(jira_issues_bp)
+app.register_blueprint(schedules_bp)
+app.register_blueprint(queue_bp)
+app.register_blueprint(notifications_bp)
+app.register_blueprint(analytics_bp)
+app.register_blueprint(cicd_bp)
+app.register_blueprint(test_data_bp)
+app.register_blueprint(collaboration_bp)
+app.register_blueprint(dependencies_bp)
+app.register_blueprint(reports_bp)
 
 # 헬퍼 함수들
 def create_cors_response(data=None, status_code=200):
@@ -186,29 +214,27 @@ def get_environment_folders(env):
         return [3, 6]
 
 def calculate_test_results(env_folders):
-    """환경별 테스트 결과 계산"""
+    """환경별 테스트 결과 계산 (최적화: 단일 쿼리로 통합)"""
     try:
-        passed_tests = db.session.query(TestResult).join(TestCase).filter(
-            TestCase.folder_id.in_(env_folders),
-            TestResult.result == 'Pass'
-        ).count()
-        failed_tests = db.session.query(TestResult).join(TestCase).filter(
-            TestCase.folder_id.in_(env_folders),
-            TestResult.result == 'Fail'
-        ).count()
-        nt_tests = db.session.query(TestResult).join(TestCase).filter(
-            TestCase.folder_id.in_(env_folders),
-            TestResult.result == 'N/T'
-        ).count()
-        na_tests = db.session.query(TestResult).join(TestCase).filter(
-            TestCase.folder_id.in_(env_folders),
-            TestResult.result == 'N/A'
-        ).count()
-        blocked_tests = db.session.query(TestResult).join(TestCase).filter(
-            TestCase.folder_id.in_(env_folders),
-            TestResult.result == 'Block'
-        ).count()
-        return passed_tests, failed_tests, nt_tests, na_tests, blocked_tests
+        from sqlalchemy import func
+        # 단일 쿼리로 모든 결과 타입을 한 번에 계산
+        results = db.session.query(
+            TestResult.result,
+            func.count(TestResult.id).label('count')
+        ).join(TestCase).filter(
+            TestCase.folder_id.in_(env_folders)
+        ).group_by(TestResult.result).all()
+        
+        # 결과를 딕셔너리로 변환
+        result_dict = {row.result: row.count for row in results}
+        
+        return (
+            result_dict.get('Pass', 0),
+            result_dict.get('Fail', 0),
+            result_dict.get('N/T', 0),
+            result_dict.get('N/A', 0),
+            result_dict.get('Block', 0)
+        )
     except Exception:
         return 0, 0, 0, 0, 0
 
@@ -882,10 +908,12 @@ def reorganize_testcases():
         return handle_options_request()
     
     try:
-        # 테스트 케이스 이름에 따라 적절한 기능 폴더로 이동
-        testcases = TestCase.query.all()
+        # 테스트 케이스 이름에 따라 적절한 기능 폴더로 이동 (최적화: 배치 처리)
+        # 모든 테스트 케이스를 한 번에 조회하되, 필요한 필드만 선택
+        testcases = db.session.query(TestCase.id, TestCase.name, TestCase.folder_id).all()
         moved_count = 0
         
+        updates = []
         for tc in testcases:
             new_folder_id = None
             
@@ -914,11 +942,20 @@ def reorganize_testcases():
                 new_folder_id = 13  # Dashboard/Setting
             
             if new_folder_id and tc.folder_id != new_folder_id:
-                tc.folder_id = new_folder_id
+                updates.append({'id': tc.id, 'folder_id': new_folder_id})
                 moved_count += 1
         
-        if moved_count > 0:
+        # 배치 업데이트 실행
+        if updates:
+            # SQLAlchemy의 bulk update 사용
+            for update in updates:
+                db.session.query(TestCase).filter(TestCase.id == update['id']).update(
+                    {TestCase.folder_id: update['folder_id']},
+                    synchronize_session=False
+                )
             db.session.commit()
+        
+        if moved_count > 0:
             return jsonify({
                 'status': 'success',
                 'message': f'{moved_count}개의 테스트 케이스가 기능 폴더로 이동되었습니다.'
@@ -1013,7 +1050,51 @@ def check_database_status():
 #     """스크린샷 파일 직접 제공 - 클라우드 전환 시 S3로 대체"""
 #     pass
 
+# 앱 종료 시 스케줄러 정리
+import atexit
+from services.scheduler_service import scheduler_service
+
+def shutdown_scheduler():
+    """앱 종료 시 스케줄러 종료"""
+    scheduler_service.shutdown()
+
+atexit.register(shutdown_scheduler)
+
+# 앱 시작 시 기존 스케줄 로드
+def load_existing_schedules():
+    """앱 시작 시 기존 활성 스케줄을 스케줄러에 로드"""
+    try:
+        from models import TestSchedule
+        from routes.schedules import execute_scheduled_test
+        import json
+        
+        active_schedules = TestSchedule.query.filter(
+            TestSchedule.enabled == True,
+            TestSchedule.active == True
+        ).all()
+        
+        for schedule in active_schedules:
+            execution_params = json.loads(schedule.execution_parameters) if schedule.execution_parameters else None
+            scheduler_service.add_schedule(
+                schedule.id,
+                schedule.test_case_id,
+                schedule.schedule_type,
+                schedule.schedule_expression,
+                schedule.environment,
+                execution_params,
+                execute_scheduled_test
+            )
+            logger.info(f"기존 스케줄 로드 완료: {schedule.name} (ID: {schedule.id})")
+    except Exception as e:
+        logger.error(f"기존 스케줄 로드 오류: {str(e)}")
+
+# SocketIO 핸들러 등록
+from socketio_handlers import register_socketio_handlers
+register_socketio_handlers(socketio)
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True, host='0.0.0.0', port=8000) 
+        load_existing_schedules()
+    # SocketIO를 사용하여 앱 실행
+    socketio.run(app, debug=True, host='0.0.0.0', port=8000, allow_unsafe_werkzeug=True) 
