@@ -47,7 +47,7 @@ def create_project():
 @testcases_bp.route('/testcases', methods=['GET', 'OPTIONS'])
 def get_testcases():
     if request.method == 'OPTIONS':
-        from app import handle_options_request
+        from utils.common_helpers import handle_options_request
         return handle_options_request()
     
     try:
