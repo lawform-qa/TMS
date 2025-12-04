@@ -81,11 +81,16 @@ def health_check():
         return handle_options_request()
     
     try:
+        from utils.db_helper import get_database_info
+        
         # 데이터베이스 연결 테스트
         db.session.execute(text('SELECT 1'))
         if 'mysql' in app.config['SQLALCHEMY_DATABASE_URI']:
             db.session.commit()
         db_status = 'connected'
+        
+        # 데이터베이스 정보 가져오기
+        db_info = get_database_info(app.config['SQLALCHEMY_DATABASE_URI'])
         
         response = jsonify({
             'status': 'healthy', 
@@ -95,8 +100,8 @@ def health_check():
             'environment': 'production' if is_vercel else 'development',
             'database': {
                 'status': db_status,
-                'url_set': 'Yes' if app.config.get('SQLALCHEMY_DATABASE_URI') else 'No',
-                'type': 'MySQL' if 'mysql' in app.config['SQLALCHEMY_DATABASE_URI'] else 'SQLite'
+                'type': db_info.get('type', 'Unknown'),
+                'info': db_info
             }
         })
         return response, 200
@@ -104,6 +109,12 @@ def health_check():
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Health check 오류: {error_msg}")
+        
+        try:
+            from utils.db_helper import get_database_info
+            db_info = get_database_info(app.config['SQLALCHEMY_DATABASE_URI'])
+        except Exception:
+            db_info = {}
         
         response = jsonify({
             'status': 'degraded', 
@@ -113,8 +124,9 @@ def health_check():
             'environment': 'production' if is_vercel else 'development',
             'database': {
                 'status': 'error',
+                'type': db_info.get('type', 'Unknown'),
                 'error': error_msg,
-                'url': app.config['SQLALCHEMY_DATABASE_URI'][:50] + '...' if len(app.config['SQLALCHEMY_DATABASE_URI']) > 50 else app.config['SQLALCHEMY_DATABASE_URI']
+                'info': db_info
             },
             'note': 'Application is running but database connection failed'
         })

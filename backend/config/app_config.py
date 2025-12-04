@@ -37,9 +37,35 @@ def get_database_url():
         else:
             logger.info(f"Vercel 환경에서 데이터베이스 URL 사용: {database_url[:20]}...")
     else:
-        # 로컬 개발 환경에서는 로컬 MySQL 사용
-        database_url = 'mysql+pymysql://root:1q2w#E$R@localhost:3306/test_management'
-        logger.info("로컬 환경에서 로컬 MySQL 사용")
+        # 로컬 개발 환경
+        # 1. 환경 변수에서 DATABASE_URL 확인
+        database_url = os.environ.get('DATABASE_URL')
+        
+        # 2. DB_TYPE 환경 변수 확인 (sqlite 또는 mysql)
+        db_type = os.environ.get('DB_TYPE', 'sqlite').lower()
+        
+        if database_url:
+            # 환경 변수에 DATABASE_URL이 있으면 사용
+            logger.info("로컬 환경에서 환경 변수 DATABASE_URL 사용")
+        elif db_type == 'mysql':
+            # MySQL 사용 (기본값)
+            db_host = os.environ.get('DB_HOST', 'localhost')
+            db_port = os.environ.get('DB_PORT', '3306')
+            db_user = os.environ.get('DB_USER', 'root')
+            db_password = os.environ.get('DB_PASSWORD', '1q2w#E$R')
+            db_name = os.environ.get('DB_NAME', 'test_management')
+            database_url = f'mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}'
+            logger.info(f"로컬 환경에서 MySQL 사용: {db_host}:{db_port}/{db_name}")
+        else:
+            # SQLite 사용 (기본값, 가장 간단)
+            db_path = os.environ.get('DB_PATH', 'local.db')
+            # 절대 경로 또는 상대 경로 처리
+            if not os.path.isabs(db_path):
+                # 상대 경로인 경우 프로젝트 루트 기준
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                db_path = os.path.join(project_root, db_path)
+            database_url = f'sqlite:///{db_path}'
+            logger.info(f"로컬 환경에서 SQLite 사용: {db_path}")
     
     return database_url
 
@@ -47,21 +73,30 @@ def get_database_engine_options(database_url):
     """데이터베이스 엔진 옵션 설정"""
     is_vercel = 'vercel.app' in os.environ.get('VERCEL_URL', '') or os.environ.get('VERCEL') == '1'
     
-    if is_vercel and 'sqlite' in database_url:
-        logger.info("Vercel 환경에서 SQLite 사용")
+    if 'sqlite' in database_url:
+        # SQLite 환경
+        if is_vercel:
+            logger.info("Vercel 환경에서 SQLite 사용")
+        else:
+            logger.info("로컬 환경에서 SQLite 사용")
         return {}
     else:
         # MySQL 환경 (Vercel 또는 로컬)
-        return {
+        options = {
             'pool_pre_ping': True,
             'pool_recycle': 300,
             'connect_args': {
                 'connect_timeout': 10,
                 'read_timeout': 30,
-                'write_timeout': 30,
-                'ssl': {'ssl': True}
+                'write_timeout': 30
             }
         }
+        
+        # Vercel 환경에서만 SSL 사용
+        if is_vercel:
+            options['connect_args']['ssl'] = {'ssl': True}
+        
+        return options
 
 def configure_app(app):
     """Flask 앱 설정 적용"""
