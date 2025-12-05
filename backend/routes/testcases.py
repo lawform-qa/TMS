@@ -2,6 +2,9 @@ from flask import Blueprint, request, jsonify, send_file
 from models import db, TestCase, TestResult, Screenshot, Project, Folder, User, TestCaseTemplate, TestPlan, TestPlanTestCase
 from utils.cors import add_cors_headers
 from utils.auth_decorators import admin_required, user_required, guest_allowed
+from utils.serializers import serialize_testcase, serialize_project, serialize_folder
+from services.testcase_service import TestCaseService
+from services.report_service import ReportService
 from datetime import datetime, timedelta
 from utils.timezone_utils import get_kst_now, get_kst_isoformat
 import pandas as pd
@@ -23,11 +26,7 @@ testcases_bp = Blueprint('testcases', __name__)
 @testcases_bp.route('/projects', methods=['GET'])
 def get_projects():
     projects = Project.query.all()
-    data = [{
-        'id': p.id,
-        'name': p.name,
-        'description': p.description
-    } for p in projects]
+    data = [serialize_project(p) for p in projects]
     response = jsonify(data)
     return add_cors_headers(response), 200
 
@@ -47,108 +46,28 @@ def create_project():
 @testcases_bp.route('/testcases', methods=['GET', 'OPTIONS'])
 def get_testcases():
     if request.method == 'OPTIONS':
-        from app import handle_options_request
+        from utils.common_helpers import handle_options_request
         return handle_options_request()
     
     try:
-        # 페이징 파라미터 처리
         page = request.args.get('page', None, type=int)
         per_page = request.args.get('per_page', None, type=int)
         
-        # 페이징 파라미터가 없으면 전체 데이터 반환
-        if page is None or per_page is None:
-            testcases = TestCase.query.all()
-            data = [{
-                'id': tc.id,
-                'name': tc.name,
-                'description': tc.description,
-                'test_type': tc.test_type,
-                'script_path': tc.script_path,
-                'folder_id': tc.folder_id,
-                'main_category': tc.main_category,
-                'sub_category': tc.sub_category,
-                'detail_category': tc.detail_category,
-                'pre_condition': tc.pre_condition,
-                'expected_result': tc.expected_result,
-                'remark': tc.remark,
-                'automation_code_path': tc.automation_code_path,
-                'environment': tc.environment,
-                'result_status': tc.result_status,
-                'creator_id': tc.creator_id,
-                'assignee_id': tc.assignee_id,
-                'creator_name': tc.creator.username if tc.creator else None,
-                'assignee_name': tc.assignee.username if tc.assignee else None,
-                'created_at': tc.created_at.isoformat(),
-                'updated_at': tc.updated_at.isoformat()
-            } for tc in testcases]
-            
-            response = jsonify(data)
-            return add_cors_headers(response), 200
+        data, pagination = TestCaseService.get_testcases(page, per_page, include_relations=True)
         
-        # 페이지 번호와 per_page 유효성 검사
-        if page < 1:
-            page = 1
-        if per_page < 1 or per_page > 100:
-            per_page = 10
-        
-        # 전체 테스트 케이스 수 조회
-        total_count = TestCase.query.count()
-        
-        # 페이징된 테스트 케이스 조회
-        offset = (page - 1) * per_page
-        testcases = TestCase.query.offset(offset).limit(per_page).all()
-        
-        # 총 페이지 수 계산
-        total_pages = (total_count + per_page - 1) // per_page
-        has_next = page < total_pages
-        has_prev = page > 1
-        next_num = page + 1 if has_next else None
-        prev_num = page - 1 if has_prev else None
-        
-        # 데이터 직렬화
-        data = [{
-            'id': tc.id,
-            'name': tc.name,
-            'description': tc.description,
-            'test_type': tc.test_type,
-            'script_path': tc.script_path,
-            'folder_id': tc.folder_id,
-            'main_category': tc.main_category,
-            'sub_category': tc.sub_category,
-            'detail_category': tc.detail_category,
-            'pre_condition': tc.pre_condition,
-            'expected_result': tc.expected_result,
-            'remark': tc.remark,
-            'automation_code_path': tc.automation_code_path,
-            'environment': tc.environment,
-            'result_status': tc.result_status,
-            'creator_id': tc.creator_id,
-            'assignee_id': tc.assignee_id,
-            'creator_name': tc.creator.username if tc.creator else None,
-            'assignee_name': tc.assignee.username if tc.assignee else None,
-            'created_at': tc.created_at.isoformat(),
-            'updated_at': tc.updated_at.isoformat()
-        } for tc in testcases]
-        
-        # 페이징 정보 포함 응답
-        response_data = {
-            'items': data,
-            'pagination': {
-                'page': page,
-                'per_page': per_page,
-                'total': total_count,
-                'pages': total_pages,
-                'has_next': has_next,
-                'has_prev': has_prev,
-                'next_num': next_num,
-                'prev_num': prev_num
+        if pagination:
+            response_data = {
+                'items': data,
+                'pagination': pagination
             }
-        }
+        else:
+            response_data = data
         
         response = jsonify(response_data)
         return add_cors_headers(response), 200
         
     except Exception as e:
+        logger.error(f"테스트 케이스 조회 오류: {str(e)}")
         response = jsonify({'error': str(e)})
         return add_cors_headers(response), 500
 
@@ -1589,39 +1508,16 @@ def export_test_report():
     """테스트 리포트 엑셀 내보내기"""
     try:
         data = request.get_json()
-        report_type = data.get('type', 'summary')  # summary, detailed, test_plan
+        report_type = data.get('type', 'summary')
         
         if report_type == 'summary':
-            # 요약 리포트 데이터 가져오기
-            summary_data = get_test_summary_report_data()
-            
-            # 엑셀 파일 생성
-            import pandas as pd
-            from io import BytesIO
-            
-            # 환경별 통계 시트
-            env_df = pd.DataFrame(summary_data['environment_stats'])
-            
-            # 카테고리별 통계 시트
-            cat_df = pd.DataFrame(summary_data['category_stats'])
-            
-            # 엑셀 파일 생성
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                env_df.to_excel(writer, sheet_name='Environment_Stats', index=False)
-                cat_df.to_excel(writer, sheet_name='Category_Stats', index=False)
-                
-                # 자동화 통계 시트
-                automation_df = pd.DataFrame([summary_data['automation_stats']])
-                automation_df.to_excel(writer, sheet_name='Automation_Stats', index=False)
-            
-            output.seek(0)
+            output, filename = ReportService.generate_test_summary_report('excel')
             
             response = send_file(
                 output,
                 mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 as_attachment=True,
-                download_name=f'test_summary_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+                download_name=filename
             )
             return add_cors_headers(response), 200
             
@@ -1634,58 +1530,4 @@ def export_test_report():
         response = jsonify({'error': str(e)})
         return add_cors_headers(response), 500
 
-def get_test_summary_report_data():
-    """테스트 요약 리포트 데이터 조회 (내부 함수)"""
-    # 환경별 통계
-    environment_stats = db.session.query(
-        TestCase.environment,
-        db.func.count(TestCase.id).label('total'),
-        db.func.sum(db.case([(TestCase.result_status == 'Pass', 1)], else_=0)).label('passed'),
-        db.func.sum(db.case([(TestCase.result_status == 'Fail', 1)], else_=0)).label('failed'),
-        db.func.sum(db.case([(TestCase.result_status == 'N/T', 1)], else_=0)).label('not_tested'),
-        db.func.sum(db.case([(TestCase.result_status == 'N/A', 1)], else_=0)).label('not_applicable'),
-        db.func.sum(db.case([(TestCase.result_status == 'Block', 1)], else_=0)).label('blocked')
-    ).group_by(TestCase.environment).all()
-    
-    # 카테고리별 통계
-    category_stats = db.session.query(
-        TestCase.main_category,
-        db.func.count(TestCase.id).label('total'),
-        db.func.sum(db.case([(TestCase.result_status == 'Pass', 1)], else_=0)).label('passed'),
-        db.func.sum(db.case([(TestCase.result_status == 'Fail', 1)], else_=0)).label('failed')
-    ).group_by(TestCase.main_category).all()
-    
-    # 자동화 통계
-    automation_stats = db.session.query(
-        db.func.count(TestCase.id).label('total'),
-        db.func.sum(db.case([(TestCase.automation_code_path.isnot(None), 1)], else_=0)).label('automated'),
-        db.func.sum(db.case([(TestCase.automation_code_path.is_(None), 1)], else_=0)).label('manual')
-    ).first()
-    
-    return {
-        'environment_stats': [{
-            'environment': stat.environment or 'Unknown',
-            'total': stat.total,
-            'passed': stat.passed or 0,
-            'failed': stat.failed or 0,
-            'not_tested': stat.not_tested or 0,
-            'not_applicable': stat.not_applicable or 0,
-            'blocked': stat.blocked or 0,
-            'pass_rate': round((stat.passed or 0) / stat.total * 100, 1) if stat.total > 0 else 0
-        } for stat in environment_stats],
-        
-        'category_stats': [{
-            'category': stat.main_category or 'Unknown',
-            'total': stat.total,
-            'passed': stat.passed or 0,
-            'failed': stat.failed or 0,
-            'pass_rate': round((stat.passed or 0) / stat.total * 100, 1) if stat.total > 0 else 0
-        } for stat in category_stats],
-        
-        'automation_stats': {
-            'total': automation_stats.total,
-            'automated': automation_stats.automated or 0,
-            'manual': automation_stats.manual or 0,
-            'automation_rate': round((automation_stats.automated or 0) / automation_stats.total * 100, 1) if automation_stats.total > 0 else 0
-        }
-    } 
+# get_test_summary_report_data 함수는 ReportService로 이동됨 
