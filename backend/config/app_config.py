@@ -49,12 +49,15 @@ def get_database_url():
             logger.info("로컬 환경에서 환경 변수 DATABASE_URL 사용")
         elif db_type == 'mysql':
             # MySQL 사용 (기본값)
+            from urllib.parse import quote_plus
             db_host = os.environ.get('DB_HOST', 'localhost')
             db_port = os.environ.get('DB_PORT', '3306')
             db_user = os.environ.get('DB_USER', 'root')
             db_password = os.environ.get('DB_PASSWORD', '1q2w#E$R')
             db_name = os.environ.get('DB_NAME', 'test_management')
-            database_url = f'mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}'
+            # 비밀번호 URL 인코딩 (특수문자 처리)
+            encoded_password = quote_plus(db_password)
+            database_url = f'mysql+pymysql://{db_user}:{encoded_password}@{db_host}:{db_port}/{db_name}'
             logger.info(f"로컬 환경에서 MySQL 사용: {db_host}:{db_port}/{db_name}")
         else:
             # SQLite 사용 (기본값, 가장 간단)
