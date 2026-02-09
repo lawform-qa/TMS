@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import config from '../../config';
-import { useAuth } from '../../contexts/AuthContext';
+import config from '@tms/config';
+import { useAuth } from '@tms/contexts/AuthContext';
 import AutomationTestDetail from './AutomationTestDetail';
 import './AutomationTestManager.css';
 import '../common/Modal.css';
@@ -298,6 +298,18 @@ const AutomationTestManager = () => {
     <div className="automation-container">
       <div className="automation-header">
         <h1>자동화 테스트 관리</h1>
+        {user && user.role === 'guest' && (
+          <div className="guest-notice" style={{ 
+            padding: '10px', 
+            backgroundColor: '#fff3cd', 
+            border: '1px solid #ffc107', 
+            borderRadius: '4px',
+            marginBottom: '10px',
+            fontSize: '14px'
+          }}>
+            👀 게스트 모드: 조회만 가능합니다.
+          </div>
+        )}
         <div className="header-actions">
           {user && (user.role === 'admin' || user.role === 'user') && (
             <button 
@@ -473,7 +485,7 @@ const AutomationTestManager = () => {
                     <td>
                       <span className="automation-environment-badge">{test.environment}</span>
                     </td>
-                    <td className="assignee-column">
+                    <td className="assignee-column" onClick={(e) => e.stopPropagation()}>
                       <div className="assignee-section">
                         <span className="assignee-badge">
                           👤 {test.assignee_name || '없음'}
@@ -482,6 +494,7 @@ const AutomationTestManager = () => {
                           className="assignee-select"
                           value={test.assignee_id || ''}
                           onChange={(e) => handleAssigneeChange(test.id, e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
                         >
                           <option value="">담당자 변경</option>
                           {users && users.length > 0 ? (

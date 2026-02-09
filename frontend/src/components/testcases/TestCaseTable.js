@@ -1,5 +1,5 @@
 import React from 'react';
-// import { formatUTCToKST } from '../../utils/dateUtils';
+// import { formatUTCToKST } from '@tms/utils/dateUtils';
 import './TestCaseTable.css';
 
 const TestCaseTable = ({
@@ -104,7 +104,7 @@ const TestCaseTable = ({
                   <div className="testcase-meta">
                     <span className="environment-badge">{testCase.environment || 'dev'}</span>
                     {testCase.automation_code_path && (
-                      <span className="automation-badge">🤖 자동화</span>
+                      <span className="automation-badge">자동화</span>
                     )}
                   </div>
                 </div>
@@ -157,12 +157,12 @@ const TestCaseTable = ({
               </td>
               <td className="actions-column">
                 <div className="action-buttons">
-                  {/* 자동화 실행 버튼 */}
-                  {testCase.automation_code_path && (
+                  {/* 자동화 실행 버튼 (코드 경로 또는 테스트 단계가 있으면 표시) */}
+                  {(testCase.automation_code_path || testCase.test_steps) && (
                     <button 
                       className="testcase-btn testcase-btn-automation testcase-btn-icon"
                       onClick={() => onExecute(testCase.id)}
-                      title="자동화 실행"
+                      title={testCase.automation_code_path ? '자동화 실행' : '테스트 단계 실행'}
                     >
                       🤖
                     </button>

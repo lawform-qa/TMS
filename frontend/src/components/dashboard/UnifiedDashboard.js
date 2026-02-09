@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import config from '../../config';
+import config from '@tms/config';
 import './UnifiedDashboard.css';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
@@ -432,9 +432,25 @@ const UnifiedDashboard = ({ setActiveTab }) => {
       // 환경별 JIRA 통계 처리
       console.log('🌍 환경별 JIRA 통계 응답:', jiraEnvironmentStatsRes.data);
       if (jiraEnvironmentStatsRes.data && jiraEnvironmentStatsRes.data.success) {
-        const envStats = jiraEnvironmentStatsRes.data.data;
+        const envStats = jiraEnvironmentStatsRes.data.data || {};
         console.log('🌍 환경별 JIRA 통계 데이터:', envStats);
-        setJiraEnvironmentStats(envStats.environment_stats || {});
+        
+        // 백엔드 필드명(normalized: totalIssues, issuesByStatus)을 프론트 사용 필드명으로 정규화
+        const normalizedEnvStats = {};
+        Object.entries(envStats).forEach(([env, data]) => {
+          const total = data?.totalIssues ?? data?.total_issues ?? 0;
+          const statusBreakdown = data?.issuesByStatus ?? data?.status_breakdown ?? {};
+          const doneCount = statusBreakdown?.Done ?? 0;
+          const resolutionRate = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+          
+          normalizedEnvStats[env] = {
+            total_issues: total,
+            status_breakdown: statusBreakdown,
+            resolution_rate: resolutionRate,
+          };
+        });
+
+        setJiraEnvironmentStats(normalizedEnvStats);
         console.log('🌍 환경별 JIRA 통계 상태 설정 완료');
       } else {
         console.log('❌ 환경별 JIRA 통계 응답 실패:', jiraEnvironmentStatsRes.data);
@@ -683,8 +699,8 @@ const UnifiedDashboard = ({ setActiveTab }) => {
   };
 
   const createEnvironmentIssuesChartData = () => {
-    // 환경 순서 정의 (Dev, Alpha, Production 순)
-    const environmentOrder = ['dev', 'alpha', 'production'];
+    // 환경 순서 정의 (우선순위 지정 후, 없는 환경은 제거)
+    const environmentOrder = ['alpha', 'prod'];
     const environments = environmentOrder.filter(env => jiraEnvironmentStats.hasOwnProperty(env));
     const totalIssues = environments.map(env => jiraEnvironmentStats[env]?.total_issues || 0);
     
@@ -1091,7 +1107,7 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                     {/* 환경별 이슈 요약 */}
                     <div className="environment-summary">
                       {Object.keys(jiraEnvironmentStats).length > 0 ? (
-                        ['dev', 'alpha', 'production'].filter(env => jiraEnvironmentStats.hasOwnProperty(env)).map(env => {
+                        ['alpha', 'prod'].filter(env => jiraEnvironmentStats.hasOwnProperty(env)).map(env => {
                           const data = jiraEnvironmentStats[env];
                           return (
                           <div key={env} className="environment-issue-item">
@@ -1132,7 +1148,7 @@ const UnifiedDashboard = ({ setActiveTab }) => {
                 onDrop={(e) => handleDrop(e, cardKey)}
               >
                 <div className="card-header">
-                  <h3>🏷️ 이슈 레이블 통계</h3>
+                  <h3>이슈 레이블 통계</h3>
                   <button 
                     className="btn-move-to-tab"
                     onClick={() => setActiveTab('jira')}

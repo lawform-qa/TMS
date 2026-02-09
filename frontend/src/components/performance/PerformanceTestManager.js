@@ -1,9 +1,9 @@
 // src/PerformanceTestManager.js
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import config from '../../config';
-import { useAuth } from '../../contexts/AuthContext';
-import { formatUTCToKST } from '../../utils/dateUtils';
+import config from '@tms/config';
+import { useAuth } from '@tms/contexts/AuthContext';
+import { formatUTCToKST } from '@tms/utils/dateUtils';
 import './PerformanceTestManager.css';
 import '../common/Modal.css';
 
@@ -434,6 +434,18 @@ const PerformanceTestManager = () => {
     <div className="performance-container">
             <div className="performance-header">
         <h1>성능 테스트 관리</h1>
+        {user && user.role === 'guest' && (
+          <div className="guest-notice" style={{ 
+            padding: '10px', 
+            backgroundColor: '#fff3cd', 
+            border: '1px solid #ffc107', 
+            borderRadius: '4px',
+            marginBottom: '10px',
+            fontSize: '14px'
+          }}>
+            👀 게스트 모드: 조회만 가능합니다.
+          </div>
+        )}
         <div className="header-actions">
           {user && (user.role === 'admin' || user.role === 'user') && (
                     <button 

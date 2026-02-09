@@ -109,6 +109,7 @@ class TestCase(db.Model):
     pre_condition = db.Column(db.Text)  # 사전 조건
     expected_result = db.Column(db.Text)  # 예상 결과
     remark = db.Column(db.Text)  # 비고
+    test_steps = db.Column(db.Text)  # 테스트 단계(JSON). automation_code_path 없이 실행 시 사용
     automation_code_path = db.Column(db.String(500))  # 자동화 코드 경로
     automation_code_type = db.Column(db.String(50))  # 자동화 코드 타입
     result_status = db.Column(db.String(20), default='pending')  # pending, passed, failed, blocked
@@ -186,14 +187,22 @@ class TestResult(db.Model):
     test_case_id = db.Column(db.Integer, db.ForeignKey('TestCases.id'), nullable=True)  # nullable=True로 변경
     result = db.Column(db.String(20))  # Pass, Fail, Skip, Error
     execution_time = db.Column(db.Float)  # 초 단위
+    execution_duration = db.Column(db.Float)  # 실행 시간 (초 단위, execution_time과 동일하거나 별도 측정)
     environment = db.Column(db.String(50))
     executed_by = db.Column(db.String(100))
     executed_at = db.Column(db.DateTime, default=get_kst_now)
     notes = db.Column(db.Text)
+    error_message = db.Column(db.Text)  # 에러 메시지
+    automation_test_id = db.Column(db.Integer, db.ForeignKey('AutomationTests.id'), nullable=True)  # 자동화 테스트 연결
+    performance_test_id = db.Column(db.Integer, db.ForeignKey('PerformanceTests.id'), nullable=True)  # 성능 테스트 연결
     # test_case_id는 반드시 있어야 함 (실제 DB 스키마에 맞춤)
     __table_args__ = (
         db.CheckConstraint('test_case_id IS NOT NULL', name='check_test_reference'),
     )
+    
+    # 관계 설정
+    automation_test = db.relationship('AutomationTest', backref='test_results')
+    performance_test = db.relationship('PerformanceTest', backref='test_results')
 
 # 대시보드 요약 모델
 class DashboardSummary(db.Model):
@@ -321,6 +330,7 @@ class JiraIssue(db.Model):
     assignee_email = db.Column(db.String(100))  # 담당자 이메일
     labels = db.Column(db.Text)  # JSON 형태로 저장
     reporter_email = db.Column(db.String(100), default='admin@example.com')
+    environment = db.Column(db.String(50), default='dev')  # 이슈 환경 정보
     # 테스트 케이스 연결 필드
     test_case_id = db.Column(db.Integer, db.ForeignKey('TestCases.id'), nullable=True)
     automation_test_id = db.Column(db.Integer, db.ForeignKey('AutomationTests.id'), nullable=True)
@@ -347,6 +357,7 @@ class JiraIssue(db.Model):
             'assignee_email': self.assignee_email,
             'labels': self.labels,
             'reporter_email': self.reporter_email,
+            'environment': self.environment,
             'test_case_id': self.test_case_id,
             'automation_test_id': self.automation_test_id,
             'performance_test_id': self.performance_test_id,
@@ -500,6 +511,7 @@ class NotificationSettings(db.Model):
     # 전역 설정
     email_enabled = db.Column(db.Boolean, default=True)
     slack_enabled = db.Column(db.Boolean, default=False)
+    slack_webhook_url = db.Column(db.String(500), nullable=True)  # 사용자별 슬랙 웹훅 URL
     in_app_enabled = db.Column(db.Boolean, default=True)
     
     # 업데이트 시간
@@ -517,6 +529,7 @@ class NotificationSettings(db.Model):
             'settings': json.loads(self.settings) if self.settings else {},
             'email_enabled': self.email_enabled,
             'slack_enabled': self.slack_enabled,
+            'slack_webhook_url': self.slack_webhook_url,
             'in_app_enabled': self.in_app_enabled,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
@@ -845,6 +858,11 @@ class Comment(db.Model):
             'content': self.content,
             'parent_comment_id': self.parent_comment_id,
             'author_id': self.author_id,
+            'author': {
+                'id': self.author.id if self.author else None,
+                'username': self.author.username if self.author else None,
+                'email': self.author.email if self.author else None
+            } if self.author else None,
             'author_name': self.author.username if self.author else None,
             'author_email': self.author.email if self.author else None,
             'is_edited': self.is_edited,
@@ -1298,3 +1316,16 @@ class JiraComment(db.Model):
     
     def __repr__(self):
         return f'<JiraComment {self.id}: {self.body[:50]}...>'
+
+
+class SystemConfig(db.Model):
+    """시스템 전역 설정 (키-값). AI TC 기본 프롬프트 등."""
+    __tablename__ = 'SystemConfig'
+
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(100), unique=True, nullable=False)
+    value = db.Column(db.Text, nullable=True)
+    updated_at = db.Column(db.DateTime, default=get_kst_now, onupdate=get_kst_now)
+
+    def __repr__(self):
+        return f'<SystemConfig {self.key}>'

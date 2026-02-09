@@ -1,5 +1,5 @@
 // src/App.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 import {TestCaseApp} from './components/testcases';
 import PerformanceTestManager from './components/performance';
@@ -10,13 +10,25 @@ import FolderManager from './components/dashboard/FolderManager';
 import Settings from './components/settings/Settings';
 import UserProfile from './components/auth/UserProfile';
 import JiraIssuesList from './components/jira/JiraIssuesList';
+import NotificationBell from './components/notifications/NotificationBell';
 import { ErrorBoundary } from './components/utils';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from '@tms/contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const { user, logout } = useAuth();
+
+  // window 객체에 setActiveTab 등록 (다른 컴포넌트에서 호출 가능하도록)
+  useEffect(() => {
+    window.setActiveTab = setActiveTab;
+    
+    return () => {
+      if (window.setActiveTab === setActiveTab) {
+        delete window.setActiveTab;
+      }
+    };
+  }, [setActiveTab]);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -119,13 +131,16 @@ function AppContent() {
       <div className="App">
         <nav className="navbar">
           <div className="nav-brand">
-            <h1>Integrated Test Platform</h1>
+            <h1>LTMS</h1>
             {user && (
-              <div className="user-info">
-                <span>👤 {user.username}</span>
-                {user.role === 'admin' && <span className="admin-badge">관리자</span>}
-                {user.role === 'user' && <span className="user-badge">사용자</span>}
-                {user.role === 'guest' && <span className="guest-badge">게스트</span>}
+              <div className="nav-brand-right">
+                <NotificationBell />
+                <div className="user-info">
+                  <span>👤 {user.username}</span>
+                  {user.role === 'admin' && <span className="admin-badge">관리자</span>}
+                  {user.role === 'user' && <span className="user-badge">사용자</span>}
+                  {user.role === 'guest' && <span className="guest-badge">게스트</span>}
+                </div>
               </div>
             )}
           </div>

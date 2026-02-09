@@ -1,9 +1,9 @@
 // src/TestCaseApp.js - 리팩토링된 버전
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import axios from 'axios';
-import config from '../../config';
-import { useAuth } from '../../contexts/AuthContext';
-import { formatUTCToKST } from '../../utils/dateUtils';
+import config from '@tms/config';
+import { useAuth } from '@tms/contexts/AuthContext';
+import { formatUTCToKST } from '@tms/utils/dateUtils';
 import JiraIssuesList from '../jira/JiraIssuesList';
 
 // 컴포넌트 임포트
@@ -14,9 +14,9 @@ import TestCaseModal from './modals/TestCaseModal';
 import TestCaseFormModal from './modals/TestCaseFormModal';
 
 // 훅 임포트
-import { useTestCaseData } from '../../hooks/useTestCaseData';
-import { useTestCaseFilters } from '../../hooks/useTestCaseFilters';
-import { useTestCasePagination } from '../../hooks/useTestCasePagination';
+import { useTestCaseData } from '@tms/hooks/useTestCaseData';
+import { useTestCaseFilters } from '@tms/hooks/useTestCaseFilters';
+import { useTestCasePagination } from '@tms/hooks/useTestCasePagination';
 
 // 스타일 임포트
 import './TestCaseAPP.css';
@@ -154,7 +154,6 @@ const TestCaseAPP = ({ setActiveTab }) => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDetailModal, setShowDetailModal] = useState(false);
   const [, setShowMoveModal] = useState(false);
   const [, setShowDeleteModal] = useState(false);
   
@@ -165,11 +164,33 @@ const TestCaseAPP = ({ setActiveTab }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [, setTargetFolderId] = useState('');
   
+  // 댓글 관련 상태
+  const [comments, setComments] = useState([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingCommentContent, setEditingCommentContent] = useState('');
+  
   // 폴더 및 정렬 상태
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [expandedFolders, setExpandedFolders] = useState(new Set());
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
+
+  useEffect(() => {
+    setSelectedTestCase(null);
+    setComments([]);
+    setEditingCommentId(null);
+    setEditingCommentContent('');
+  }, [
+    selectedFolder,
+    searchTerm,
+    statusFilter,
+    environmentFilter,
+    categoryFilter,
+    creatorFilter,
+    assigneeFilter
+  ]);
   
   // 새 테스트 케이스 기본값
   const defaultTestCase = {
@@ -188,6 +209,60 @@ const TestCaseAPP = ({ setActiveTab }) => {
   };
 
   const [newTestCase, setNewTestCase] = useState(defaultTestCase);
+  const [aiAddGenerating, setAiAddGenerating] = useState(false);
+  const [aiAddError, setAiAddError] = useState('');
+  const [aiEditGenerating, setAiEditGenerating] = useState(false);
+  const [aiEditError, setAiEditError] = useState('');
+
+  const applyAiSuggestion = (prev, suggestion) => ({
+    ...prev,
+    name: suggestion.name || prev.name,
+    main_category: suggestion.main_category || prev.main_category,
+    sub_category: suggestion.sub_category || prev.sub_category,
+    detail_category: suggestion.detail_category || prev.detail_category,
+    pre_condition: suggestion.pre_condition || prev.pre_condition,
+    expected_result: suggestion.expected_result || prev.expected_result,
+    remark: suggestion.remark || prev.remark,
+  });
+
+  const fetchAiSuggestion = async (prompt) => {
+    const trimmed = (prompt || '').trim();
+    if (!trimmed) {
+      throw new Error('프롬프트를 입력해주세요.');
+    }
+    const res = await axios.post('/testcases/ai/generate', { prompt: trimmed });
+    const items = res.data?.items || [];
+    if (!items.length) {
+      throw new Error('AI가 테스트 케이스를 생성하지 못했습니다.');
+    }
+    return items[0];
+  };
+
+  const handleAiFillNew = async (prompt) => {
+    setAiAddError('');
+    setAiAddGenerating(true);
+    try {
+      const suggestion = await fetchAiSuggestion(prompt);
+      setNewTestCase((prev) => applyAiSuggestion(prev, suggestion));
+    } catch (err) {
+      setAiAddError(err?.response?.data?.error || err.message || 'AI 생성 오류');
+    } finally {
+      setAiAddGenerating(false);
+    }
+  };
+
+  const handleAiFillEdit = async (prompt) => {
+    setAiEditError('');
+    setAiEditGenerating(true);
+    try {
+      const suggestion = await fetchAiSuggestion(prompt);
+      setEditingTestCase((prev) => applyAiSuggestion(prev || defaultTestCase, suggestion));
+    } catch (err) {
+      setAiEditError(err?.response?.data?.error || err.message || 'AI 생성 오류');
+    } finally {
+      setAiEditGenerating(false);
+    }
+  };
 
   // 필터링된 테스트 케이스 계산
   const filteredTestCases = useMemo(() => {
@@ -300,6 +375,102 @@ const TestCaseAPP = ({ setActiveTab }) => {
     sortBy, sortOrder
   ]);
 
+  const statusSummary = useMemo(() => {
+    const counts = {
+      pass: 0,
+      fail: 0,
+      block: 0,
+      nt: 0,
+      na: 0
+    };
+
+    filteredTestCases.forEach((tc) => {
+      const rawStatus = (tc.result_status || 'N/T').toString().toLowerCase();
+      if (rawStatus === 'pass') {
+        counts.pass += 1;
+      } else if (rawStatus === 'fail') {
+        counts.fail += 1;
+      } else if (rawStatus === 'block') {
+        counts.block += 1;
+      } else if (rawStatus === 'n/a' || rawStatus === 'na') {
+        counts.na += 1;
+      } else {
+        counts.nt += 1;
+      }
+    });
+
+    const total = filteredTestCases.length;
+    const tested = Math.max(total - counts.nt, 0);
+    const passRate = tested > 0 ? Math.round((counts.pass / tested) * 100) : 0;
+    const calcPercent = (value) => (total > 0 ? Math.round((value / total) * 100) : 0);
+    const percentPass = calcPercent(counts.pass);
+    const percentFail = calcPercent(counts.fail);
+    const percentBlock = calcPercent(counts.block);
+    const percentNt = Math.max(0, 100 - percentPass - percentFail - percentBlock);
+    const ntCombined = counts.nt + counts.na;
+
+    return {
+      total,
+      tested,
+      passRate,
+      percentPass,
+      percentFail,
+      percentBlock,
+      percentNt,
+      ntCombined,
+      ...counts
+    };
+  }, [filteredTestCases]);
+
+  const pieSegments = useMemo(() => {
+    const total = statusSummary.total;
+    const segments = [
+      { key: 'pass', label: 'Pass', value: statusSummary.pass, color: '#28a745' },
+      { key: 'block', label: 'Block', value: statusSummary.block, color: '#ffc107' },
+      { key: 'fail', label: 'Fail', value: statusSummary.fail, color: '#dc3545' },
+      { key: 'nt', label: 'N/T', value: statusSummary.ntCombined, color: '#e2e3e5' }
+    ].filter((item) => item.value > 0);
+
+    if (total === 0) {
+      return [];
+    }
+
+    let startAngle = 0;
+    return segments.map((segment) => {
+      const angle = (segment.value / total) * 360;
+      const endAngle = startAngle + angle;
+      const percent = Math.round((segment.value / total) * 100);
+      const data = {
+        ...segment,
+        startAngle,
+        endAngle,
+        percent
+      };
+      startAngle = endAngle;
+      return data;
+    });
+  }, [statusSummary]);
+
+  const polarToCartesian = (cx, cy, r, angleInDegrees) => {
+    const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180.0;
+    return {
+      x: cx + r * Math.cos(angleInRadians),
+      y: cy + r * Math.sin(angleInRadians)
+    };
+  };
+
+  const describeArc = (cx, cy, r, startAngle, endAngle) => {
+    const start = polarToCartesian(cx, cy, r, endAngle);
+    const end = polarToCartesian(cx, cy, r, startAngle);
+    const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1';
+    return [
+      `M ${cx} ${cy}`,
+      `L ${start.x} ${start.y}`,
+      `A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`,
+      'Z'
+    ].join(' ');
+  };
+
   // 페이지네이션 훅
   const {
     currentPage,
@@ -311,6 +482,30 @@ const TestCaseAPP = ({ setActiveTab }) => {
     handleItemsPerPageChange
   } = useTestCasePagination(filteredTestCases);
 
+  // 특정 테스트 케이스를 여는 함수 (다른 컴포넌트에서 호출 가능)
+  const openTestCaseDetail = (testCaseId) => {
+    const testCase = testCases.find(tc => tc.id === testCaseId);
+    if (testCase) {
+      setSelectedTestCase(testCase);
+      fetchComments(testCaseId);
+    } else {
+      console.warn(`테스트 케이스 #${testCaseId}를 찾을 수 없습니다.`);
+    }
+  };
+
+  // window 객체에 함수 등록 (다른 컴포넌트에서 호출 가능하도록)
+  useEffect(() => {
+    if (setActiveTab) {
+      window.setActiveTab = setActiveTab;
+    }
+    window.openTestCaseDetail = openTestCaseDetail;
+    
+    return () => {
+      if (window.openTestCaseDetail === openTestCaseDetail) {
+        delete window.openTestCaseDetail;
+      }
+    };
+  }, [testCases, setActiveTab]);
 
   // 이벤트 핸들러들
   const handleFolderSelect = (folderId) => {
@@ -452,6 +647,110 @@ const TestCaseAPP = ({ setActiveTab }) => {
     }
   };
 
+  // 댓글 조회
+  const fetchComments = async (testCaseId) => {
+    if (!testCaseId) return;
+    setLoadingComments(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${config.apiUrl}/api/collaboration/comments`, {
+        params: {
+          entity_type: 'test_case',
+          entity_id: testCaseId
+        },
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      setComments(response.data || []);
+    } catch (err) {
+      console.error('댓글 조회 오류:', err);
+      setComments([]);
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
+  // 댓글 추가
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !selectedTestCase) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${config.apiUrl}/api/collaboration/comments`, {
+        entity_type: 'test_case',
+        entity_id: selectedTestCase.id,
+        content: newComment.trim()
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      setNewComment('');
+      fetchComments(selectedTestCase.id);
+    } catch (err) {
+      console.error('댓글 추가 오류:', err);
+      alert('댓글 추가 중 오류가 발생했습니다: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  // 댓글 편집 시작
+  const handleStartEdit = (comment) => {
+    setEditingCommentId(comment.id);
+    setEditingCommentContent(comment.content);
+  };
+
+  // 댓글 편집 취소
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditingCommentContent('');
+  };
+
+  // 댓글 수정
+  const handleUpdateComment = async (commentId) => {
+    if (!editingCommentContent.trim() || !selectedTestCase) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`${config.apiUrl}/api/collaboration/comments/${commentId}`, {
+        content: editingCommentContent.trim()
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      setEditingCommentId(null);
+      setEditingCommentContent('');
+      fetchComments(selectedTestCase.id);
+    } catch (err) {
+      console.error('댓글 수정 오류:', err);
+      alert('댓글 수정 중 오류가 발생했습니다: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  // 댓글 삭제
+  const handleDeleteComment = async (commentId) => {
+    if (!window.confirm('정말로 이 댓글을 삭제하시겠습니까?')) {
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${config.apiUrl}/api/collaboration/comments/${commentId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      fetchComments(selectedTestCase.id);
+    } catch (err) {
+      console.error('댓글 삭제 오류:', err);
+      alert('댓글 삭제 중 오류가 발생했습니다: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
   const handleFileUpload = async () => {
     if (!selectedFile) {
       alert('파일을 선택해주세요.');
@@ -479,17 +778,48 @@ const TestCaseAPP = ({ setActiveTab }) => {
 
   const handleDownload = async () => {
     try {
-      const response = await axios.get(`${config.apiUrl}/testcases/download`, {
+      // 현재 적용된 필터 정보를 쿼리 파라미터로 전달
+      const params = new URLSearchParams();
+      
+      if (searchTerm && searchTerm.trim()) {
+        params.append('search', searchTerm.trim());
+      }
+      if (statusFilter && statusFilter !== 'all') {
+        params.append('status', statusFilter);
+      }
+      if (environmentFilter && environmentFilter !== 'all') {
+        params.append('environment', environmentFilter);
+      }
+      if (categoryFilter && categoryFilter !== 'all') {
+        params.append('category', categoryFilter);
+      }
+      if (creatorFilter && creatorFilter !== 'all') {
+        params.append('creator', creatorFilter);
+      }
+      if (assigneeFilter && assigneeFilter !== 'all') {
+        params.append('assignee', assigneeFilter);
+      }
+      if (selectedFolder) {
+        params.append('folder_id', selectedFolder);
+      }
+      
+      const queryString = params.toString();
+      const url = queryString 
+        ? `${config.apiUrl}/testcases/download?${queryString}`
+        : `${config.apiUrl}/testcases/download`;
+      
+      const response = await axios.get(url, {
         responseType: 'blob',
       });
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
-      link.href = url;
+      link.href = blobUrl;
       link.setAttribute('download', `testcases_${new Date().toISOString().slice(0, 10)}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.remove();
+      window.URL.revokeObjectURL(blobUrl);
     } catch (err) {
       alert('파일 다운로드 중 오류가 발생했습니다: ' + err.message);
     }
@@ -511,7 +841,8 @@ const TestCaseAPP = ({ setActiveTab }) => {
     return nodes.map(node => {
       const hasChildren = node.children && node.children.length > 0;
       const isExpanded = expandedFolders.has(node.id);
-      const isFolder = node.type === 'environment' || node.type === 'deployment_date' || node.type === 'feature';
+      const nodeType = node.type || getFolderType(node.id, folderTree);
+      const isFolder = nodeType === 'environment' || nodeType === 'deployment_date' || nodeType === 'feature';
       
       return (
         <div key={node.id} style={{ marginLeft: level * 20 }}>
@@ -535,16 +866,22 @@ const TestCaseAPP = ({ setActiveTab }) => {
               </span>
             )}
             <span className="folder-icon">
-              {getFolderType(node.id, folderTree) === 'environment' ? '🌍' : 
-               getFolderType(node.id, folderTree) === 'deployment_date' ? '📅' : 
-               getFolderType(node.id, folderTree) === 'feature' ? '🔧' : '📄'}
+              {
+                nodeType === 'project' ? '🗂️' :
+                nodeType === 'environment' ? '🌍' : 
+                nodeType === 'deployment_date' ? '📅' : 
+                nodeType === 'feature' ? '🔧' : '📄'
+              }
             </span>
             <span className="folder-name">{node.name}</span>
             {isFolder && (
               <span className="folder-type-badge">
-                {getFolderType(node.id, folderTree) === 'environment' ? '환경' : 
-                 getFolderType(node.id, folderTree) === 'deployment_date' ? '배포일자' : 
-                 getFolderType(node.id, folderTree) === 'feature' ? '기능명' : ''}
+                {
+                  nodeType === 'project' ? '프로젝트' :
+                  nodeType === 'environment' ? '환경' : 
+                  nodeType === 'deployment_date' ? '배포일자' : 
+                  nodeType === 'feature' ? '기능명' : ''
+                }
               </span>
             )}
           </div>
@@ -570,22 +907,34 @@ const TestCaseAPP = ({ setActiveTab }) => {
     <div className="testcase-container">
       <div className="testcase-header">
         <h1>테스트 케이스 관리</h1>
+        {user && user.role === 'guest' && (
+          <div className="guest-notice" style={{ 
+            padding: '10px', 
+            backgroundColor: '#fff3cd', 
+            border: '1px solid #ffc107', 
+            borderRadius: '4px',
+            marginBottom: '10px',
+            fontSize: '14px'
+          }}>
+            👀 게스트 모드: 조회만 가능합니다.
+          </div>
+        )}
         <div className="header-actions">
             {user && (user.role === 'admin' || user.role === 'user') && (
-              <button 
-                className="testcase-btn testcase-btn-add"
-                onClick={() => setShowAddModal(true)}
-              >
-                ➕ 테스트 케이스 추가
-              </button>
-            )}
-            {user && (user.role === 'admin' || user.role === 'user') && (
-              <button 
-                className="testcase-btn testcase-btn-upload"
-                onClick={() => setShowUploadModal(true)}
-              >
-                📤 엑셀 업로드
-              </button>
+              <>
+                <button 
+                  className="testcase-btn testcase-btn-add"
+                  onClick={() => setShowAddModal(true)}
+                >
+                  ➕ 테스트 케이스 추가
+                </button>
+                <button 
+                  className="testcase-btn testcase-btn-upload"
+                  onClick={() => setShowUploadModal(true)}
+                >
+                  📤 엑셀 업로드
+                </button>
+              </>
             )}
             <button 
               className="testcase-btn testcase-btn-download"
@@ -651,12 +1000,88 @@ const TestCaseAPP = ({ setActiveTab }) => {
             )}
           </div>
           <div className="tree-container">
-            {renderFolderTree(folderTree)}
+            <div className="tree-scroll-inner">
+              {renderFolderTree(folderTree)}
+            </div>
           </div>
         </div>
 
         {/* 테스트 케이스 목록 */}
         <div className="testcase-list">
+          <div className="testcase-stats">
+            <div className="stats-card stats-overview">
+              <div className="stats-title">진행 현황</div>
+              <div className="stats-donut-wrap">
+                <div className="stats-pie">
+                  <svg className="stats-pie-svg" viewBox="0 0 100 100" role="img">
+                    {statusSummary.total === 0 ? (
+                      <circle cx="50" cy="50" r="50" fill="#e2e3e5">
+                        <title>데이터 없음</title>
+                      </circle>
+                    ) : pieSegments.length === 1 ? (
+                      <circle cx="50" cy="50" r="50" fill={pieSegments[0].color}>
+                        <title>{`${pieSegments[0].label}: ${pieSegments[0].value} (${pieSegments[0].percent}%)`}</title>
+                      </circle>
+                    ) : (
+                      pieSegments.map((segment) => (
+                        <path
+                          key={segment.key}
+                          d={describeArc(50, 50, 50, segment.startAngle, segment.endAngle)}
+                          fill={segment.color}
+                        >
+                          <title>{`${segment.label}: ${segment.value} (${segment.percent}%)`}</title>
+                        </path>
+                      ))
+                    )}
+                  </svg>
+                </div>
+                <div className="stats-table">
+                  <div className="stats-table-title">상세 테이블</div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>상태</th>
+                        <th>건수</th>
+                        <th>비율</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><span className="stats-status stats-status-pass">Pass</span></td>
+                        <td>{statusSummary.pass}</td>
+                        <td>{statusSummary.percentPass}%</td>
+                      </tr>
+                      <tr>
+                        <td><span className="stats-status stats-status-block">Block</span></td>
+                        <td>{statusSummary.block}</td>
+                        <td>{statusSummary.percentBlock}%</td>
+                      </tr>
+                      <tr>
+                        <td><span className="stats-status stats-status-fail">Fail</span></td>
+                        <td>{statusSummary.fail}</td>
+                        <td>{statusSummary.percentFail}%</td>
+                      </tr>
+                      <tr>
+                        <td><span className="stats-status stats-status-nt">N/T</span></td>
+                        <td>{statusSummary.ntCombined}</td>
+                        <td>{statusSummary.percentNt}%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="stats-footer">
+                총 {statusSummary.total}건 / 테스트됨 {statusSummary.tested}건
+              </div>
+            </div>
+            <div className="stats-card stats-passrate">
+              <div className="stats-title">통과율</div>
+              <div className="stats-passrate-value">{statusSummary.passRate}%</div>
+              <div className="stats-passrate-subtext">
+                테스트됨 기준 (N/T 제외)
+              </div>
+            </div>
+          </div>
           <div className="testcase-list-header">
             <h3>
               테스트 케이스 ({totalItems}개)
@@ -692,7 +1117,7 @@ const TestCaseAPP = ({ setActiveTab }) => {
             onExecute={handleExecuteAutomation}
             onViewDetails={(testCase) => {
               setSelectedTestCase(testCase);
-              setShowDetailModal(true);
+              fetchComments(testCase.id);
             }}
             users={users}
             user={user}
@@ -710,65 +1135,26 @@ const TestCaseAPP = ({ setActiveTab }) => {
             onItemsPerPageChange={handleItemsPerPageChange}
           />
         </div>
-      </div>
 
-      {/* 모달들 */}
-      <TestCaseFormModal
-        isOpen={showAddModal}
-        onClose={() => {
-                  setShowAddModal(false);
-          setNewTestCase(defaultTestCase);
-        }}
-        testCase={newTestCase || defaultTestCase}
-        onChange={setNewTestCase}
-        onSubmit={handleAddTestCase}
-        onCancel={() => {
-                  setShowAddModal(false);
-          setNewTestCase(defaultTestCase);
-        }}
-        users={users}
-        isEdit={false}
-      />
-
-      <TestCaseFormModal
-        isOpen={showEditModal}
-        onClose={() => {
-                  setShowEditModal(false);
-                  setEditingTestCase(null);
-                }}
-        testCase={editingTestCase || defaultTestCase}
-        onChange={setEditingTestCase}
-        onSubmit={handleEditTestCase}
-        onCancel={() => {
-                  setShowEditModal(false);
-                  setEditingTestCase(null);
-                }}
-        users={users}
-        isEdit={true}
-      />
-
-      {/* 상세보기 모달 */}
-      {showDetailModal && selectedTestCase && (
-        <TestCaseModal
-          isOpen={showDetailModal}
-          onClose={() => {
-            setShowDetailModal(false);
-            setSelectedTestCase(null);
-          }}
-          title="📋 테스트 케이스 상세 정보"
-          size="fullscreen"
-          actions={
-              <button 
-              className="testcase-btn testcase-btn-secondary"
+        {/* 테스트 케이스 상세 패널 */}
+        <div className="testcase-detail-panel">
+          <div className="detail-panel-header">
+            <h3>상세 정보</h3>
+            {selectedTestCase && (
+              <button
+                type="button"
+                className="testcase-btn testcase-btn-secondary"
                 onClick={() => {
-                  setShowDetailModal(false);
                   setSelectedTestCase(null);
+                  setComments([]);
                 }}
               >
-              닫기
+                선택 해제
               </button>
-          }
-        >
+            )}
+          </div>
+          {selectedTestCase ? (
+            <div className="detail-panel-body">
               <div className="testcase-info-table">
                 <table className="info-table">
                   <tbody>
@@ -829,15 +1215,164 @@ const TestCaseAPP = ({ setActiveTab }) => {
                   </tbody>
                 </table>
               </div>
-              
-          {/* 이슈 관리: 목록 컴포넌트로 교체 */}
-              <div className="testcase-jira-integration" style={{ marginTop: '24px' }}>
-                <h5>🔗 이슈 관리</h5>
-            {console.log('[TestCaseAPP] Render JiraIssuesList inside TestCase detail with modalMode=false, testCaseId=', selectedTestCase?.id)}
-            <JiraIssuesList modalMode={false} testCaseId={selectedTestCase?.id} />
+
+              {/* 댓글 섹션 */}
+              <div className="testcase-comments-section">
+                <h5>💬 댓글 ({comments.length})</h5>
+                <div className="comments-container">
+                  {loadingComments ? (
+                    <div className="comments-loading">댓글을 불러오는 중...</div>
+                  ) : comments.length === 0 ? (
+                    <div className="no-comments">
+                      <p>아직 댓글이 없습니다. 첫 번째 댓글을 작성해보세요!</p>
+                    </div>
+                  ) : (
+                    <div className="comments-list">
+                      {comments.map((comment) => {
+                        const isOwnComment = user && (comment.author_id === user.id || comment.author?.id === user.id);
+                        const isEditing = editingCommentId === comment.id;
+                        
+                        return (
+                          <div key={comment.id} className="comment-item">
+                            <div className="comment-header">
+                              <div className="comment-header-left">
+                                <span className="comment-author">
+                                  👤 {comment.author_name || comment.author?.username || 'Unknown User'}
+                                </span>
+                                <span className="comment-date">
+                                  {comment.created_at ? formatUTCToKST(comment.created_at) : ''}
+                                  {comment.is_edited && <span className="comment-edited-badge"> (수정됨)</span>}
+                                </span>
+                              </div>
+                              {isOwnComment && !isEditing && (
+                                <div className="comment-actions">
+                                  <button
+                                    className="comment-edit-btn"
+                                    onClick={() => handleStartEdit(comment)}
+                                    title="댓글 수정"
+                                  >
+                                    ✏️
+                                  </button>
+                                  <button
+                                    className="comment-delete-btn"
+                                    onClick={() => handleDeleteComment(comment.id)}
+                                    title="댓글 삭제"
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            {isEditing ? (
+                              <div className="comment-edit-form">
+                                <textarea
+                                  className="comment-textarea"
+                                  value={editingCommentContent}
+                                  onChange={(e) => setEditingCommentContent(e.target.value)}
+                                  rows="3"
+                                />
+                                <div className="comment-edit-actions">
+                                  <button
+                                    className="testcase-btn testcase-btn-primary"
+                                    onClick={() => handleUpdateComment(comment.id)}
+                                    disabled={!editingCommentContent.trim()}
+                                  >
+                                    저장
+                                  </button>
+                                  <button
+                                    className="testcase-btn testcase-btn-secondary"
+                                    onClick={handleCancelEdit}
+                                  >
+                                    취소
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="comment-body">
+                                {comment.content}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
+                  {/* 댓글 작성 */}
+                  <div className="comment-add">
+                    <textarea
+                      className="comment-textarea"
+                      placeholder="댓글을 입력하세요... (@username 형식으로 멘션 가능)"
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      rows="3"
+                    />
+                    <button
+                      className="testcase-btn testcase-btn-primary"
+                      onClick={handleAddComment}
+                      disabled={!newComment.trim()}
+                    >
+                      댓글 작성
+                    </button>
+                  </div>
+                </div>
               </div>
-        </TestCaseModal>
-      )}
+
+              {/* 이슈 관리 */}
+              <div className="testcase-jira-integration">
+                <h5>🔗 이슈 관리</h5>
+                {console.log('[TestCaseAPP] Render JiraIssuesList inside detail panel, testCaseId=', selectedTestCase?.id)}
+                <JiraIssuesList modalMode={false} testCaseId={selectedTestCase?.id} />
+              </div>
+            </div>
+          ) : (
+            <div className="detail-panel-empty">
+              <p>테스트 케이스를 선택하면 상세 정보가 표시됩니다.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 모달들 */}
+      <TestCaseFormModal
+        isOpen={showAddModal}
+        onClose={() => {
+                  setShowAddModal(false);
+          setNewTestCase(defaultTestCase);
+        }}
+        testCase={newTestCase || defaultTestCase}
+        onChange={setNewTestCase}
+        onSubmit={handleAddTestCase}
+        onCancel={() => {
+                  setShowAddModal(false);
+          setNewTestCase(defaultTestCase);
+        }}
+        users={users}
+        isEdit={false}
+        onAiGenerate={handleAiFillNew}
+        aiGenerating={aiAddGenerating}
+        aiError={aiAddError}
+      />
+
+      <TestCaseFormModal
+        isOpen={showEditModal}
+        onClose={() => {
+                  setShowEditModal(false);
+                  setEditingTestCase(null);
+                }}
+        testCase={editingTestCase || defaultTestCase}
+        onChange={setEditingTestCase}
+        onSubmit={handleEditTestCase}
+        onCancel={() => {
+                  setShowEditModal(false);
+                  setEditingTestCase(null);
+                }}
+        users={users}
+        isEdit={true}
+        onAiGenerate={handleAiFillEdit}
+        aiGenerating={aiEditGenerating}
+        aiError={aiEditError}
+      />
 
       {/* 업로드 모달 */}
       <TestCaseModal

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import config from '../../config';
+import config from '@tms/config';
+import PromptModal from '../common/PromptModal';
 import './JiraIntegration.css';
 
 const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage, setActiveTab }) => {
@@ -12,6 +13,8 @@ const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage,
   const [comments, setComments] = useState([]);
   const [showComments, setShowComments] = useState(false);
   const [loadingComments, setLoadingComments] = useState(false);
+  const [showCommentPrompt, setShowCommentPrompt] = useState(false);
+  const [commentIssueKey, setCommentIssueKey] = useState(null);
 
   // Jira 이슈 조회
   const fetchJiraIssues = async () => {
@@ -221,27 +224,43 @@ const JiraIntegration = ({ testId, testType, testName, testResult, errorMessage,
               </div>
               
               <div className="issue-actions">
-                <select
-                  className="status-select"
-                  value={issue.status}
-                  onChange={(e) => updateIssueStatus(issue.issue_key, e.target.value)}
-                >
-                  <option value="To Do">To Do</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Done">Done</option>
-                </select>
+                {/* 게스트는 상태 변경 불가 */}
+                {user && (user.role === 'admin' || user.role === 'user') && (
+                  <>
+                    <select
+                      className="status-select"
+                      value={issue.status}
+                      onChange={(e) => updateIssueStatus(issue.issue_key, e.target.value)}
+                    >
+                      <option value="To Do">To Do</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Done">Done</option>
+                    </select>
+                    
+                    <button 
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setCommentIssueKey(issue.issue_key);
+                        setShowCommentPrompt(true);
+                      }}
+                    >
+                      💬 댓글 추가
+                    </button>
+                  </>
+                )}
                 
-                <button 
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => {
-                    const comment = prompt('댓글을 입력하세요:');
-                    if (comment) {
-                      addComment(issue.issue_key, comment);
-                    }
-                  }}
-                >
-                  💬 댓글 추가
-                </button>
+                {/* 게스트는 읽기 전용 상태 표시 */}
+                {user && user.role === 'guest' && (
+                  <span className="status-readonly" style={{ 
+                    padding: '4px 8px', 
+                    backgroundColor: '#e9ecef', 
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    marginRight: '8px'
+                  }}>
+                    상태: {issue.status}
+                  </span>
+                )}
                 
                 <button 
                   className="btn btn-primary btn-sm"
@@ -529,6 +548,23 @@ const CommentsModal = ({ issue, comments, loading, onClose, onAddComment }) => {
           </div>
         </div>
       </div>
+
+      {/* 댓글 입력 모달 */}
+      <PromptModal
+        isOpen={showCommentPrompt}
+        onClose={() => {
+          setShowCommentPrompt(false);
+          setCommentIssueKey(null);
+        }}
+        title="댓글 추가"
+        message="댓글을 입력하세요:"
+        placeholder="댓글을 입력하세요..."
+        onConfirm={(comment) => {
+          if (comment && commentIssueKey) {
+            addComment(commentIssueKey, comment);
+          }
+        }}
+      />
     </div>
   );
 };

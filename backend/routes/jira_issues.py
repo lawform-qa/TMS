@@ -5,6 +5,7 @@ Mock JIRA 서버 대신 데이터베이스에 직접 저장
 
 from flask import Blueprint, request, jsonify
 from models import db, JiraIssue, JiraComment, TestCase
+from utils.auth_decorators import user_required, guest_allowed
 from datetime import datetime
 import json
 import uuid
@@ -48,6 +49,21 @@ def get_jira_stats():
         for issue_type, count in type_counts:
             issues_by_type[issue_type] = count
         
+        # 레이블별 이슈 수
+        issues_by_labels = {}
+        all_issues = JiraIssue.query.all()
+        for issue in all_issues:
+            if issue.labels:
+                try:
+                    labels = json.loads(issue.labels)
+                    if isinstance(labels, list):
+                        for label in labels:
+                            if label:
+                                issues_by_labels[label] = issues_by_labels.get(label, 0) + 1
+                except (json.JSONDecodeError, TypeError):
+                    # JSON 파싱 실패 시 무시
+                    pass
+        
         # 최근 이슈 (최근 5개)
         recent_issues = JiraIssue.query.order_by(
             JiraIssue.created_at.desc()
@@ -70,6 +86,7 @@ def get_jira_stats():
                 'issues_by_status': issues_by_status,
                 'issues_by_priority': issues_by_priority,
                 'issues_by_type': issues_by_type,
+                'issues_by_labels': issues_by_labels,
                 'recent_issues': recent_issues_data
             }
         })
@@ -81,6 +98,7 @@ def get_jira_stats():
         }), 500
 
 @jira_issues_bp.route('/issues', methods=['GET'])
+@guest_allowed
 def get_issues():
     """이슈 목록 조회 (페이지네이션 지원)"""
     try:
@@ -202,6 +220,7 @@ def get_issues_by_testcase(test_case_id):
         }), 500
 
 @jira_issues_bp.route('/issues', methods=['POST'])
+@user_required
 def create_issue():
     """새 이슈 생성"""
     try:
@@ -225,6 +244,14 @@ def create_issue():
             new_number = 1
         
         issue_key = f"TEST-{new_number}"
+
+        # 환경 결정: 요청 값 → 연결된 테스트 케이스 환경 → 기본값
+        issue_environment = data.get('environment')
+        if not issue_environment and data.get('test_case_id'):
+            linked_tc = TestCase.query.filter_by(id=data['test_case_id']).first()
+            if linked_tc and linked_tc.environment:
+                issue_environment = linked_tc.environment
+        issue_environment = issue_environment or 'dev'
         
         # 새 이슈 생성
         issue = JiraIssue(
@@ -238,6 +265,7 @@ def create_issue():
             assignee_email=data.get('assignee_email'),
             labels=json.dumps(data.get('labels', [])) if data.get('labels') else None,
             reporter_email=data.get('reporter_email', 'admin@example.com'),
+            environment=issue_environment,
             test_case_id=data.get('test_case_id'),
             automation_test_id=data.get('automation_test_id'),
             performance_test_id=data.get('performance_test_id')
@@ -260,6 +288,7 @@ def create_issue():
         }), 500
 
 @jira_issues_bp.route('/issues/<issue_key>', methods=['GET'])
+@guest_allowed
 def get_issue(issue_key):
     """특정 이슈 조회"""
     try:
@@ -283,6 +312,7 @@ def get_issue(issue_key):
         }), 500
 
 @jira_issues_bp.route('/issues/<issue_key>', methods=['PUT'])
+@user_required
 def update_issue(issue_key):
     """이슈 업데이트"""
     try:
@@ -317,6 +347,8 @@ def update_issue(issue_key):
             issue.automation_test_id = data['automation_test_id']
         if 'performance_test_id' in data:
             issue.performance_test_id = data['performance_test_id']
+        if 'environment' in data:
+            issue.environment = data['environment']
         
         issue.updated_at = datetime.utcnow()
         
@@ -366,6 +398,7 @@ def delete_issue(issue_key):
         }), 500
 
 @jira_issues_bp.route('/issues/<issue_key>/comments', methods=['GET'])
+@guest_allowed
 def get_comments(issue_key):
     """이슈 댓글 조회"""
     try:
@@ -391,9 +424,17 @@ def get_comments(issue_key):
         }), 500
 
 @jira_issues_bp.route('/issues/<issue_key>/comments', methods=['POST'])
+@user_required
 def add_comment(issue_key):
-    """이슈에 댓글 추가"""
+    """이슈에 댓글 추가 (멘션 알림 포함)"""
     try:
+        from services.collaboration_service import collaboration_service
+        from models import User
+        from utils.logger import get_logger
+        import re
+        
+        logger = get_logger(__name__)
+        
         issue = JiraIssue.query.filter_by(issue_key=issue_key).first()
         
         if not issue:
@@ -410,14 +451,54 @@ def add_comment(issue_key):
                 'error': '댓글 내용은 필수입니다.'
             }), 400
         
+        comment_body = data['body']
+        author_email = data.get('author_email', 'admin@example.com')
+        
+        # JIRA 댓글 생성
         comment = JiraComment(
             jira_issue_id=issue.id,
-            body=data['body'],
-            author_email=data.get('author_email', 'admin@example.com')
+            body=comment_body,
+            author_email=author_email
         )
         
         db.session.add(comment)
         db.session.commit()
+        
+        # 멘션 추출 및 알림 생성
+        logger.info(f"🔍 JIRA 댓글 멘션 추출 시작: Issue {issue_key}, Body: {comment_body[:100]}...")
+        
+        mention_pattern = r'@(\w+)'
+        mentions = re.findall(mention_pattern, comment_body)
+        
+        if mentions:
+            logger.info(f"🔍 발견된 멘션 패턴: {mentions}")
+            
+            for username in mentions:
+                # 사용자 찾기 (대소문자 구분 없이)
+                user = User.query.filter(
+                    db.func.lower(User.username) == db.func.lower(username)
+                ).first()
+                
+                if user:
+                    logger.info(f"✅ 사용자 발견: User {user.id} ({user.username})")
+                    
+                    # 멘션 알림 생성
+                    try:
+                        from services.notification_service import notification_service
+                        
+                        notification = notification_service.create_notification(
+                            user_id=user.id,
+                            notification_type='mention',
+                            title='JIRA 이슈 멘션 알림',
+                            message=f"JIRA 이슈 '{issue_key}' 댓글에서 멘션되었습니다: {comment_body[:50]}...",
+                            related_test_case_id=None,  # JIRA 이슈는 테스트 케이스와 직접 연결되지 않을 수 있음
+                            priority='medium'
+                        )
+                        logger.info(f"✅ JIRA 멘션 알림 생성 성공: Notification ID {notification.id if notification else 'None'}")
+                    except Exception as e:
+                        logger.error(f"❌ JIRA 멘션 알림 생성 실패: {str(e)}", exc_info=True)
+                else:
+                    logger.warning(f"⚠️ 사용자를 찾을 수 없음: @{username}")
         
         return jsonify({
             'success': True,
@@ -427,6 +508,7 @@ def add_comment(issue_key):
         
     except Exception as e:
         db.session.rollback()
+        logger.error(f"JIRA 댓글 추가 오류: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'error': str(e)
@@ -465,6 +547,51 @@ def get_stats():
                 'issuesByType': dict(type_stats)
             }
         })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@jira_issues_bp.route('/stats/environment', methods=['GET'])
+def get_jira_stats_by_environment():
+    """환경별 JIRA 통계 조회"""
+    try:
+        from sqlalchemy import func
+        
+        environment_stats = {}
+
+        # 1) 환경별 총 이슈 수 (JiraIssue.environment 기반)
+        env_totals = db.session.query(
+            JiraIssue.environment,
+            func.count(JiraIssue.id)
+        ).group_by(JiraIssue.environment).all()
+
+        # 2) 환경별 상태별 이슈 수
+        env_status_totals = db.session.query(
+            JiraIssue.environment,
+            JiraIssue.status,
+            func.count(JiraIssue.id)
+        ).group_by(JiraIssue.environment, JiraIssue.status).all()
+
+        for env, total in env_totals:
+            env_key = env or 'unknown'
+            environment_stats[env_key] = {
+                'totalIssues': total,
+                'issuesByStatus': {}
+            }
+
+        for env, status, count in env_status_totals:
+            env_key = env or 'unknown'
+            if env_key not in environment_stats:
+                environment_stats[env_key] = {'totalIssues': 0, 'issuesByStatus': {}}
+            environment_stats[env_key]['issuesByStatus'][status] = count
+        
+        return jsonify({
+            'success': True,
+            'data': environment_stats
+        }), 200
         
     except Exception as e:
         return jsonify({

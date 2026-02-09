@@ -84,30 +84,38 @@ def get_database_engine_options(database_url):
             logger.info("로컬 환경에서 SQLite 사용")
         return {}
     else:
-        # MySQL 환경 (Vercel 또는 로컬)
+        # MySQL/Postgres 환경 (Vercel 또는 로컬)
         options = {
             'pool_pre_ping': True,
             'pool_recycle': 300,
-            'connect_args': {
+        }
+
+        if 'mysql' in database_url:
+            options['connect_args'] = {
                 'connect_timeout': 10,
                 'read_timeout': 30,
                 'write_timeout': 30
             }
-        }
-        
-        # Vercel 환경에서만 SSL 사용
-        if is_vercel:
-            options['connect_args']['ssl'] = {'ssl': True}
-        
+
+            # Vercel 환경에서만 SSL 사용
+            if is_vercel:
+                options['connect_args']['ssl'] = {'ssl': True}
+
         return options
 
 def configure_app(app):
     """Flask 앱 설정 적용"""
     # 기본 설정
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'fallback-secret-key'
+    secret_key = os.environ.get('SECRET_KEY')
+    if not secret_key or secret_key == 'fallback-secret-key':
+        logger.warning("⚠️ SECRET_KEY가 환경 변수로 설정되지 않았습니다. 프로덕션 환경에서는 반드시 설정하세요.")
+    app.config['SECRET_KEY'] = secret_key or 'fallback-secret-key'
     
     # JWT 설정
-    app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'your-secret-key-change-in-production')
+    jwt_secret_key = os.environ.get('JWT_SECRET_KEY')
+    if not jwt_secret_key or jwt_secret_key == 'your-secret-key-change-in-production':
+        logger.warning("⚠️ JWT_SECRET_KEY가 환경 변수로 설정되지 않았습니다. 프로덕션 환경에서는 반드시 강력한 시크릿 키를 설정하세요.")
+    app.config['JWT_SECRET_KEY'] = jwt_secret_key or 'your-secret-key-change-in-production'
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)  # 24시간으로 연장
     app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=30)  # 30일로 연장
     
@@ -126,6 +134,13 @@ def configure_app(app):
     logger.debug(f"Vercel URL: {os.environ.get('VERCEL_URL', 'Not Vercel')}")
     logger.debug(f".env 파일 경로: {env_path}")
     logger.debug(f".env 파일 존재: {os.path.exists(env_path)}")
+    
+    # Slack webhook URL 확인
+    slack_webhook_url = os.getenv('SLACK_WEBHOOK_URL')
+    if slack_webhook_url:
+        logger.info(f"✅ SLACK_WEBHOOK_URL 환경 변수 로드됨: {slack_webhook_url[:30]}...")
+    else:
+        logger.warning("⚠️ SLACK_WEBHOOK_URL 환경 변수가 설정되지 않았습니다. .env 파일을 확인하세요.")
     
     return app
 

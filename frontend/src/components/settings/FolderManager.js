@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import config from '../../config';
+import config from '@tms/config';
 import './FolderManager.css';
 
 const FolderManager = () => {
@@ -9,20 +9,41 @@ const FolderManager = () => {
   const [error, setError] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [projects, setProjects] = useState([]);
+  const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [editingFolder, setEditingFolder] = useState(null);
   const [newFolder, setNewFolder] = useState({
     folder_name: '',
     folder_type: 'environment',
     environment: 'dev',
     parent_folder_id: null,
-    deployment_date: ''
+    deployment_date: '',
+    project_id: null
   });
   const [folderTree, setFolderTree] = useState([]);
 
   useEffect(() => {
-    fetchFolders();
-    fetchFolderTree();
+    fetchProjects();
   }, []);
+
+  useEffect(() => {
+    if (selectedProjectId) {
+      fetchFolders();
+      fetchFolderTree();
+    }
+  }, [selectedProjectId]);
+
+  const fetchProjects = async () => {
+    try {
+      const res = await axios.get(`${config.apiUrl}/projects`);
+      setProjects(res.data || []);
+      const defaultProjectId = (res.data && res.data.length > 0 && res.data[0].id) || 2;
+      setSelectedProjectId(defaultProjectId);
+      setNewFolder((prev) => ({ ...prev, project_id: defaultProjectId }));
+    } catch (err) {
+      console.error('프로젝트 목록 조회 오류:', err);
+    }
+  };
 
   const fetchFolders = async () => {
     try {
@@ -54,7 +75,10 @@ const FolderManager = () => {
     }
 
     try {
-      await axios.post(`${config.apiUrl}/folders`, newFolder);
+      await axios.post(`${config.apiUrl}/folders`, {
+        ...newFolder,
+        project_id: newFolder.project_id || selectedProjectId
+      });
       alert('폴더가 성공적으로 추가되었습니다.');
       setShowAddModal(false);
       setNewFolder({
@@ -62,9 +86,11 @@ const FolderManager = () => {
         folder_type: 'environment',
         environment: 'dev',
         parent_folder_id: null,
-        deployment_date: ''
+        deployment_date: '',
+        project_id: selectedProjectId
       });
       fetchFolders();
+      fetchFolderTree();
     } catch (err) {
       alert('폴더 추가 중 오류가 발생했습니다: ' + err.response?.data?.error || err.message);
     }
@@ -77,11 +103,15 @@ const FolderManager = () => {
     }
 
     try {
-      await axios.put(`${config.apiUrl}/folders/${editingFolder.id}`, editingFolder);
+      await axios.put(`${config.apiUrl}/folders/${editingFolder.id}`, {
+        ...editingFolder,
+        project_id: editingFolder.project_id || selectedProjectId
+      });
       alert('폴더가 성공적으로 수정되었습니다.');
       setShowEditModal(false);
       setEditingFolder(null);
       fetchFolders();
+      fetchFolderTree();
     } catch (err) {
       alert('폴더 수정 중 오류가 발생했습니다: ' + err.response?.data?.error || err.message);
     }
@@ -96,6 +126,7 @@ const FolderManager = () => {
       await axios.delete(`${config.apiUrl}/folders/${folderId}`);
       alert('폴더가 성공적으로 삭제되었습니다.');
       fetchFolders();
+      fetchFolderTree();
     } catch (err) {
       alert('폴더 삭제 중 오류가 발생했습니다: ' + err.response?.data?.error || err.message);
     }
@@ -103,16 +134,17 @@ const FolderManager = () => {
 
   const getParentFolderOptions = () => {
     const options = [];
-    
-    // 환경 폴더들 추가
-    folderTree.forEach(envFolder => {
+
+    const projectNode = folderTree.find((p) => p.type === 'project' && p.id === selectedProjectId);
+    const environments = projectNode ? projectNode.children : [];
+
+    environments.forEach(envFolder => {
       options.push({
         id: envFolder.id,
         name: `🌍 ${envFolder.name} (환경)`,
         type: 'environment'
       });
       
-      // 배포일자 폴더들 추가
       envFolder.children.forEach(depFolder => {
         options.push({
           id: depFolder.id,
@@ -120,7 +152,6 @@ const FolderManager = () => {
           type: 'deployment_date'
         });
         
-        // 기능명 폴더들 추가
         depFolder.children.forEach(featureFolder => {
           options.push({
             id: featureFolder.id,
@@ -132,6 +163,17 @@ const FolderManager = () => {
     });
     
     return options;
+  };
+
+  const handleParentChange = (parentId) => {
+    const options = getParentFolderOptions();
+    const parent = options.find(o => o.id === parentId);
+    const projectOfParent = selectedProjectId; // 트리는 이미 프로젝트별 필터됨
+    setNewFolder(prev => ({
+      ...prev,
+      parent_folder_id: parentId || null,
+      project_id: projectOfParent
+    }));
   };
 
   if (loading) {
@@ -167,12 +209,16 @@ const FolderManager = () => {
               }</p>
               {folder.environment && <p>환경: {folder.environment}</p>}
               {folder.deployment_date && <p>배포일자: {folder.deployment_date}</p>}
+              {folder.project_id && <p>프로젝트 ID: {folder.project_id}</p>}
             </div>
             <div className="folder-actions">
               <button 
                 className="btn btn-edit"
                 onClick={() => {
-                  setEditingFolder(folder);
+                  setEditingFolder({
+                    ...folder,
+                    project_id: folder.project_id || selectedProjectId
+                  });
                   setShowEditModal(true);
                 }}
               >
@@ -216,7 +262,8 @@ const FolderManager = () => {
                     folder_type: 'environment',
                     environment: 'dev',
                     parent_folder_id: null,
-                    deployment_date: ''
+                    deployment_date: '',
+                    project_id: selectedProjectId
                   });
                 }}
               >
@@ -259,7 +306,7 @@ const FolderManager = () => {
                 <label>상위 폴더</label>
                 <select 
                   value={newFolder.parent_folder_id || ''}
-                  onChange={(e) => setNewFolder({...newFolder, parent_folder_id: e.target.value || null})}
+                  onChange={(e) => handleParentChange(e.target.value ? Number(e.target.value) : null)}
                 >
                   <option value="">없음 (최상위)</option>
                   {getParentFolderOptions().map(folder => (
@@ -294,7 +341,8 @@ const FolderManager = () => {
                     folder_type: 'environment',
                     environment: 'dev',
                     parent_folder_id: null,
-                    deployment_date: ''
+                    deployment_date: '',
+                    project_id: selectedProjectId
                   });
                 }}
               >
@@ -357,7 +405,7 @@ const FolderManager = () => {
                 <label>상위 폴더</label>
                 <select 
                   value={editingFolder.parent_folder_id || ''}
-                  onChange={(e) => setEditingFolder({...editingFolder, parent_folder_id: e.target.value || null})}
+                  onChange={(e) => setEditingFolder({...editingFolder, parent_folder_id: e.target.value ? Number(e.target.value) : null})}
                 >
                   <option value="">없음 (최상위)</option>
                   {getParentFolderOptions().map(folder => (
