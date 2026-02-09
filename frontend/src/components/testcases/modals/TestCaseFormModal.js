@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { getUserDisplayName } from '../../../utils/userDisplay';
 import TestCaseModal from './TestCaseModal';
 
 const TestCaseFormModal = ({ 
@@ -199,7 +200,7 @@ const TestCaseFormModal = ({
             <option value="">담당자를 선택하세요</option>
             {users.map(user => (
               <option key={user.id} value={user.id}>
-                {user.username || user.first_name || user.email}
+                {getUserDisplayName(user)}
               </option>
             ))}
           </select>

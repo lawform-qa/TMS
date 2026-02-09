@@ -1,4 +1,5 @@
 import React from 'react';
+import { getUserDisplayName } from '../../utils/userDisplay';
 // import { formatUTCToKST } from '@tms/utils/dateUtils';
 import './TestCaseTable.css';
 
@@ -141,7 +142,7 @@ const TestCaseTable = ({
                     {users && users.length > 0 ? (
                       users.map(user => (
                         <option key={user.id} value={user.id}>
-                          {user.username || user.name || 'Unknown'}
+                          {getUserDisplayName(user) || 'Unknown'}
                         </option>
                       ))
                     ) : (

@@ -43,9 +43,9 @@ def get_performance_tests():
                 'created_at': pt.created_at.isoformat() if pt.created_at else None,
                 'updated_at': pt.updated_at.isoformat() if pt.updated_at else None,
                 'creator_id': pt.creator_id,
-                'creator_name': pt.creator.username if pt.creator else None,
+                'creator_name': pt.creator.get_display_name() if pt.creator else None,
                 'assignee_id': pt.assignee_id,
-                'assignee_name': pt.assignee.username if pt.assignee else None
+                'assignee_name': pt.assignee.get_display_name() if pt.assignee else None
             } for pt in tests]
             
             response = jsonify(data)
@@ -98,9 +98,9 @@ def get_performance_tests():
             'created_at': pt.created_at.isoformat() if pt.created_at else None,
             'updated_at': pt.updated_at.isoformat() if pt.updated_at else None,
             'creator_id': pt.creator_id,
-            'creator_name': pt.creator.username if pt.creator else None,
+            'creator_name': pt.creator.get_display_name() if pt.creator else None,
             'assignee_id': pt.assignee_id,
-            'assignee_name': pt.assignee.username if pt.assignee else None
+            'assignee_name': pt.assignee.get_display_name() if pt.assignee else None
         } for pt in tests]
         
         # 페이징 정보 포함 응답

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import config from '@tms/config';
 import { useAuth } from '@tms/contexts/AuthContext';
+import { getUserDisplayName } from '../../utils/userDisplay';
 import AutomationTestDetail from './AutomationTestDetail';
 import './AutomationTestManager.css';
 import '../common/Modal.css';
@@ -271,7 +272,7 @@ const AutomationTestManager = () => {
             ? { 
                 ...t, 
                 assignee_id: newAssigneeId ? Number(newAssigneeId) : null,
-                assignee_name: newAssigneeId ? users.find(u => u.id === Number(newAssigneeId))?.username || users.find(u => u.id === Number(newAssigneeId))?.first_name || 'Unknown' : null
+                assignee_name: newAssigneeId ? getUserDisplayName(users.find(u => u.id === Number(newAssigneeId))) || 'Unknown' : null
               }
             : t
         )
@@ -500,7 +501,7 @@ const AutomationTestManager = () => {
                           {users && users.length > 0 ? (
                             users.map(user => (
                               <option key={user.id} value={user.id}>
-                                {user.username || user.first_name || 'Unknown'}
+                                {getUserDisplayName(user) || 'Unknown'}
                               </option>
                             ))
                           ) : (
@@ -690,9 +691,9 @@ const AutomationTestManager = () => {
                   >
                     <option value="">담당자를 선택하세요</option>
                     {users.map(user => (
-                      <option key={user.id} value={user.id}>
-                        {user.username || user.first_name || user.email}
-                      </option>
+                    <option key={user.id} value={user.id}>
+                      {getUserDisplayName(user)}
+                    </option>
                     ))}
                   </select>
                 </div>
@@ -801,9 +802,9 @@ const AutomationTestManager = () => {
                   >
                     <option value="">담당자를 선택하세요</option>
                     {users.map(user => (
-                      <option key={user.id} value={user.id}>
-                        {user.username || user.first_name || user.email}
-                      </option>
+                    <option key={user.id} value={user.id}>
+                      {getUserDisplayName(user)}
+                    </option>
                     ))}
                   </select>
                 </div>

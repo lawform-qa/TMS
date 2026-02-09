@@ -4,6 +4,7 @@ import axios from 'axios';
 import config from '@tms/config';
 import { useAuth } from '@tms/contexts/AuthContext';
 import { formatUTCToKST } from '@tms/utils/dateUtils';
+import { getUserDisplayName } from '../../utils/userDisplay';
 import './PerformanceTestManager.css';
 import '../common/Modal.css';
 
@@ -223,7 +224,7 @@ const PerformanceTestManager = () => {
             return { 
               ...test, 
               assignee_id: parseInt(newAssigneeId),
-              assignee_name: selectedUser ? (selectedUser.username || selectedUser.name) : '없음'
+              assignee_name: selectedUser ? getUserDisplayName(selectedUser) : '없음'
             };
           }
           return test;
@@ -663,7 +664,7 @@ const PerformanceTestManager = () => {
                         {users && users.length > 0 ? (
                           users.map(user => (
                             <option key={user.id} value={user.id}>
-                              {user.username || user.name || 'Unknown'}
+                              {getUserDisplayName(user) || 'Unknown'}
                             </option>
                           ))
                         ) : (
@@ -818,7 +819,7 @@ const PerformanceTestManager = () => {
                   <option value="">담당자를 선택하세요</option>
                   {users.map(user => (
                     <option key={user.id} value={user.id}>
-                      {user.username || user.first_name || user.email}
+                      {getUserDisplayName(user)}
                     </option>
                   ))}
                 </select>
@@ -932,7 +933,7 @@ const PerformanceTestManager = () => {
                   <option value="">담당자를 선택하세요</option>
                   {users.map(user => (
                     <option key={user.id} value={user.id}>
-                      {user.username || user.first_name || user.email}
+                      {getUserDisplayName(user)}
                     </option>
                   ))}
                 </select>

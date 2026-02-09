@@ -50,6 +50,8 @@ const JiraIssuesList = ({ modalMode = true, testCaseId = null }) => {
   });
   const [showCommentPrompt, setShowCommentPrompt] = useState(false);
   const [commentIssueKey, setCommentIssueKey] = useState(null);
+  const [mentionUsers, setMentionUsers] = useState([]);
+  const [loadingMentionUsers, setLoadingMentionUsers] = useState(false);
 
 
   // 이슈 목록 조회
@@ -209,6 +211,25 @@ const JiraIssuesList = ({ modalMode = true, testCaseId = null }) => {
       setLoadingComments(false);
     }
   };
+
+  const fetchMentionUsers = async () => {
+    try {
+      setLoadingMentionUsers(true);
+      const response = await axios.get(`${config.apiUrl}/users/list`);
+      setMentionUsers(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error('멘션 사용자 조회 오류:', err);
+      setMentionUsers([]);
+    } finally {
+      setLoadingMentionUsers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showCommentPrompt) {
+      fetchMentionUsers();
+    }
+  }, [showCommentPrompt]);
 
   // 이슈 생성
   const createIssue = async (issueData) => {
@@ -1064,11 +1085,13 @@ const JiraIssuesList = ({ modalMode = true, testCaseId = null }) => {
                           }
                           
                           // 작성자 표시 (이메일에서 이름 추출 또는 이메일 전체 표시)
-                          const authorDisplay = comment.author_email 
-                            ? (comment.author_email.includes('@') 
-                                ? comment.author_email.split('@')[0] 
-                                : comment.author_email)
-                            : 'Unknown User';
+                          const authorDisplay = comment.author_name
+                            ? comment.author_name
+                            : (comment.author_email 
+                                ? (comment.author_email.includes('@') 
+                                    ? comment.author_email.split('@')[0] 
+                                    : comment.author_email)
+                                : 'Unknown User');
                           
                           return (
                             <div key={comment.id || index} className="comment-item">
@@ -1487,8 +1510,10 @@ const JiraIssuesList = ({ modalMode = true, testCaseId = null }) => {
           setCommentIssueKey(null);
         }}
         title="댓글 추가"
-        message="댓글을 입력하세요:"
+        message={loadingMentionUsers ? "댓글을 입력하세요: (사용자 목록 로딩 중...)" : "댓글을 입력하세요:"}
         placeholder="댓글을 입력하세요..."
+        mentionEnabled
+        mentionUsers={mentionUsers}
         onConfirm={(comment) => {
           if (comment && commentIssueKey) {
             addComment(commentIssueKey, comment);

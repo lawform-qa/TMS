@@ -153,8 +153,8 @@ def get_testcase(id):
         'folder_id': tc.folder_id,
         'creator_id': tc.creator_id,
         'assignee_id': tc.assignee_id,
-        'creator_name': tc.creator.username if tc.creator else None,
-        'assignee_name': tc.assignee.username if tc.assignee else None,
+        'creator_name': tc.creator.get_display_name() if tc.creator else None,
+        'assignee_name': tc.assignee.get_display_name() if tc.assignee else None,
         'screenshots': screenshot_data,
         'created_at': tc.created_at,
         'updated_at': tc.updated_at
@@ -1411,7 +1411,7 @@ def get_templates():
             'updated_at': t.updated_at.isoformat() if t.updated_at else None,
             'is_public': t.is_public,
             'usage_count': t.usage_count,
-            'creator_name': t.creator.username if t.creator else 'Unknown'
+            'creator_name': t.creator.get_display_name() if t.creator else 'Unknown'
         } for t in templates]
         
         response = jsonify(data)
@@ -1666,7 +1666,7 @@ def get_test_plans():
             'created_by': p.created_by,
             'created_at': p.created_at.isoformat() if p.created_at else None,
             'updated_at': p.updated_at.isoformat() if p.updated_at else None,
-            'creator_name': p.creator.username if p.creator else 'Unknown',
+            'creator_name': p.creator.get_display_name() if p.creator else 'Unknown',
             'test_case_count': len(p.test_cases)
         } for p in plans]
         
@@ -1786,7 +1786,7 @@ def get_test_plan_detail(id):
                 'execution_order': ptc.execution_order,
                 'estimated_duration': ptc.estimated_duration,
                 'assigned_to': ptc.assigned_to,
-                'assignee_name': ptc.assignee.username if ptc.assignee else None,
+                'assignee_name': ptc.assignee.get_display_name() if ptc.assignee else None,
                 'notes': ptc.notes
             })
         
@@ -1806,7 +1806,7 @@ def get_test_plan_detail(id):
             'created_by': plan.created_by,
             'created_at': plan.created_at.isoformat() if plan.created_at else None,
             'updated_at': plan.updated_at.isoformat() if plan.updated_at else None,
-            'creator_name': plan.creator.username if plan.creator else 'Unknown',
+            'creator_name': plan.creator.get_display_name() if plan.creator else 'Unknown',
             'test_cases': test_cases,
             'total_estimated_duration': sum(tc['estimated_duration'] for tc in test_cases if tc['estimated_duration'])
         }

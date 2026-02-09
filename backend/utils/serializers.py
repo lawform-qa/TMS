@@ -32,8 +32,8 @@ def serialize_testcase(tc, include_relations=False):
         data.update({
             'creator_id': getattr(tc, 'creator_id', None),
             'assignee_id': getattr(tc, 'assignee_id', None),
-            'creator_name': tc.creator.username if hasattr(tc, 'creator') and tc.creator else None,
-            'assignee_name': tc.assignee.username if hasattr(tc, 'assignee') and tc.assignee else None,
+            'creator_name': tc.creator.get_display_name() if hasattr(tc, 'creator') and tc.creator else None,
+            'assignee_name': tc.assignee.get_display_name() if hasattr(tc, 'assignee') and tc.assignee else None,
         })
     
     return data

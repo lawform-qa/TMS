@@ -17,6 +17,7 @@ import TestCaseFormModal from './modals/TestCaseFormModal';
 import { useTestCaseData } from '@tms/hooks/useTestCaseData';
 import { useTestCaseFilters } from '@tms/hooks/useTestCaseFilters';
 import { useTestCasePagination } from '@tms/hooks/useTestCasePagination';
+import { getUserDisplayName } from '../../utils/userDisplay';
 
 // 스타일 임포트
 import './TestCaseAPP.css';
@@ -569,7 +570,7 @@ const TestCaseAPP = ({ setActiveTab }) => {
             return { 
               ...tc, 
               assignee_id: newAssigneeId ? parseInt(newAssigneeId) : null,
-              assignee_name: selectedUser ? (selectedUser.username || selectedUser.name) : null
+              assignee_name: selectedUser ? getUserDisplayName(selectedUser) : null
             };
           }
           return tc;
