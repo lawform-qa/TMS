@@ -879,7 +879,7 @@ class Comment(db.Model):
                 'username': self.author.username if self.author else None,
                 'email': self.author.email if self.author else None
             } if self.author else None,
-            'author_name': self.author.username if self.author else None,
+            'author_name': self.author.get_display_name() if self.author else None,
             'author_email': self.author.email if self.author else None,
             'is_edited': self.is_edited,
             'is_deleted': self.is_deleted,

@@ -333,7 +333,7 @@ const AccountManager = () => {
           )}
           <div className="account-info">
             <div className="info-item">
-              <label>사용자명:</label>
+              <label>ID:</label>
               <span>{currentUser?.username}</span>
             </div>
             {currentUser?.first_name && currentUser?.last_name && (
@@ -460,7 +460,7 @@ const AccountManager = () => {
               <div className="modal-section">
                 <h4>기본 정보</h4>
                 <div className="form-group">
-                  <label>사용자명:</label>
+                  <label>ID:</label>
                   <input
                     type="text"
                     value={newUser.username}
@@ -544,7 +544,7 @@ const AccountManager = () => {
               <div className="modal-section">
                 <h4>기본 정보</h4>
                 <div className="form-group">
-                  <label>사용자명:</label>
+                  <label>ID:</label>
                   <input
                     type="text"
                     value={editUser.username}
@@ -695,7 +695,7 @@ const AccountManager = () => {
               <div className="modal-section">
                 <h4>기본 정보</h4>
                 <div className="form-group">
-                  <label>사용자명:</label>
+                  <label>ID:</label>
                   <input
                     type="text"
                     value={profileData.username}
