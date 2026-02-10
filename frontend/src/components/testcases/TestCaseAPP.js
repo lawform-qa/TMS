@@ -4,15 +4,15 @@ import axios from 'axios';
 import config from '@tms/config';
 import { useAuth } from '@tms/contexts/AuthContext';
 import { formatUTCToKST } from '@tms/utils/dateUtils';
-import JiraIssuesList from '../jira/JiraIssuesList';
+import JiraIssuesList from '@tms/components/jira/JiraIssuesList';
 
 // 컴포넌트 임포트
-import TestCaseSearch from './TestCaseSearch';
-import TestCaseTable from './TestCaseTable';
-import TestCasePagination from './TestCasePagination';
-import TestCaseModal from './modals/TestCaseModal';
-import TestCaseFormModal from './modals/TestCaseFormModal';
-import { getUserDisplayName } from '../../utils/userDisplay';
+import TestCaseSearch from '@tms/components/testcases/TestCaseSearch';
+import TestCaseTable from '@tms/components/testcases/TestCaseTable';
+import TestCasePagination from '@tms/components/testcases/TestCasePagination';
+import TestCaseModal from '@tms/components/testcases/modals/TestCaseModal';
+import TestCaseFormModal from '@tms/components/testcases/modals/TestCaseFormModal';
+import { getUserDisplayName } from '@tms/utils/userDisplay';
 
 // 훅 임포트
 import { useTestCaseData } from '@tms/hooks/useTestCaseData';
@@ -20,7 +20,7 @@ import { useTestCaseFilters } from '@tms/hooks/useTestCaseFilters';
 import { useTestCasePagination } from '@tms/hooks/useTestCasePagination';
 
 // 스타일 임포트
-import './TestCaseAPP.css';
+import '@tms/components/testcases/TestCaseAPP.css';
 
 // 헬퍼 함수들
 const findFolderInTree = (nodes, folderId) => {

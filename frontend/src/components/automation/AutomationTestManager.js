@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import config from '@tms/config';
 import { useAuth } from '@tms/contexts/AuthContext';
-import { getUserDisplayName } from '../../utils/userDisplay';
-import AutomationTestDetail from './AutomationTestDetail';
-import './AutomationTestManager.css';
-import '../common/Modal.css';
+import { getUserDisplayName } from '@tms/utils/userDisplay';
+import AutomationTestDetail from '@tms/components/automation/AutomationTestDetail';
+import '@tms/components/automation/AutomationTestManager.css';
+import '@tms/components/common/Modal.css';
 
 axios.defaults.baseURL = config.apiUrl;
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { getUserDisplayName } from '../../../utils/userDisplay';
-import TestCaseModal from './TestCaseModal';
+import { getUserDisplayName } from '@tms/utils/userDisplay';
+import TestCaseModal from '@tms/components/testcases/modals/TestCaseModal';
 
 const TestCaseFormModal = ({ 
   isOpen, 

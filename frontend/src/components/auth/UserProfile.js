@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@tms/contexts/AuthContext';
 import { formatUTCToKST } from '@tms/utils/dateUtils';
-import './Auth.css';
-import './UserProfile.css';
+import '@tms/components/auth/Auth.css';
+import '@tms/components/auth/UserProfile.css';
 
 const UserProfile = () => {
   const { user, changePassword, logout } = useAuth();

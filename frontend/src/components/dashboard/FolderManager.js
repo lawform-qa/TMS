@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import config from '@tms/config';
 import { useAuth } from '@tms/contexts/AuthContext';
-import './FolderManager.css';
+import '@tms/components/dashboard/FolderManager.css';
 
 const FolderManager = () => {
   const { user } = useAuth();

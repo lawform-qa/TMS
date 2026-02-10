@@ -1,7 +1,7 @@
 import React from 'react';
-import { getUserDisplayName } from '../../utils/userDisplay';
+import { getUserDisplayName } from '@tms/utils/userDisplay';
 // import { formatUTCToKST } from '@tms/utils/dateUtils';
-import './TestCaseTable.css';
+import '@tms/components/testcases/TestCaseTable.css';
 
 const TestCaseTable = ({
   testCases = [],

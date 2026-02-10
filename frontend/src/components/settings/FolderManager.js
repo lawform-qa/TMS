@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import config from '@tms/config';
-import './FolderManager.css';
+import '@tms/components/settings/FolderManager.css';
 
 const FolderManager = () => {
   const [folders, setFolders] = useState([]);

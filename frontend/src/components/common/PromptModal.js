@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getUserDisplayName } from '../../utils/userDisplay';
-import './Modal.css';
+import { getUserDisplayName } from '@tms/utils/userDisplay';
+import '@tms/components/common/Modal.css';
 
 const PromptModal = ({
   isOpen,

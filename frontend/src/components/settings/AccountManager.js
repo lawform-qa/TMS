@@ -3,7 +3,7 @@ import axios from 'axios';
 import config from '@tms/config';
 import { useAuth } from '@tms/contexts/AuthContext';
 import { formatUTCToKST } from '@tms/utils/dateUtils';
-import './AccountManager.css';
+import '@tms/components/settings/AccountManager.css';
 
 axios.defaults.baseURL = config.apiUrl;
 

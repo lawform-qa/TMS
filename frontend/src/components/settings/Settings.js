@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import ProjectManager from './ProjectManager';
-import FolderManager from './FolderManager';
-import AccountManager from './AccountManager';
-import PromptSettings from './PromptSettings';
+import ProjectManager from '@tms/components/settings/ProjectManager';
+import FolderManager from '@tms/components/settings/FolderManager';
+import AccountManager from '@tms/components/settings/AccountManager';
+import PromptSettings from '@tms/components/settings/PromptSettings';
 import { useAuth } from '@tms/contexts/AuthContext';
-import './Settings.css';
+import '@tms/components/settings/Settings.css';
 
 const Settings = () => {
   const [activeMenu, setActiveMenu] = useState('accounts');

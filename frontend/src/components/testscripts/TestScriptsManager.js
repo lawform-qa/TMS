@@ -3,8 +3,8 @@ import axios from 'axios';
 import config from '@tms/config';
 import { useAuth } from '@tms/contexts/AuthContext';
 import MonacoEditor from '@monaco-editor/react';
-import PromptModal from '../common/PromptModal';
-import './TestScriptsManager.css';
+import PromptModal from '@tms/components/common/PromptModal';
+import '@tms/components/testscripts/TestScriptsManager.css';
 
 const TestScriptsManager = () => {
   const { user, token } = useAuth();

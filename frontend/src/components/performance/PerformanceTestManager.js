@@ -4,9 +4,9 @@ import axios from 'axios';
 import config from '@tms/config';
 import { useAuth } from '@tms/contexts/AuthContext';
 import { formatUTCToKST } from '@tms/utils/dateUtils';
-import { getUserDisplayName } from '../../utils/userDisplay';
-import './PerformanceTestManager.css';
-import '../common/Modal.css';
+import { getUserDisplayName } from '@tms/utils/userDisplay';
+import '@tms/components/performance/PerformanceTestManager.css';
+import '@tms/components/common/Modal.css';
 
 // axios 인터셉터 설정 - 인증 토큰 자동 추가
 axios.interceptors.request.use(

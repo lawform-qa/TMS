@@ -1,4 +1,4 @@
-import { getAccount, getAccountsByEnv, initializeDatabase } from './db.js';
+import { getAccount, getAccountsByEnv, initializeDatabase } from '@tms/performance/Account/db.js';
 
 /**
  * k6에서 돌기 쉬운 경량 계정 로더.

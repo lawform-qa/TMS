@@ -1,19 +1,19 @@
 // src/App.js
 import React, { useState, useEffect } from 'react';
-import './App.css';
-import {TestCaseApp} from './components/testcases';
-import PerformanceTestManager from './components/performance';
-import AutomationTestManager from './components/automation';
-import TestScriptsManager from './components/testscripts/TestScriptsManager';
-import UnifiedDashboard from './components/dashboard';
-import FolderManager from './components/dashboard/FolderManager';
-import Settings from './components/settings/Settings';
-import UserProfile from './components/auth/UserProfile';
-import JiraIssuesList from './components/jira/JiraIssuesList';
-import NotificationBell from './components/notifications/NotificationBell';
-import { ErrorBoundary } from './components/utils';
+import '@tms/App.css';
+import {TestCaseApp} from '@tms/components/testcases';
+import PerformanceTestManager from '@tms/components/performance/PerformanceTestManager';
+import AutomationTestManager from '@tms/components/automation';
+import TestScriptsManager from '@tms/components/testscripts/TestScriptsManager';
+import UnifiedDashboard from '@tms/components/dashboard';
+import FolderManager from '@tms/components/dashboard/FolderManager';
+import Settings from '@tms/components/settings/Settings';
+import UserProfile from '@tms/components/auth/UserProfile';
+import JiraIssuesList from '@tms/components/jira/JiraIssuesList';
+import NotificationBell from '@tms/components/notifications/NotificationBell';
+import { ErrorBoundary } from '@tms/components/utils';
 import { AuthProvider, useAuth } from '@tms/contexts/AuthContext';
-import ProtectedRoute from './components/auth/ProtectedRoute';
+import ProtectedRoute from '@tms/components/auth/ProtectedRoute';
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState('dashboard');

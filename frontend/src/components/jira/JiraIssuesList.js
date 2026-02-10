@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import config from '@tms/config';
 import { useAuth } from '@tms/contexts/AuthContext';
-import PromptModal from '../common/PromptModal';
-import './JiraIssuesList.css';
-import '../common/Modal.css';
+import PromptModal from '@tms/components/common/PromptModal';
+import '@tms/components/jira/JiraIssuesList.css';
+import '@tms/components/common/Modal.css';
 
 const JiraIssuesList = ({ modalMode = true, testCaseId = null }) => {
   const { user } = useAuth();
