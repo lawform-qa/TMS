@@ -85,7 +85,7 @@ const Register = ({ onSwitchToLogin }) => {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
-          <h2>📝 회원가입</h2>
+          <h2>회원가입</h2>
           <p>새로운 계정을 만들어보세요</p>
         </div>
 
@@ -104,19 +104,6 @@ const Register = ({ onSwitchToLogin }) => {
 
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="firstName">이름</label>
-              <input
-                type="text"
-                id="firstName"
-                name="firstName"
-                value={formData.firstName}
-                onChange={handleChange}
-                placeholder="이름을 입력하세요"
-                disabled={loading}
-              />
-            </div>
-
-            <div className="form-group">
               <label htmlFor="lastName">성</label>
               <input
                 type="text"
@@ -124,14 +111,27 @@ const Register = ({ onSwitchToLogin }) => {
                 name="lastName"
                 value={formData.lastName}
                 onChange={handleChange}
-                placeholder="성을 입력하세요"
+                placeholder="성을 입력하세요."
+                disabled={loading}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="firstName">이름</label>
+              <input
+                type="text"
+                id="firstName"
+                name="firstName"
+                value={formData.firstName}
+                onChange={handleChange}
+                placeholder="이름을 입력하세요."
                 disabled={loading}
               />
             </div>
           </div>
 
           <div className="form-group">
-            <label htmlFor="username">사용자명 *</label>
+            <label htmlFor="username">ID *</label>
             <input
               type="text"
               id="username"
@@ -139,7 +139,7 @@ const Register = ({ onSwitchToLogin }) => {
               value={formData.username}
               onChange={handleChange}
               required
-              placeholder="사용자명을 입력하세요"
+              placeholder="ID를 입력하세요."
               disabled={loading}
             />
           </div>
@@ -153,7 +153,7 @@ const Register = ({ onSwitchToLogin }) => {
               value={formData.email}
               onChange={handleChange}
               required
-              placeholder="이메일을 입력하세요"
+              placeholder="이메일을 입력하세요. ex) example@amicuslex.net"
               disabled={loading}
             />
           </div>
@@ -167,7 +167,7 @@ const Register = ({ onSwitchToLogin }) => {
               value={formData.password}
               onChange={handleChange}
               required
-              placeholder="비밀번호를 입력하세요 (8자 이상)"
+              placeholder="비밀번호를 입력하세요. (8자 이상)"
               disabled={loading}
             />
           </div>
@@ -181,7 +181,7 @@ const Register = ({ onSwitchToLogin }) => {
               value={formData.confirmPassword}
               onChange={handleChange}
               required
-              placeholder="비밀번호를 다시 입력하세요"
+              placeholder="비밀번호를 다시 입력하세요."
               disabled={loading}
             />
           </div>

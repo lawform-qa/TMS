@@ -55,7 +55,7 @@ const Login = ({ onSwitchToRegister }) => {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
-          <h2>🔐 로그인</h2>
+          <h2>로그인</h2>
           <p>테스트 플랫폼에 접속하세요</p>
         </div>
 
@@ -67,7 +67,7 @@ const Login = ({ onSwitchToRegister }) => {
           )}
 
           <div className="form-group">
-            <label htmlFor="username">사용자명</label>
+            <label htmlFor="username">ID</label>
             <input
               type="text"
               id="username"
@@ -75,7 +75,7 @@ const Login = ({ onSwitchToRegister }) => {
               value={formData.username}
               onChange={handleChange}
               required
-              placeholder="사용자명을 입력하세요"
+              placeholder="ID를 입력하세요"
               disabled={loading}
             />
           </div>
@@ -112,7 +112,7 @@ const Login = ({ onSwitchToRegister }) => {
             onClick={handleGuestLogin}
             disabled={loading}
           >
-            {loading ? '접속 중...' : '🎭 게스트로 접속'}
+            {loading ? '접속 중...' : '게스트로 접속'}
           </button>
         </form>
 
