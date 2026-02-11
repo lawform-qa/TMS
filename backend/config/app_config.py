@@ -8,9 +8,9 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# .env 파일 로드 (절대 경로 사용)
-env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
-load_dotenv(env_path)
+# .env 파일 로드 (backend/.env 우선, 기존 환경 변수 덮어쓰기)
+env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+load_dotenv(env_path, override=True)
 
 def get_database_url():
     """데이터베이스 URL 설정"""
@@ -76,6 +76,10 @@ def get_database_url():
             database_url = f'sqlite:///{db_path}'
             logger.info(f"로컬 환경에서 SQLite 사용: {db_path}")
     
+    # URL 정규화 (중복 드라이버 제거)
+    if database_url and database_url.startswith('mysql+pymysql+pymysql://'):
+        database_url = database_url.replace('mysql+pymysql+pymysql://', 'mysql+pymysql://', 1)
+
     return database_url
 
 def get_database_engine_options(database_url):

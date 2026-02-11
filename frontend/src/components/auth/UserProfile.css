@@ -65,6 +65,12 @@
   gap: 14px;
 }
 
+.notification-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .notification-row {
   display: flex;
   align-items: center;
@@ -97,6 +103,25 @@
   border: 1px solid #ddd;
   border-radius: 6px;
   font-size: 14px;
+}
+
+.notification-suboptions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-left: 10px;
+  padding-left: 12px;
+  border-left: 2px dashed #dee2e6;
+}
+
+.notification-suboption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e9ecef;
 }
 
 /* 토글 스위치 */

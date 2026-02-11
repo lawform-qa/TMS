@@ -17,11 +17,17 @@ const UserProfile = () => {
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const defaultDetailSettings = {
+    mention: { in_app: true, email: false, slack: false },
+    assignment: { in_app: true, email: false, slack: false },
+    test_status_changed: { in_app: true, email: false, slack: false }
+  };
   const [notificationSettings, setNotificationSettings] = useState({
     email_enabled: true,
     slack_enabled: false,
     slack_webhook_url: '',
-    in_app_enabled: true
+    in_app_enabled: true,
+    settings: defaultDetailSettings
   });
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsMessage, setNotificationsMessage] = useState({ type: '', text: '' });
@@ -107,7 +113,11 @@ const UserProfile = () => {
           email_enabled: data?.email_enabled ?? true,
           slack_enabled: data?.slack_enabled ?? false,
           slack_webhook_url: data?.slack_webhook_url || '',
-          in_app_enabled: data?.in_app_enabled ?? true
+          in_app_enabled: data?.in_app_enabled ?? true,
+          settings: {
+            ...defaultDetailSettings,
+            ...(data?.settings || {})
+          }
         });
       } else {
         setNotificationsMessage({ type: 'error', text: '알림 설정을 불러오지 못했습니다.' });
@@ -133,7 +143,8 @@ const UserProfile = () => {
           email_enabled: notificationSettings.email_enabled,
           slack_enabled: notificationSettings.slack_enabled,
           slack_webhook_url: notificationSettings.slack_webhook_url,
-          in_app_enabled: notificationSettings.in_app_enabled
+          in_app_enabled: notificationSettings.in_app_enabled,
+          settings: notificationSettings.settings
         })
       });
 
@@ -263,6 +274,41 @@ const UserProfile = () => {
     </>
   );
 
+  const toggleDetail = (channel, key, checked) => {
+    setNotificationSettings({
+      ...notificationSettings,
+      settings: {
+        ...notificationSettings.settings,
+        [key]: {
+          ...notificationSettings.settings?.[key],
+          [channel]: checked
+        }
+      }
+    });
+  };
+
+  const renderDetailOptions = (channel) => (
+    <div className="notification-suboptions">
+      {[
+        { key: 'mention', label: '댓글 멘션 알림' },
+        { key: 'assignment', label: '담당자 지정 알림' },
+        { key: 'test_status_changed', label: '테스트 케이스 상태 변경' }
+      ].map((item) => (
+        <div key={`${channel}-${item.key}`} className="notification-suboption">
+          <span>{item.label}</span>
+          <label className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={!!notificationSettings.settings?.[item.key]?.[channel]}
+              onChange={(e) => toggleDetail(channel, item.key, e.target.checked)}
+            />
+            <span className="toggle-slider"></span>
+          </label>
+        </div>
+      ))}
+    </div>
+  );
+
   const renderNotificationsSection = () => (
     <div className="profile-notifications">
       <div className="profile-section-header">
@@ -277,71 +323,82 @@ const UserProfile = () => {
       )}
 
       <div className="profile-notification-form">
-        <div className="notification-row">
-          <label>앱 내 알림</label>
-          <label className="toggle-switch">
-            <input
-              type="checkbox"
-              checked={notificationSettings.in_app_enabled}
-              onChange={(e) =>
-                setNotificationSettings({
-                  ...notificationSettings,
-                  in_app_enabled: e.target.checked
-                })
-              }
-            />
-            <span className="toggle-slider"></span>
-          </label>
+        <div className="notification-group">
+          <div className="notification-row">
+            <label>앱 내 알림</label>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={notificationSettings.in_app_enabled}
+                onChange={(e) =>
+                  setNotificationSettings({
+                    ...notificationSettings,
+                    in_app_enabled: e.target.checked
+                  })
+                }
+              />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
+          {notificationSettings.in_app_enabled && renderDetailOptions('in_app')}
         </div>
 
-        <div className="notification-row">
-          <label>이메일 알림</label>
-          <label className="toggle-switch">
-            <input
-              type="checkbox"
-              checked={notificationSettings.email_enabled}
-              onChange={(e) =>
-                setNotificationSettings({
-                  ...notificationSettings,
-                  email_enabled: e.target.checked
-                })
-              }
-            />
-            <span className="toggle-slider"></span>
-          </label>
+        <div className="notification-group">
+          <div className="notification-row">
+            <label>이메일 알림</label>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={notificationSettings.email_enabled}
+                onChange={(e) =>
+                  setNotificationSettings({
+                    ...notificationSettings,
+                    email_enabled: e.target.checked
+                  })
+                }
+              />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
+          {notificationSettings.email_enabled && renderDetailOptions('email')}
         </div>
 
-        <div className="notification-row">
-          <label>Slack 알림</label>
-          <label className="toggle-switch">
-            <input
-              type="checkbox"
-              checked={notificationSettings.slack_enabled}
-              onChange={(e) =>
-                setNotificationSettings({
-                  ...notificationSettings,
-                  slack_enabled: e.target.checked
-                })
-              }
-            />
-            <span className="toggle-slider"></span>
-          </label>
-        </div>
-
-        <div className="notification-field">
-          <label>Slack Webhook URL</label>
-          <input
-            type="text"
-            value={notificationSettings.slack_webhook_url}
-            onChange={(e) =>
-              setNotificationSettings({
-                ...notificationSettings,
-                slack_webhook_url: e.target.value
-              })
-            }
-            placeholder="Slack Webhook URL을 입력하세요"
-            disabled={!notificationSettings.slack_enabled}
-          />
+        <div className="notification-group">
+          <div className="notification-row">
+            <label>Slack 알림</label>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={notificationSettings.slack_enabled}
+                onChange={(e) =>
+                  setNotificationSettings({
+                    ...notificationSettings,
+                    slack_enabled: e.target.checked
+                  })
+                }
+              />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
+          {notificationSettings.slack_enabled && (
+            <>
+              {renderDetailOptions('slack')}
+              <div className="notification-field">
+                <label>Slack Webhook URL</label>
+                <input
+                  type="text"
+                  value={notificationSettings.slack_webhook_url}
+                  onChange={(e) =>
+                    setNotificationSettings({
+                      ...notificationSettings,
+                      slack_webhook_url: e.target.value
+                    })
+                  }
+                  placeholder="Slack Webhook URL을 입력하세요"
+                />
+              </div>
+            </>
+          )}
         </div>
 
         <div className="profile-actions">
