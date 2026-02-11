@@ -60,6 +60,12 @@ const AccountManager = () => {
     first_name: '',
     last_name: ''
   });
+  const [notificationSettings, setNotificationSettings] = useState({
+    email_enabled: true,
+    slack_enabled: false,
+    slack_webhook_url: '',
+    in_app_enabled: true
+  });
 
   useEffect(() => {
     if (currentUser) {
@@ -73,6 +79,12 @@ const AccountManager = () => {
       });
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    if (showProfileModal) {
+      fetchNotificationSettings();
+    }
+  }, [showProfileModal]);
 
   const fetchUsers = async () => {
     try {
@@ -252,6 +264,21 @@ const AccountManager = () => {
       });
 
       if (response.ok) {
+        // 알림 설정 업데이트
+        await fetch(`${config.apiUrl}/notifications/settings`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            email_enabled: notificationSettings.email_enabled,
+            slack_enabled: notificationSettings.slack_enabled,
+            slack_webhook_url: notificationSettings.slack_webhook_url,
+            in_app_enabled: notificationSettings.in_app_enabled
+          })
+        });
+
         alert('프로필이 성공적으로 수정되었습니다.');
         setShowProfileModal(false);
         // AuthContext에서 사용자 정보 새로고침
@@ -262,6 +289,30 @@ const AccountManager = () => {
       }
     } catch (err) {
       alert('프로필 수정 중 오류가 발생했습니다: ' + err.message);
+    }
+  };
+
+  const fetchNotificationSettings = async () => {
+    try {
+      const response = await fetch(`${config.apiUrl}/notifications/settings`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setNotificationSettings({
+          email_enabled: data?.email_enabled ?? true,
+          slack_enabled: data?.slack_enabled ?? false,
+          slack_webhook_url: data?.slack_webhook_url || '',
+          in_app_enabled: data?.in_app_enabled ?? true
+        });
+      }
+    } catch (err) {
+      // 무시: 알림 설정 로드 실패 시 기본값 사용
     }
   };
 
@@ -339,7 +390,7 @@ const AccountManager = () => {
             {currentUser?.first_name && currentUser?.last_name && (
               <div className="info-item">
                 <label>이름:</label>
-                <span>{currentUser.first_name} {currentUser.last_name}</span>
+                <span>{currentUser.last_name}{currentUser.first_name}</span>
               </div>
             )}
             <div className="info-item">
@@ -406,7 +457,7 @@ const AccountManager = () => {
                     </div>
                     <div className="user-details">
                       {user.first_name && user.last_name && (
-                        <div className="user-fullname">{user.first_name} {user.last_name}</div>
+                        <div className="user-fullname">{user.last_name}{user.first_name}</div>
                       )}
                       <div className="user-meta">
                         <span className={`role-badge ${(user.role || 'user').toLowerCase()}`}>
@@ -563,21 +614,21 @@ const AccountManager = () => {
                 </div>
                 <div className="form-row">
                   <div className="form-group">
-                    <label>이름:</label>
-                    <input
-                      type="text"
-                      value={editUser.first_name}
-                      onChange={(e) => setEditUser({...editUser, first_name: e.target.value})}
-                      placeholder="이름을 입력하세요"
-                    />
-                  </div>
-                  <div className="form-group">
                     <label>성:</label>
                     <input
                       type="text"
                       value={editUser.last_name}
                       onChange={(e) => setEditUser({...editUser, last_name: e.target.value})}
                       placeholder="성을 입력하세요"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>이름:</label>
+                    <input
+                      type="text"
+                      value={editUser.first_name}
+                      onChange={(e) => setEditUser({...editUser, first_name: e.target.value})}
+                      placeholder="이름을 입력하세요"
                     />
                   </div>
                 </div>
@@ -718,15 +769,6 @@ const AccountManager = () => {
                 <h4>개인 정보</h4>
                 <div className="form-row">
                   <div className="form-group">
-                    <label>이름:</label>
-                    <input
-                      type="text"
-                      value={profileData.first_name}
-                      onChange={(e) => setProfileData({...profileData, first_name: e.target.value})}
-                      placeholder="이름을 입력하세요"
-                    />
-                  </div>
-                  <div className="form-group">
                     <label>성:</label>
                     <input
                       type="text"
@@ -735,6 +777,82 @@ const AccountManager = () => {
                       placeholder="성을 입력하세요"
                     />
                   </div>
+                  <div className="form-group">
+                    <label>이름:</label>
+                    <input
+                      type="text"
+                      value={profileData.first_name}
+                      onChange={(e) => setProfileData({...profileData, first_name: e.target.value})}
+                      placeholder="이름을 입력하세요"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-section">
+                <h4>알림/이메일 수신 설정</h4>
+                <div className="form-group form-group-toggle">
+                  <label>앱 내 알림:</label>
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={notificationSettings.in_app_enabled}
+                      onChange={(e) =>
+                        setNotificationSettings({
+                          ...notificationSettings,
+                          in_app_enabled: e.target.checked
+                        })
+                      }
+                    />
+                    <span className="toggle-slider"></span>
+                  </label>
+                </div>
+                <div className="form-group form-group-toggle">
+                  <label>이메일 알림:</label>
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={notificationSettings.email_enabled}
+                      onChange={(e) =>
+                        setNotificationSettings({
+                          ...notificationSettings,
+                          email_enabled: e.target.checked
+                        })
+                      }
+                    />
+                    <span className="toggle-slider"></span>
+                  </label>
+                </div>
+                <div className="form-group form-group-toggle">
+                  <label>Slack 알림:</label>
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={notificationSettings.slack_enabled}
+                      onChange={(e) =>
+                        setNotificationSettings({
+                          ...notificationSettings,
+                          slack_enabled: e.target.checked
+                        })
+                      }
+                    />
+                    <span className="toggle-slider"></span>
+                  </label>
+                </div>
+                <div className="form-group">
+                  <label>Slack Webhook URL:</label>
+                  <input
+                    type="text"
+                    value={notificationSettings.slack_webhook_url}
+                    onChange={(e) =>
+                      setNotificationSettings({
+                        ...notificationSettings,
+                        slack_webhook_url: e.target.value
+                      })
+                    }
+                    placeholder="Slack Webhook URL을 입력하세요"
+                    disabled={!notificationSettings.slack_enabled}
+                  />
                 </div>
               </div>
             </div>
