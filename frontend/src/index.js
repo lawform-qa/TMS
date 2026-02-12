@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import '@tms/index.css';
+import '@tms/design-system/design-system.css';
 import App from '@tms/App';
 import reportWebVitals from '@tms/reportWebVitals';
 

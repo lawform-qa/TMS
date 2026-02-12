@@ -1,11 +1,11 @@
 .App {
   text-align: center;
   min-height: 100vh;
-  background-color: #f5f5f5;
+  background-color: var(--tms-bg);
 }
 
 .App-header {
-  background-color: #2c3e50;
+  background-color: var(--tms-primary);
   color: white;
   padding: 1rem 2rem;
   text-align: center;
@@ -23,11 +23,11 @@
   opacity: 0.9;
 }
 
-/* 네비게이션 바 */
+/* 네비게이션 바 - 로폼 스타일 딥블루 */
 .navbar {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--tms-primary);
   padding: 1rem 2rem;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 10px rgba(15, 76, 129, 0.2);
   position: sticky;
   top: 0;
   z-index: 1000;
@@ -62,7 +62,7 @@
 }
 
 .admin-badge {
-  background: rgba(220, 53, 69, 0.8);
+  background: rgba(220, 53, 69, 0.9);
   padding: 4px 8px;
   border-radius: 12px;
   font-size: 12px;
@@ -70,7 +70,7 @@
 }
 
 .user-badge {
-  background: rgba(0, 123, 255, 0.8);
+  background: var(--tms-accent);
   padding: 4px 8px;
   border-radius: 12px;
   font-size: 12px;
@@ -78,7 +78,7 @@
 }
 
 .guest-badge {
-  background: rgba(108, 117, 125, 0.8);
+  background: rgba(100, 116, 139, 0.9);
   padding: 4px 8px;
   border-radius: 12px;
   font-size: 12px;
@@ -116,13 +116,14 @@
 }
 
 .nav-logout {
-  background: rgba(239, 68, 68, 0.8);
+  background: var(--tms-error);
   min-width: 48px;
   padding: 0.75rem;
 }
 
 .nav-logout:hover {
-  background: rgba(239, 68, 68, 1);
+  background: #b91c1c;
+  filter: brightness(1.05);
 }
 
 /* 메인 콘텐츠 */
@@ -182,10 +183,11 @@
 }
 
 .test-case-form {
-  background: white;
+  background: var(--tms-bg-card);
   padding: 20px;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(15, 76, 129, 0.06);
+  border: 1px solid var(--tms-border);
   margin-bottom: 20px;
 }
 
@@ -204,7 +206,7 @@
 .form-group textarea {
   width: 100%;
   padding: 8px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--tms-border);
   border-radius: 4px;
   font-size: 14px;
 }
@@ -217,15 +219,16 @@
 /* 버튼/모달 스타일은 각 페이지 컴포넌트 CSS에서 스코프하여 사용 */
 
 .test-cases-list {
-  background: white;
+  background: var(--tms-bg-card);
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(15, 76, 129, 0.06);
+  border: 1px solid var(--tms-border);
   overflow: hidden;
 }
 
 .test-case-item {
   padding: 15px 20px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--tms-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -253,18 +256,18 @@
 }
 
 .status-pass {
-  background-color: #d4edda;
-  color: #155724;
+  background-color: var(--tms-success-bg);
+  color: var(--tms-success);
 }
 
 .status-fail {
-  background-color: #f8d7da;
-  color: #721c24;
+  background-color: var(--tms-error-bg);
+  color: var(--tms-error);
 }
 
 .status-nt {
-  background-color: #fff3cd;
-  color: #856404;
+  background-color: var(--tms-warning-bg);
+  color: var(--tms-warning);
 }
 
 /* 모달 스타일은 common/Modal.css(공통 모달) 또는 각 페이지 스코프 CSS에서 정의 */
