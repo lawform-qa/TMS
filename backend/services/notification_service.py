@@ -72,6 +72,31 @@ class NotificationService:
             logger.error(f"알림 생성 오류: {str(e)}")
             db.session.rollback()
             raise
+
+    def _is_channel_enabled(self, user_settings, notification_type, channel):
+        """채널별 알림 활성화 여부 확인"""
+        if not user_settings:
+            return True
+
+        # 전역 채널 설정
+        if channel == 'in_app' and not user_settings.in_app_enabled:
+            return False
+        if channel == 'slack' and not user_settings.slack_enabled:
+            return False
+        if channel == 'email' and not user_settings.email_enabled:
+            return False
+
+        # 타입별 상세 설정
+        try:
+            settings = json.loads(user_settings.settings) if user_settings.settings else {}
+        except Exception:
+            settings = {}
+
+        type_settings = settings.get(notification_type, {})
+        if not type_settings:
+            return True
+
+        return bool(type_settings.get(channel, True))
     
     def notify_test_failed(self, test_case_id, test_result_id, user_id=None):
         """테스트 실패 알림"""
@@ -272,6 +297,10 @@ class NotificationService:
         """WebSocket을 통해 실시간 알림 전송"""
         try:
             from app import socketio
+            user_settings = NotificationSettings.query.filter_by(user_id=notification.user_id).first()
+            if not self._is_channel_enabled(user_settings, notification.notification_type, 'in_app'):
+                logger.info(f"🔔 인앱 알림 비활성화: User {notification.user_id}, type={notification.notification_type}")
+                return
             
             # 해당 사용자에게만 알림 전송
             socketio.emit('notification', notification.to_dict(), room=f'user_{notification.user_id}')
@@ -285,6 +314,9 @@ class NotificationService:
         try:
             # 사용자별 슬랙 설정 확인
             user_settings = NotificationSettings.query.filter_by(user_id=user_id).first()
+            if not self._is_channel_enabled(user_settings, notification.notification_type, 'slack'):
+                logger.info(f"🔔 슬랙 알림 비활성화: User {user_id}, type={notification.notification_type}")
+                return
             
             # 슬랙 웹훅 URL 확인 (사용자별 설정 우선, 없으면 전역 환경 변수)
             slack_webhook_url = None

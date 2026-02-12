@@ -808,7 +808,9 @@ const TestCaseAPP = ({ setActiveTab }) => {
                 <tr>
                   <th>기대결과</th>
                   <td colSpan="3" className="expected-result">
-                    {selectedTestCase.expected_result || '없음'}
+                    <div className="expected-result-content">
+                      {selectedTestCase.expected_result || '없음'}
+                    </div>
                   </td>
                 </tr>
                 <tr>

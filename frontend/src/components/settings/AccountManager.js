@@ -74,6 +74,7 @@ const AccountManager = () => {
     }
   }, [currentUser]);
 
+
   const fetchUsers = async () => {
     try {
       setLoading(true);
@@ -265,6 +266,7 @@ const AccountManager = () => {
     }
   };
 
+
   const openEditUserModal = (user) => {
     setSelectedUser(user);
     setEditUser({
@@ -339,7 +341,7 @@ const AccountManager = () => {
             {currentUser?.first_name && currentUser?.last_name && (
               <div className="info-item">
                 <label>이름:</label>
-                <span>{currentUser.first_name} {currentUser.last_name}</span>
+                <span>{currentUser.last_name}{currentUser.first_name}</span>
               </div>
             )}
             <div className="info-item">
@@ -406,7 +408,7 @@ const AccountManager = () => {
                     </div>
                     <div className="user-details">
                       {user.first_name && user.last_name && (
-                        <div className="user-fullname">{user.first_name} {user.last_name}</div>
+                        <div className="user-fullname">{user.last_name}{user.first_name}</div>
                       )}
                       <div className="user-meta">
                         <span className={`role-badge ${(user.role || 'user').toLowerCase()}`}>
@@ -563,21 +565,21 @@ const AccountManager = () => {
                 </div>
                 <div className="form-row">
                   <div className="form-group">
-                    <label>이름:</label>
-                    <input
-                      type="text"
-                      value={editUser.first_name}
-                      onChange={(e) => setEditUser({...editUser, first_name: e.target.value})}
-                      placeholder="이름을 입력하세요"
-                    />
-                  </div>
-                  <div className="form-group">
                     <label>성:</label>
                     <input
                       type="text"
                       value={editUser.last_name}
                       onChange={(e) => setEditUser({...editUser, last_name: e.target.value})}
                       placeholder="성을 입력하세요"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>이름:</label>
+                    <input
+                      type="text"
+                      value={editUser.first_name}
+                      onChange={(e) => setEditUser({...editUser, first_name: e.target.value})}
+                      placeholder="이름을 입력하세요"
                     />
                   </div>
                 </div>
@@ -718,15 +720,6 @@ const AccountManager = () => {
                 <h4>개인 정보</h4>
                 <div className="form-row">
                   <div className="form-group">
-                    <label>이름:</label>
-                    <input
-                      type="text"
-                      value={profileData.first_name}
-                      onChange={(e) => setProfileData({...profileData, first_name: e.target.value})}
-                      placeholder="이름을 입력하세요"
-                    />
-                  </div>
-                  <div className="form-group">
                     <label>성:</label>
                     <input
                       type="text"
@@ -735,8 +728,19 @@ const AccountManager = () => {
                       placeholder="성을 입력하세요"
                     />
                   </div>
+                  <div className="form-group">
+                    <label>이름:</label>
+                    <input
+                      type="text"
+                      value={profileData.first_name}
+                      onChange={(e) => setProfileData({...profileData, first_name: e.target.value})}
+                      placeholder="이름을 입력하세요"
+                    />
+                  </div>
                 </div>
               </div>
+
+              
             </div>
             <div className="modal-footer">
               <div className="modal-actions">

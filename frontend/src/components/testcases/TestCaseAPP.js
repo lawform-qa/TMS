@@ -408,7 +408,7 @@ const TestCaseAPP = ({ setActiveTab }) => {
 
     const total = filteredTestCases.length;
     const tested = Math.max(total - counts.nt, 0);
-    const passRate = tested > 0 ? Math.round((counts.pass / tested) * 100) : 0;
+    const passRate = tested > 0 ? Math.round((counts.pass / total) * 100) : 0;
     const calcPercent = (value) => (total > 0 ? Math.round((value / total) * 100) : 0);
     const percentPass = calcPercent(counts.pass);
     const percentFail = calcPercent(counts.fail);
@@ -1354,7 +1354,9 @@ const TestCaseAPP = ({ setActiveTab }) => {
                     <tr>
                       <th>기대결과</th>
                       <td colSpan="3" className="expected-result">
-                        {selectedTestCase.expected_result || '없음'}
+                        <div className="expected-result-content">
+                          {selectedTestCase.expected_result || '없음'}
+                        </div>
                       </td>
                     </tr>
                     <tr>
