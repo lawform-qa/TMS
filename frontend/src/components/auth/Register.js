@@ -108,11 +108,11 @@ const Register = ({ onSwitchToLogin }) => {
         <div className="login-card">
           <form onSubmit={handleSubmit} className="login-form">
             {error && (
-              <div className="auth-error">❌ {error}</div>
+              <div className="regi-error">❌ {error}</div>
             )}
 
             {success && (
-              <div className="auth-success">✅ {success}</div>
+              <div className="regi-success">✅ {success}</div>
             )}
 
             <div className="name-row">
@@ -271,7 +271,7 @@ const Register = ({ onSwitchToLogin }) => {
           {'이미 계정이 있으신가요? '}
           <button
             type="button"
-            className="auth-link"
+            className="regi-link"
             onClick={onSwitchToLogin}
             disabled={loading}
           >

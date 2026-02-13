@@ -78,7 +78,7 @@ export default function Page({ onSwitchToRegister }) {
         <div className="login-card">
           <form onSubmit={handleSubmit} className="login-form">
             {error && (
-              <div className="auth-error">
+              <div className="regi-error">
                 ❌ {error}
               </div>
             )}
@@ -213,7 +213,7 @@ export default function Page({ onSwitchToRegister }) {
           {"계정이 없으신가요? "}
           <button 
             type="button"
-            className="auth-link"
+            className="regi-link"
             onClick={onSwitchToRegister}
             disabled={isLoading}
           >
