@@ -182,27 +182,29 @@ export default function Page({ onSwitchToRegister }) {
               </div>
             </div>
 
-            {/* Submit */}
-            <button type="submit" disabled={isLoading} className="submit-btn">
-              {isLoading ? (
-                <>
-                  <span className="spinner" />
-                  {"로그인 중..."}
-                </>
-              ) : (
-                "로그인"
-              )}
-            </button>
+            <div className="name-row">
+              {/* Guest */}
+              <button 
+                type="button" 
+                className="guest-btn"
+                onClick={handleGuestLogin}
+                disabled={isLoading}
+              >
+                게스트 로그인
+              </button>
 
-            {/* Guest */}
-            <button 
-              type="button" 
-              className="guest-btn"
-              onClick={handleGuestLogin}
-              disabled={isLoading}
-            >
-              게스트 로그인
-            </button>
+              {/* Submit */}
+              <button type="submit" disabled={isLoading} className="submit-btn">
+                {isLoading ? (
+                  <>
+                    <span className="spinner" />
+                    {"로그인 중..."}
+                  </>
+                ) : (
+                  "로그인"
+                )}
+              </button>
+            </div>
           </form>
         </div>
 
