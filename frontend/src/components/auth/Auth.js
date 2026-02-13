@@ -15,7 +15,7 @@ const Auth = () => {
   };
 
   return (
-    <div className="auth-container">
+    <div>
       {isLogin ? (
         <Login onSwitchToRegister={switchToRegister} />
       ) : (
