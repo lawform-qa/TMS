@@ -110,7 +110,7 @@ export default function Page({ onSwitchToRegister }) {
                   placeholder="아이디를 입력하세요"
                   required
                   autoComplete="username"
-                  className="input-field"
+                  className="input-field input-field--loginid"
                   value={formData.username}
                   onChange={handleChange}
                   disabled={isLoading}
