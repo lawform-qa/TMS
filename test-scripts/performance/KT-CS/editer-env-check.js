@@ -54,9 +54,6 @@ export function setup() {
       'LOGIN_ID(또는 EMAIL)와 LOGIN_PASSWORD(또는 PASSWORD) 환경변수가 필요합니다.'
     );
   }
-  if (RAW_BASE_URL.replace(/\/+$/, '') !== BASE_URL) {
-    console.log(`[env-check] BASE_URL 정규화: ${RAW_BASE_URL} → ${BASE_URL}`);
-  }
   console.log(`[env-check] BASE_URL=${BASE_URL} (API origin)`);
   console.log(`[env-check] LOGIN_PATH=${BASE_URL}/api/login/email`);
   console.log(`[env-check] LOGIN_ID=${LOGIN_ID}`);

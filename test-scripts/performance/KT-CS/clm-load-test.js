@@ -62,8 +62,13 @@ function randomBetween(min, max) {
 // CSV 헤더: email,password
 // ------------------------------------------------------------------
 const accounts = new SharedArray('accounts', function () {
-  const csv = open(ACCOUNTS_CSV);
-  const parsed = papaparse.parse(csv.replace(/\r\n/g, '\n').replace(/\r/g, '\n'), { header: true, skipEmptyLines: true });
+  // Windows(Excel)에서 저장한 CSV는 UTF-8 BOM(﻿)이 앞에 붙어서 나오는데,
+  // papaparse는 이걸 제거하지 않아 첫 헤더가 "﻿email"이 되어 account.email이 undefined가 됨 → 반드시 먼저 제거
+  const csv = open(ACCOUNTS_CSV)
+    .replace(/^﻿/, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
+  const parsed = papaparse.parse(csv, { header: true, skipEmptyLines: true });
   console.log(`[accounts] 총 ${parsed.data.length}개 계정 로드됨`);
   if (parsed.data.length > 0) {
     console.log(`[accounts] 첫 번째 행: ${JSON.stringify(parsed.data[0])}`);
@@ -76,6 +81,18 @@ const accounts = new SharedArray('accounts', function () {
   }
   return parsed.data;
 });
+
+// read_flow / write_flow가 같은 계정으로 동시에 로그인하면 세션·토큰이 서로
+// 무효화될 수 있어, 위 VU 분배(read:write = 4:1)와 동일한 비율로 계정 풀도 분리한다.
+const READ_ACCOUNTS_SPLIT = Math.min(
+  accounts.length - 1,
+  Math.max(1, Math.round(accounts.length * 0.8))
+);
+let readAccounts = accounts.slice(0, READ_ACCOUNTS_SPLIT);
+let writeAccounts = accounts.slice(READ_ACCOUNTS_SPLIT);
+// 계정이 1~2건뿐인 스모크 테스트 등 극단적인 경우엔 분리하면 한쪽 풀이 비므로 폴백
+if (!readAccounts.length) readAccounts = accounts;
+if (!writeAccounts.length) writeAccounts = accounts;
 
 // ------------------------------------------------------------------
 // 커스텀 메트릭
@@ -200,8 +217,8 @@ function logError(scriptErrors, label, account, status, extra) {
 // 시나리오 1: 읽기 플로우 (read_flow)
 // ------------------------------------------------------------------
 export function readFlow() {
-  const idx = exec.scenario.iterationInTest % accounts.length;
-  const account = accounts[idx];
+  const idx = exec.scenario.iterationInTest % readAccounts.length;
+  const account = readAccounts[idx];
   let ok = true;
   let token = null;
 
@@ -245,8 +262,8 @@ export function readFlow() {
 // 시나리오 2: 생성/수정/삭제 플로우 (write_flow)
 // ------------------------------------------------------------------
 export function writeFlow() {
-  const idx = exec.scenario.iterationInTest % accounts.length;
-  const account = accounts[idx];
+  const idx = exec.scenario.iterationInTest % writeAccounts.length;
+  const account = writeAccounts[idx];
   let ok = true;
   let token = null;
   let clmId = null;

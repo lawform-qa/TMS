@@ -73,7 +73,12 @@ function randomBetween(min, max) {
 //   clm_id: CLM 연동 전자서명 테스트 시에만 포함 (없으면 생략)
 // ------------------------------------------------------------------
 const accounts = new SharedArray('accounts', function () {
-  const csv = open(ACCOUNTS_CSV);
+  // Windows(Excel)에서 저장한 CSV는 UTF-8 BOM(﻿)이 앞에 붙어서 나오는데,
+  // papaparse는 이걸 제거하지 않아 첫 헤더가 "﻿email"이 되어 account.email이 undefined가 됨 → 반드시 먼저 제거
+  const csv = open(ACCOUNTS_CSV)
+    .replace(/^﻿/, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
   const parsed = papaparse.parse(csv, { header: true, skipEmptyLines: true });
   if (!parsed.data.length) {
     throw new Error(
