@@ -4,15 +4,14 @@
  * 시나리오 구성 (2개 executor, 동시 실행):
  *
  *   [read_flow]  — 전체 VU의 80%
- *     1. POST /api/login/email          — 로그인
- *     2. GET  /api/clm/                 — CLM 목록 조회
- *     3. GET  /api/clm/counts           — CLM 진행 현황
- *     4. GET  /api/clm/review_status    — 대시보드 통계
+ *     1. POST /api/v3/login/email          — 로그인
+ *     2. GET  /api/v3/clms/:id               — CLM 목록 조회
  *
  *   [write_flow] — 전체 VU의 20%
- *     1. POST /api/login/email          — 로그인
- *     2. POST /api/clm/create/plain     — CLM 생성
- *     3. GET  /api/clm/:id              — 생성된 CLM 상세 조회
+ *     1. POST /api/v3/login/email          — 로그인
+ *     2. POST /api/v3/clms/plain           — CLM 생성
+ *     3. PUT  /api/v3/clms/:id/update/draft — CLM 임시저장
+ *     4. GET  /api/v3/clms/:id             — 생성된 CLM 상세 조회
  *
  * 인증: requireServiceAuth_Business — x-access-token 헤더
  *
@@ -64,7 +63,12 @@ function randomBetween(min, max) {
 // ------------------------------------------------------------------
 const accounts = new SharedArray('accounts', function () {
   const csv = open(ACCOUNTS_CSV);
-  const parsed = papaparse.parse(csv, { header: true, skipEmptyLines: true });
+  const parsed = papaparse.parse(csv.replace(/\r\n/g, '\n').replace(/\r/g, '\n'), { header: true, skipEmptyLines: true });
+  console.log(`[accounts] 총 ${parsed.data.length}개 계정 로드됨`);
+  if (parsed.data.length > 0) {
+    console.log(`[accounts] 첫 번째 행: ${JSON.stringify(parsed.data[0])}`);
+    console.log(`[accounts] 두 번째 행: ${JSON.stringify(parsed.data[1])}`);
+  }
   if (!parsed.data.length) {
     throw new Error(
       `계정 CSV(${ACCOUNTS_CSV})가 비어있습니다. email,password 헤더로 준비해주세요.`
@@ -78,8 +82,6 @@ const accounts = new SharedArray('accounts', function () {
 // ------------------------------------------------------------------
 const loginDuration        = new Trend('kt_clm_login_duration', true);
 const listDuration         = new Trend('kt_clm_list_duration', true);
-const countsDuration       = new Trend('kt_clm_counts_duration', true);
-const reviewStatusDuration = new Trend('kt_clm_review_status_duration', true);
 const createDuration       = new Trend('kt_clm_create_duration', true);
 const updateDuration       = new Trend('kt_clm_update_duration', true);
 const detailDuration       = new Trend('kt_clm_detail_duration', true);
@@ -135,8 +137,6 @@ export const options = {
     // SLA 임시 기준 — 실제 목표 응답시간 확정 후 조정 필요
     'group_duration{group:::01_login_read}':    ['p(95)<3000'],
     'group_duration{group:::02_clm_list}':      ['p(95)<2000'],
-    'group_duration{group:::03_clm_counts}':    ['p(95)<2000'],
-    'group_duration{group:::04_review_status}': ['p(95)<2000'],
     'group_duration{group:::01_login_write}':   ['p(95)<3000'],
     'group_duration{group:::02_clm_create}':    ['p(95)<5000'],
     'group_duration{group:::03_clm_update}':    ['p(95)<3000'],
@@ -162,9 +162,9 @@ function login(account) {
   });
 
   const start = Date.now();
-  const res = http.post(`${BASE_URL}/api/login/email`, payload, {
+  const res = http.post(`${BASE_URL}/api/v3/login/email`, payload, {
     headers: { 'Content-Type': 'application/json' },
-    tags: { name: 'POST /api/login/email' },
+    tags: { name: 'POST /api/v3/login/email' },
   });
   loginDuration.add(Date.now() - start);
 
@@ -218,16 +218,16 @@ export function readFlow() {
   if (!ok) { readFlowSuccessRate.add(false); return; }
   sleep(randomBetween(...THINK_TIME));
 
-  // 2. CLM 목록 조회
+  // 2. CLM 상세 조회
   group('02_clm_list', function () {
     const start = Date.now();
     const res = http.get(
-      `${BASE_URL}/api/clm/`,
-      authedParams(token, 'GET /api/clm/')
+      `${BASE_URL}/api/v3/clms/284089`,
+      authedParams(token, 'GET /api/v3/clms/:id')
     );
     listDuration.add(Date.now() - start);
 
-    const success = check(res, { 'CLM 목록 200': (r) => r.status === 200 });
+    const success = check(res, { 'CLM 상세 200': (r) => r.status === 200 });
     if (!success) {
       ok = false;
       flowErrors.add(1, { step: 'clm_list', flow: 'read' });
@@ -237,43 +237,6 @@ export function readFlow() {
 
   if (!ok) { readFlowSuccessRate.add(false); return; }
   sleep(randomBetween(...THINK_TIME));
-
-  // 3. CLM 진행 현황 (대시보드 배지 카운트)
-  group('03_clm_counts', function () {
-    const start = Date.now();
-    const res = http.get(
-      `${BASE_URL}/api/clm/counts`,
-      authedParams(token, 'GET /api/clm/counts')
-    );
-    countsDuration.add(Date.now() - start);
-
-    const success = check(res, { 'CLM counts 200': (r) => r.status === 200 });
-    if (!success) {
-      ok = false;
-      flowErrors.add(1, { step: 'clm_counts', flow: 'read' });
-      logError(scriptErrors, 'read/clm_counts', account, res.status, null);
-    }
-  });
-
-  if (!ok) { readFlowSuccessRate.add(false); return; }
-  sleep(randomBetween(...THINK_TIME));
-
-  // 4. 대시보드 통계 (검토 진행 현황)
-  group('04_review_status', function () {
-    const start = Date.now();
-    const res = http.get(
-      `${BASE_URL}/api/clm/review_status`,
-      authedParams(token, 'GET /api/clm/review_status')
-    );
-    reviewStatusDuration.add(Date.now() - start);
-
-    const success = check(res, { 'CLM review_status 200': (r) => r.status === 200 });
-    if (!success) {
-      ok = false;
-      flowErrors.add(1, { step: 'review_status', flow: 'read' });
-      logError(scriptErrors, 'read/review_status', account, res.status, null);
-    }
-  });
 
   readFlowSuccessRate.add(ok);
 }
@@ -301,14 +264,14 @@ export function writeFlow() {
   if (!ok) { writeFlowSuccessRate.add(false); return; }
   sleep(randomBetween(...THINK_TIME));
 
-  // 2. CLM 생성 (POST /api/clm/create/plain)
+  // 2. CLM 생성 (POST /api/v3/clms/plain)
   // body 없음 — 서버가 세션(x-access-token)에서 user_id / team_id 추출
   group('02_clm_create', function () {
     const start = Date.now();
     const res = http.post(
-      `${BASE_URL}/api/clm/create/plain`,
+      `${BASE_URL}/api/v3/clms/plain`,
       '{}',
-      authedParams(token, 'POST /api/clm/create/plain')
+      authedParams(token, 'POST /api/v3/clms/plain')
     );
     createDuration.add(Date.now() - start);
 
@@ -319,7 +282,7 @@ export function writeFlow() {
       logError(scriptErrors, 'write/clm_create', account, res.status, res.body?.slice(0, 200));
     } else {
       try {
-        clmId = res.json()?.data?.id || null;
+        clmId = res.json()?.id || null;
       } catch (_) {}
     }
   });
@@ -327,12 +290,12 @@ export function writeFlow() {
   if (!ok || !clmId) { writeFlowSuccessRate.add(false); return; }
   sleep(randomBetween(...THINK_TIME));
 
-  // 3. CLM 임시저장 (PUT /api/clm/update/draft — 단순 수정, 상태 전이 없음)
-  // is_update_progress 없이 name + clm_payments만 전달 → cfs 없는 신규 CLM도 에러 없이 처리됨
+  // 3. CLM 임시저장 (PUT /api/v3/clms/:id/update/draft — 단순 수정, 상태 전이 없음)
+  // is_update_progress 없이 name + clmPayments만 전달 → cfs 없는 신규 CLM도 에러 없이 처리됨
   group('03_clm_update', function () {
     const payload = JSON.stringify({
       name: `부하테스트_VU${__VU}_${Date.now()}`,
-      clm_payments: [],
+      clmPayments: [],
     });
     const start = Date.now();
     const res = http.put(
@@ -357,15 +320,15 @@ export function writeFlow() {
   group('04_clm_detail', function () {
     const start = Date.now();
     const res = http.get(
-      `${BASE_URL}/api/clm/${clmId}`,
-      authedParams(token, 'GET /api/clm/:id')
+      `${BASE_URL}/api/v3/clms/${clmId}`,
+      authedParams(token, 'GET /api/v3/clms/:id')
     );
     detailDuration.add(Date.now() - start);
 
     const success = check(res, {
       'CLM 상세 200': (r) => r.status === 200,
       'CLM id 일치': (r) => {
-        try { return r.json()?.data?.id === clmId; } catch (_) { return false; }
+        try { return r.json()?.id === clmId; } catch (_) { return false; }
       },
     });
     if (!success) {

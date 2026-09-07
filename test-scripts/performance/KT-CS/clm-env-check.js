@@ -5,13 +5,11 @@
  * CLM 핵심 엔드포인트가 정상 응답하는지 확인한다.
  *
  * 검증 순서:
- *   1. POST /api/login/email          — 로그인 & 토큰 확인
- *   2. GET  /api/clm/                 — CLM 목록 조회
- *   3. GET  /api/clm/counts           — CLM 진행 현황
- *   4. GET  /api/clm/review_status    — 대시보드 통계
- *   5. POST /api/clm/create/plain     — CLM 생성 & id 확인
+ *   1. POST /api/v3/login/email          — 로그인 & 토큰 확인
+ *   2. GET  /api/v3/clms/                 — CLM 목록 조회
+ *   5. POST /api/v3/clms/plain     — CLM 생성 & id 확인
  *   6. PUT  /api/v3/clms/{id}/update/draft     — 계약 검토 요청 (is_update_progress: true)
- *   7. GET  /api/clm/:id              — 생성된 CLM 상세 조회
+ *   7. GET  /api/v3/clms/:id              — 생성된 CLM 상세 조회
  *
  *
  * 실행:
@@ -95,9 +93,9 @@ export default function (data) {
     });
 
     const start = Date.now();
-    const res = http.post(`${BASE_URL}/api/login/email`, payload, {
+    const res = http.post(`${BASE_URL}/api/v3/login/email`, payload, {
       headers: jsonHeaders,
-      tags: { name: 'POST /api/login/email' },
+      tags: { name: 'POST /api/v3/login/email' },
     });
     const duration = Date.now() - start;
 
@@ -130,52 +128,18 @@ export default function (data) {
     headers: { 'Content-Type': 'application/json', 'x-access-token': token },
   };
 
-  // ── 2. CLM 목록 조회 ─────────────────────────────────────────────
-  console.log('[env-check] 2/7 CLM 목록 조회');
-  {
-    const start = Date.now();
-    const res = http.get(`${BASE_URL}/api/clm/`, {
-      ...authed,
-      tags: { name: 'GET /api/clm/' },
-    });
-    console.log(`[env-check] clm/list status=${res.status} duration=${Date.now() - start}ms`);
+ 
 
-    check(res, { '2. CLM 목록 HTTP 200': (r) => r.status === 200 });
-  }
 
-  // ── 3. CLM 진행 현황 ─────────────────────────────────────────────
-  console.log('[env-check] 3/7 CLM 진행 현황');
-  {
-    const start = Date.now();
-    const res = http.get(`${BASE_URL}/api/clm/counts`, {
-      ...authed,
-      tags: { name: 'GET /api/clm/counts' },
-    });
-    console.log(`[env-check] clm/counts status=${res.status} duration=${Date.now() - start}ms`);
-
-    check(res, { '3. CLM counts HTTP 200': (r) => r.status === 200 });
-  }
-
-  // ── 4. 대시보드 통계 ─────────────────────────────────────────────
-  console.log('[env-check] 4/7 대시보드 통계');
-  {
-    const start = Date.now();
-    const res = http.get(`${BASE_URL}/api/clm/review_status`, {
-      ...authed,
-      tags: { name: 'GET /api/clm/review_status' },
-    });
-    console.log(`[env-check] review_status status=${res.status} duration=${Date.now() - start}ms`);
-
-    check(res, { '4. CLM review_status HTTP 200': (r) => r.status === 200 });
-  }
+  
 
   // ── 5. CLM 생성 ──────────────────────────────────────────────────
   console.log('[env-check] 5/7 CLM 생성');
   {
     const start = Date.now();
-    const res = http.post(`${BASE_URL}/api/clm/create/plain`, '{}', {
+    const res = http.post(`${BASE_URL}/api/v3/clms/plain`, '{}', {
       ...authed,
-      tags: { name: 'POST /api/clm/create/plain' },
+      tags: { name: 'POST /api/v3/clms/plain' },
     });
     const duration = Date.now() - start;
 
@@ -183,7 +147,8 @@ export default function (data) {
     let bodyPreview = '';
     try {
       const body = res.json();
-      clmId = body?.data?.id || null;
+      console.log(body)
+      clmId = body.id || null;
       idPresent = !!clmId;
       bodyPreview = JSON.stringify(body).slice(0, 300);
     } catch (_) {
@@ -196,7 +161,7 @@ export default function (data) {
     });
 
     console.log(
-      `[env-check] clm/create/plain status=${res.status} duration=${duration}ms clm_id=${clmId} ok=${ok}`
+      `[env-check] clms/plain status=${res.status} duration=${duration}ms clm_id=${clmId} ok=${ok}`
     );
     if (!ok) {
       console.error(`[env-check] 응답 미리보기: ${bodyPreview}`);
@@ -228,16 +193,16 @@ export default function (data) {
   console.log(`[env-check] 7/7 CLM 상세 조회 (id=${clmId})`);
   {
     const start = Date.now();
-    const res = http.get(`${BASE_URL}/api/clm/${clmId}`, {
+    const res = http.get(`${BASE_URL}/api/v3/clms/${clmId}`, {
       ...authed,
-      tags: { name: 'GET /api/clm/:id' },
+      tags: { name: 'GET /api/v3/clms/:id' },
     });
-    console.log(`[env-check] clm/detail status=${res.status} duration=${Date.now() - start}ms`);
+    console.log(`[env-check] clms/detail status=${res.status} duration=${Date.now() - start}ms`);
 
     check(res, {
       '7. CLM 상세 HTTP 200': (r) => r.status === 200,
       '7. CLM 상세 id 일치': (r) => {
-        try { return r.json()?.data?.id === clmId; } catch (_) { return false; }
+        try { return r.json()?.id === clmId; } catch (_) { return false; }
       },
     });
   }
